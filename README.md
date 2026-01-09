@@ -9,6 +9,12 @@ Foundational codebase for an AI-driven HTS classification suite that delivers th
 - Prisma wired for PostgreSQL + pgvector plus resilient Prisma client helper
 - Supabase admin client stub and environment contract for future project wiring
 
+## Phase 2 · Domain modeling (in-progress)
+
+- Multi-tenant Prisma schema covering organizations, memberships, products, materials, classifications, dossiers, risk flags, duty summaries, vault files, legal notes, and tariff metadata
+- Validation layer powered by Zod for product intake and classification pipelines
+- Server actions for creating and updating products plus classification upserts, ready to plug into UI flows or background workers
+
 ## Getting started
 
 1. `cp env.example .env` and supply `DATABASE_URL`, Supabase keys, and app URL.
