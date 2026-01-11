@@ -9,7 +9,7 @@ async function signInWithGoogle(formData: FormData) {
 
   const redirectTo =
     (formData.get("redirectTo") as string | null) ?? "/dashboard"
-  const supabase = await getSupabaseServerClient()
+  const supabase = getSupabaseServerClient()
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
@@ -36,11 +36,23 @@ async function signInWithGoogle(formData: FormData) {
 type LoginPageProps = {
   searchParams?: {
     redirectTo?: string
+    code?: string
   }
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const supabase = await getSupabaseServerClient()
+  // If we have an auth code, redirect to callback route
+  // This is a fallback in case middleware doesn't catch it
+  if (searchParams?.code) {
+    const callbackUrl = new URL("/auth/callback", process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000")
+    if (searchParams.redirectTo) {
+      callbackUrl.searchParams.set("redirectTo", searchParams.redirectTo)
+    }
+    callbackUrl.searchParams.set("code", searchParams.code)
+    redirect(callbackUrl.toString())
+  }
+
+  const supabase = getSupabaseServerClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()

@@ -1,11 +1,10 @@
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["postgresqlExtensions"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider   = "postgresql"
-  extensions = [pgvector(schema: "public")]
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 enum MembershipRole {
@@ -61,6 +60,7 @@ model Organization {
   classifications Classification[]
   referenceFiles  VaultFile[]
   auditLogs       AuditLog[]
+  chatSessions    ChatSession[]
 }
 
 model User {
@@ -76,6 +76,7 @@ model User {
   dossiers        Dossier[]
   auditLogs       AuditLog[]
   uploads         VaultFile[]      @relation("VaultUploader")
+  chatSessions    ChatSession[]    @relation("ChatSessions")
 }
 
 model Membership {
@@ -144,28 +145,36 @@ model VaultFile {
 }
 
 model Classification {
-  id             String                 @id @default(cuid())
-  organizationId String
-  productId      String
-  reviewerId     String?
-  market         MarketCode
-  htsCode        String?
-  status         ClassificationStatus   @default(DRAFT)
-  confidence     Decimal?               @db.Decimal(5, 2)
-  summary        String?
-  reasoningTrail Json?
-  exclusionNotes Json?
-  humanNotes     String?
-  requiresReview Boolean                @default(false)
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
-  organization   Organization           @relation(fields: [organizationId], references: [id])
-  product        Product                @relation(fields: [productId], references: [id])
-  reviewer       User?                  @relation("ClassificationReviewers", fields: [reviewerId], references: [id])
-  dossier        Dossier?
-  dutySummary    DutySummary?
-  riskFlags      RiskFlag[]
-  sources        ClassificationSource[]
+  id                String                 @id @default(cuid())
+  organizationId    String
+  productId        String
+  reviewerId        String?
+  market            MarketCode
+  hsCode            String?                // HS Code (6 digits) - base international code
+  htsCode           String?                // HTS Code (10 digits) - US extension
+  status            ClassificationStatus   @default(DRAFT)
+  confidence        Decimal?               @db.Decimal(5, 2)
+  summary           String?
+  reasoningTrail    Json?
+  exclusionNotes    Json?
+  humanNotes        String?
+  requiresReview    Boolean                @default(false)
+  refinementQuestion String?              // AI refinement question
+  refinementAnswer   String?              // User's answer to refinement question
+  legalRationale    String?              // AI-generated legal rationale
+  distinctions      Json?                 // Array of {heading, reason} distinctions
+  keyFeatures       Json?                 // Array of key product features
+  griRule           String?               // GRI rule applied
+  notes             String?               // Additional classification notes
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  organization      Organization           @relation(fields: [organizationId], references: [id])
+  product           Product                @relation(fields: [productId], references: [id])
+  reviewer          User?                  @relation("ClassificationReviewers", fields: [reviewerId], references: [id])
+  dossier           Dossier?
+  dutySummary       DutySummary?
+  riskFlags         RiskFlag[]
+  sources           ClassificationSource[]
 
   @@index([organizationId, market])
   @@index([productId, market])
@@ -224,11 +233,46 @@ model LegalNote {
   heading   Int?
   noteKey   String?
   content   String
+  market    MarketCode
   embedding Unsupported("vector")?
   createdAt DateTime               @default(now())
   updatedAt DateTime               @updatedAt
 
-  @@index([chapter, heading])
+  @@index([chapter, heading, market])
+}
+
+model LegalSourceChunk {
+  id          String                  @id @default(cuid())
+  source      String
+  regulation  String
+  language    String                  @default("EN")
+  sectionPath String
+  content     String
+  sha256      String                  @unique
+  pageStart   Int?
+  pageEnd     Int?
+  embedding   Unsupported("vector")?
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  @@index([regulation, language])
+  @@index([source])
+}
+
+model CnCodeDescription {
+  id          String     @id @default(cuid())
+  cnCode      String     @unique
+  market      MarketCode
+  description String
+  fullText    String?    // Full description text
+  notes       String?    // Additional notes
+  source      String     @default("TARIC") // TARIC, EUR_LEX, MANUAL
+  fetchedAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  createdAt   DateTime   @default(now())
+
+  @@index([cnCode, market])
+  @@index([market])
 }
 
 model BindingRuling {
@@ -284,4 +328,32 @@ model AuditLog {
   user           User?        @relation(fields: [userId], references: [id])
 
   @@index([organizationId])
+}
+
+model ChatSession {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  title          String?      // Optional title (e.g., "CN Code Questions")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  user           User         @relation("ChatSessions", fields: [userId], references: [id])
+  messages       ChatMessage[]
+
+  @@index([organizationId, userId])
+  @@index([userId])
+}
+
+model ChatMessage {
+  id            String       @id @default(cuid())
+  sessionId     String
+  role          String       // "user" | "assistant"
+  content       String
+  sources       Json?        // Array of source citations
+  createdAt     DateTime     @default(now())
+  session       ChatSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([createdAt])
 }

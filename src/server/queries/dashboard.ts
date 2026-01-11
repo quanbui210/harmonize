@@ -2,17 +2,8 @@ import { ClassificationStatus } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 
 export async function getDashboardOverview(organizationId: string) {
-  const [approvedCount, pendingCount, missingReasonings, autoClassified] =
+  const [missingReasonings, autoClassified] =
     await Promise.all([
-      prisma.classification.count({
-        where: { organizationId, status: ClassificationStatus.APPROVED },
-      }),
-      prisma.classification.count({
-        where: {
-          organizationId,
-          status: { in: [ClassificationStatus.DRAFT, ClassificationStatus.NEEDS_REVIEW] },
-        },
-      }),
       prisma.classification.count({
         where: {
           organizationId,
@@ -27,6 +18,21 @@ export async function getDashboardOverview(organizationId: string) {
       }),
     ])
 
+  // Calculate audit readiness based on classifications with dossiers
+  const totalWithDossiers = await prisma.classification.count({
+    where: {
+      organizationId,
+      dossier: { isNot: null }, // Has a dossier
+    },
+  })
+
+  const totalClassifications = await prisma.classification.count({
+    where: { organizationId },
+  })
+
+  const approvedCount = totalWithDossiers // Classifications with dossiers are "approved"
+  const pendingCount = totalClassifications - totalWithDossiers // Classifications without dossiers are "pending"
+
   const rulingsMatched = await prisma.classificationSource.count({
     where: {
       sourceType: "BINDING_RULING",
@@ -36,18 +42,20 @@ export async function getDashboardOverview(organizationId: string) {
     },
   })
 
+  // Get all recent classifications (max 8), not just missing dossiers
   const actionItems = await prisma.classification.findMany({
     where: {
       organizationId,
-      OR: [{ dossier: null }, { status: { not: ClassificationStatus.APPROVED } }],
     },
     include: {
       product: true,
+      dossier: true, // Include dossier relation to check if it exists
+      dutySummary: true,
     },
     orderBy: {
       updatedAt: "desc",
     },
-    take: 5,
+    take: 8,
   })
 
   const activeImports = await prisma.classification.findMany({
@@ -66,11 +74,10 @@ export async function getDashboardOverview(organizationId: string) {
     take: 3,
   })
 
-  const totalReviewed = approvedCount + pendingCount
   const auditReadinessScore =
-    totalReviewed === 0
+    totalClassifications === 0
       ? 0
-      : Math.round((approvedCount / totalReviewed) * 100)
+      : Math.round((totalWithDossiers / totalClassifications) * 100)
 
   return {
     auditReadinessScore,

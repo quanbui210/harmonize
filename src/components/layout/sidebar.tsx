@@ -10,6 +10,7 @@ import {
   FlaskConical,
   Home,
   LifeBuoy,
+  MessageSquare,
   ShieldCheck,
   Waypoints,
 } from "lucide-react"
@@ -23,14 +24,19 @@ const primaryNav = [
     icon: ShieldCheck,
   },
   {
-    label: "Classification Lab",
-    href: "/classification-lab",
+    label: "Classify & Search",
+    href: "/classify",
     icon: FlaskConical,
   },
   {
     label: "Compliance Vault",
-    href: "/compliance-vault",
+    href: "/vault",
     icon: FileText,
+  },
+  {
+    label: "Compliance Q&A",
+    href: "/compliance-chat",
+    icon: MessageSquare,
   },
   {
     label: "Ruling Database",
@@ -101,13 +107,22 @@ export function Sidebar({ organizationName }: SidebarProps) {
             Quick actions
           </p>
           <div className="mt-3 space-y-2">
-            <Button className="w-full justify-start gap-2">
+            <Button 
+              className="w-full justify-start gap-2"
+              onClick={() => window.location.href = "/classify"}
+            >
               <Waypoints className="h-4 w-4" />
               New Classification
             </Button>
-            <Button variant="outline" className="w-full justify-start gap-2">
-              <FileText className="h-4 w-4" />
-              Request Docs
+            <Button 
+              variant="outline" 
+              className="w-full justify-start gap-2"
+              asChild
+            >
+              <Link href="/vault">
+                <FileText className="h-4 w-4" />
+                Request Docs
+              </Link>
             </Button>
           </div>
         </div>

@@ -38,7 +38,6 @@ export function Topbar({ organizationName, userName, userEmail }: TopbarProps) {
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold">
           {initials}
         </div>
-        <Button variant="outline">Export Report</Button>
       </div>
     </header>
   )

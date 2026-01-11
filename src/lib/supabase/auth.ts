@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function requireAuthenticatedUser() {
-  const supabase = await getSupabaseServerClient();
+  const supabase = getSupabaseServerClient();
   const { data } = await supabase.auth.getUser();
 
   if (!data.user) {
@@ -13,7 +13,7 @@ export async function requireAuthenticatedUser() {
 }
 
 export async function getOptionalUser() {
-  const supabase = await getSupabaseServerClient();
+  const supabase = getSupabaseServerClient();
   const { data } = await supabase.auth.getUser();
   return data.user ?? null;
 }

@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { classificationUpsertSchema } from "@/lib/validation/classification"
+import { createAuditLogEntry } from "@/server/actions/audit-log"
 
 const serializeConfidence = (confidence?: number | null) =>
   confidence === null || confidence === undefined
@@ -14,6 +15,9 @@ export async function upsertClassificationAction(input: unknown) {
 
   if (classificationId) {
     return prisma.$transaction(async (tx: any) => {
+      // Extract HS code from HTS code if provided
+      const hsCode = data.htsCode ? data.htsCode.substring(0, 6) : null;
+      
       const classification = await tx.classification.update({
         where: { id: classificationId },
         data: {
@@ -21,6 +25,7 @@ export async function upsertClassificationAction(input: unknown) {
           productId: data.productId,
           reviewerId: data.reviewerId,
           market: data.market,
+          hsCode: hsCode,
           htsCode: data.htsCode,
           status: data.status,
           confidence: serializeConfidence(data.confidence),
@@ -65,16 +70,34 @@ export async function upsertClassificationAction(input: unknown) {
         })
       }
 
+      // Log audit entry
+      await createAuditLogEntry({
+        organizationId: data.organizationId,
+        userId: data.reviewerId || undefined,
+        entityType: "CLASSIFICATION",
+        entityId: classificationId,
+        action: "UPDATE",
+        payload: {
+          htsCode: data.htsCode,
+          status: data.status,
+          market: data.market,
+        },
+      });
+
       return classification
     })
   }
 
+  // Extract HS code from HTS code if provided
+  const hsCode = data.htsCode ? data.htsCode.substring(0, 6) : null;
+  
   const classification = await prisma.classification.create({
     data: {
       organizationId: data.organizationId,
       productId: data.productId,
       reviewerId: data.reviewerId,
       market: data.market,
+      hsCode: hsCode,
       htsCode: data.htsCode,
       status: data.status,
       confidence: serializeConfidence(data.confidence),
@@ -109,9 +132,23 @@ export async function upsertClassificationAction(input: unknown) {
           }
         : undefined,
     },
-  })
+  });
 
-  return classification
+  // Log audit entry
+  await createAuditLogEntry({
+    organizationId: data.organizationId,
+    userId: data.reviewerId || undefined,
+    entityType: "CLASSIFICATION",
+    entityId: classification.id,
+    action: "CREATE",
+    payload: {
+      htsCode: data.htsCode,
+      status: data.status,
+      market: data.market,
+    },
+  });
+
+  return classification;
 }
 
 export async function listClassificationsAction(organizationId: string) {

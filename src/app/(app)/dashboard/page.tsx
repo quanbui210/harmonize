@@ -21,7 +21,18 @@ import { getOptionalUser } from "@/lib/supabase/auth"
 import { getPrimaryMembership } from "@/server/queries/organizations"
 import { getDashboardOverview } from "@/server/queries/dashboard"
 import { cn } from "@/lib/utils"
-import { Key, ReactElement, JSXElementConstructor, ReactNode, ReactPortal } from "react"
+import Link from "next/link"
+import { DeleteClassificationButton } from "@/components/classification/delete-classification-button"
+
+function formatCNCode(cnCode: string): string {
+  if (!cnCode || cnCode.length !== 8) return cnCode;
+  return `${cnCode.substring(0, 4)} ${cnCode.substring(4, 6)} ${cnCode.substring(6, 8)}`;
+}
+
+function formatHTSCode(htsCode: string): string {
+  if (!htsCode || htsCode.length !== 10) return htsCode;
+  return `${htsCode.substring(0, 4)}.${htsCode.substring(4, 6)}.${htsCode.substring(6, 8)}.${htsCode.substring(8, 10)}`;
+}
 
 export default async function DashboardPage() {
   const user = await getOptionalUser()
@@ -52,9 +63,8 @@ export default async function DashboardPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline">Export Report</Button>
-          <Button className="bg-blue-600 text-white hover:bg-blue-700">
-            + New Classification
+          <Button className="bg-blue-600 text-white hover:bg-blue-700" asChild>
+            <Link href="/classify">+ New Classification</Link>
           </Button>
         </div>
       </div>
@@ -135,13 +145,13 @@ export default async function DashboardPage() {
         <Card className="xl:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <div>
-              <CardTitle>Action Required · Missing Reasoning Dossiers</CardTitle>
+              <CardTitle>Recent Classifications</CardTitle>
               <CardDescription>
-                Flagged classifications that need audit-ready coverage.
+                Latest product classifications and their dossier status.
               </CardDescription>
             </div>
-            <Button variant="ghost" className="text-blue-600">
-              View all
+            <Button variant="ghost" className="text-blue-600" asChild>
+              <Link href="/classify">View all</Link>
             </Button>
           </CardHeader>
           <CardContent className="overflow-x-auto">
@@ -162,34 +172,70 @@ export default async function DashboardPage() {
                     </TableCell>
                   </TableRow>
                 )}
-                {data.actionItems.map((item: { id: Key | null | undefined; product: { name: any; id: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined }; htsCode: any; dossier: any }) => (
-                  <TableRow key={item.id}>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">
-                          {item.product?.name ?? "Untitled Product"}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {item.product?.id}
-                        </p>
-                      </div>
+                {data.actionItems.map((item) => (
+                  <TableRow 
+                    key={item.id} 
+                    className="cursor-pointer hover:bg-muted/50"
+                  >
+                    <TableCell className="max-w-[200px] md:max-w-[300px] lg:max-w-[400px]">
+                      <Link href={`/classify/${item.id}`} className="block">
+                        <div className="min-w-0">
+                          <p 
+                            className="font-medium truncate cursor-help" 
+                            title={item.product?.name ?? "Untitled Product"}
+                          >
+                            {item.product?.name ?? "Untitled Product"}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {String(item.product?.id ?? "")}
+                          </p>
+                        </div>
+                      </Link>
                     </TableCell>
                     <TableCell>
-                      {item.htsCode ?? (
-                        <span className="text-muted-foreground">Pending</span>
-                      )}
+                      <Link href={`/classify/${item.id}`} className="block">
+                        {item.htsCode && item.htsCode !== "0000000000" ? (
+                          <div className="space-y-1">
+                            <p className="font-mono text-sm">
+                              {formatHTSCode(item.htsCode)}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              CN: {formatCNCode(item.htsCode.substring(0, 8))}
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">Pending classification</span>
+                        )}
+                      </Link>
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant={item.dossier ? "secondary" : "destructive"}
-                      >
-                        {item.dossier ? "Draft Incomplete" : "No Dossier"}
-                      </Badge>
+                      <Link href={`/classify/${item.id}`} className="block">
+                        <Badge
+                          variant={item.dossier ? "default" : "destructive"}
+                        >
+                          {item.dossier ? "Dossier Ready" : "No Dossier"}
+                        </Badge>
+                      </Link>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="outline" size="sm">
-                        {item.dossier ? "Review Draft" : "Generate"}
-                      </Button>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          asChild
+                        >
+                          <Link href={item.dossier 
+                            ? `/classify/${item.id}/dossier` 
+                            : `/classify/${item.id}`}
+                          >
+                            {item.dossier ? "View Dossier" : "View Details"}
+                          </Link>
+                        </Button>
+                        <DeleteClassificationButton
+                          classificationId={item.id}
+                          productName={item.product?.name ?? "Untitled Product"}
+                        />
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -209,14 +255,14 @@ export default async function DashboardPage() {
                   No rulings synced yet. Add CROSS rulings to boost confidence.
                 </p>
               )}
-              {data.quickRulings.map((ruling: { id: Key | null | undefined; reference: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; title: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined }) => (
+              {data.quickRulings.map((ruling) => (
                 <div
-                  key={ruling.id}
+                  key={String(ruling.id)}
                   className="rounded-xl border p-3"
                 >
-                  <p className="text-sm font-semibold">{ruling.reference}</p>
+                  <p className="text-sm font-semibold">{String(ruling.reference ?? "")}</p>
                   <p className="text-xs text-muted-foreground">
-                    {ruling.title}
+                    {String(ruling.title ?? "")}
                   </p>
                 </div>
               ))}
@@ -233,9 +279,9 @@ export default async function DashboardPage() {
                   Classify a product to see shipment readiness here.
                 </p>
               )}
-              {data.activeImports.map((item: { id: Key | null | undefined; product: { name: any }; market: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; htsCode: any; requiresReview: any }) => (
+              {data.activeImports.map((item) => (
                 <div
-                  key={item.id}
+                  key={String(item.id)}
                   className="flex items-center justify-between rounded-xl border p-3"
                 >
                   <div>
@@ -243,7 +289,7 @@ export default async function DashboardPage() {
                       {item.product?.name ?? "Product"}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {item.market} · {item.htsCode ?? "HTS pending"}
+                      {String(item.market ?? "")} · {item.htsCode ? formatHTSCode(item.htsCode) : "HTS pending"}
                     </p>
                   </div>
                   <Badge

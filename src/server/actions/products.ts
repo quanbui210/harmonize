@@ -6,6 +6,7 @@ import {
   createProductSchema,
   updateProductSchema,
 } from "@/lib/validation/product"
+import { createAuditLogEntry } from "@/server/actions/audit-log"
 
 function mapMaterialPayload(materials: CreateProductInput["materials"]) {
   if (!materials.length) {
@@ -40,9 +41,22 @@ export async function createProductAction(input: unknown) {
     include: {
       materials: true,
     },
-  })
+  });
 
-  return product
+  // Log audit entry
+  await createAuditLogEntry({
+    organizationId: payload.organizationId,
+    userId: payload.createdById,
+    entityType: "PRODUCT",
+    entityId: product.id,
+    action: "CREATE",
+    payload: {
+      productName: product.name,
+      targetMarkets: payload.targetMarkets,
+    },
+  });
+
+  return product;
 }
 
 export async function updateProductAction(input: unknown) {
@@ -88,11 +102,25 @@ export async function updateProductAction(input: unknown) {
       })
     }
 
-    return tx.product.findUnique({
+    const updated = await tx.product.findUnique({
       where: { id: payload.productId },
       include: { materials: true },
-    })
-  })
+    });
+
+    // Log audit entry (outside transaction to avoid issues)
+    await createAuditLogEntry({
+      organizationId: payload.organizationId,
+      userId: payload.createdById,
+      entityType: "PRODUCT",
+      entityId: payload.productId,
+      action: "UPDATE",
+      payload: {
+        productName: payload.name,
+      },
+    });
+
+    return updated;
+  });
 }
 
 export async function listProductsAction(organizationId: string) {

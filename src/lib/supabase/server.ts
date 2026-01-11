@@ -44,8 +44,8 @@ export const getSupabaseAdminClient = () => {
   return adminClient;
 };
 
-export const getSupabaseServerClient = async () => {
-  const cookieStore = await cookies();
+export const getSupabaseServerClient = () => {
+  const cookieStore = cookies();
 
   return createServerClient(getSupabaseUrl(), getSupabaseAnonKey(), {
     cookies: {
@@ -55,11 +55,21 @@ export const getSupabaseServerClient = async () => {
           value: cookie.value,
         }));
       },
-      setAll(cookies) {
-        cookies.forEach(({ name, value, options }) => {
-          cookieStore.set({ name, value, ...options });
-        });
+      setAll(cookiesToSet) {
+     
+        try {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set({ name, value, ...options });
+          });
+        } catch {
+        
+        }
       },
+    },
+    auth: {
+      // Disable auto-refresh in Server Components to prevent cookie write attempts
+      autoRefreshToken: false,
+      persistSession: false,
     },
   });
 };
