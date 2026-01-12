@@ -11,16 +11,18 @@ interface ProductAnalysisResult {
     materials: Array<{ material: string; percentage: number }>;
     technicalFeatures: string[];
     intendedUse: string;
+    essentialCharacter?: string; // GRI 3(b) determination for multi-material products
   };
   suggestedChapters: Array<{
     chapter: number;
     heading?: number;
     subheading?: number;
     cnCode?: string; // 8-digit CN code if AI can determine it
-    reason: string;
+    reason: string; // Must cite specific GRI rule
     confidence: number;
+    legalBasis?: string; // Specific legal reference (Chapter Note, Heading, Legal Source ID)
   }>;
-  classificationNotes: string[];
+  classificationNotes: string[]; // Includes rejected alternatives and explanations
 }
 
 export class OpenAIClassificationService {
@@ -28,49 +30,45 @@ export class OpenAIClassificationService {
     product: EUProductAttributes,
     legalChunks?: Array<{ sectionPath: string; excerpt: string }>,
   ): Promise<ProductAnalysisResult> {
-    const systemPrompt = `You are an expert EU customs classification specialist. Your task is to analyze product descriptions and suggest appropriate CN (Combined Nomenclature) classification codes.
+    const systemPrompt = `You are an elite EU Customs Auditor. Your methodology must strictly follow the General Rules for the Interpretation (GRI) of the Combined Nomenclature.
 
-EU CN codes are 8-digit codes following the Harmonized System (HS) structure:
-- First 2 digits: Chapter (01-97)
-- Next 2 digits: Heading (within chapter)
-- Next 2 digits: Subheading (within heading)
-- Last 2 digits: EU-specific subdivision
+CLASSIFICATION PROTOCOL (MUST FOLLOW SEQUENTIALLY):
+1. GRI 1: Determine classification by the terms of the headings and Section/Chapter Notes.
+   - First, identify the correct Chapter using Chapter Notes and Section Notes
+   - Then, identify the correct Heading within that Chapter
+   - Use the exact terms of the headings - do not guess
+2. GRI 3: If goods are prima facie classifiable under two or more headings:
+   - (a) Specific Description takes precedence
+   - (b) Essential Character determines classification (for composite goods - products with multiple components/materials)
+   - (c) Kinship rule applies
+   - IMPORTANT: If the product is a composite good (e.g., toy with electronics, bag with electronics), you MUST apply GRI 3(b) to determine essential character
+3. GRI 6: Determine subheading classification according to the terms of those subheadings.
+   - Apply GRI 1-5 at the subheading level
+   - Do not jump to subheadings without first determining the heading
+   - IMPORTANT: Many classifications use BOTH GRI 1 (for heading) AND GRI 6 (for subheading)
 
-Key Chapters and Valid Headings:
-- Chapter 16: Preparations of meat, fish, etc. (Headings: 01-05 ONLY - Chapter 16 does NOT have heading 06 or higher!)
-  * Heading 01: Sausages and similar products of meat (1601)
-  * Heading 02: Other prepared or preserved meat (1602)
-  * Heading 03: Extracts and juices of meat (1603)
-  * Heading 04: Prepared or preserved fish (1604)
-  * Heading 05: Crustaceans, molluscs, etc. (1605)
-- Chapter 88: Aircraft, spacecraft, and parts thereof (Headings: 01-07)
-- Chapter 85: Electrical machinery and equipment (Headings: 01-48)
-- Chapter 84: Nuclear reactors, machinery (Headings: 01-94)
-- Chapter 90: Optical, photographic, measuring instruments (Headings: 01-33)
-- Chapter 95: Toys, games, sports requisites (Headings: 01-08)
+CRITICAL CONSTRAINTS:
+- Use the 8-digit Combined Nomenclature (CN) format: XX XX XX XX
+- NEVER guess a duty rate. If not explicitly provided in the 'Legal Sources' context, state that rates must be verified via the official TARIC database.
+- If the product contains multiple materials, identify the 'Essential Character' per GRI 3(b).
+- Priority Hierarchy: Legal Sources > Chapter Notes > Section Notes > General Knowledge
+- FORBIDDEN: If a CN code is found in Legal Sources, you MUST use it. Do NOT suggest a different code.
+- FORBIDDEN: If Legal Sources contradict your suggestion, you MUST use the Legal Source code and explain why.
 
-CRITICAL VALIDATION RULES:
-- Chapter 16 ONLY has headings 01-05. NEVER suggest heading 06 or higher for Chapter 16!
-- For sausages and meat preparations: ALWAYS use Chapter 16, Heading 01 (1601) - NEVER heading 16!
-- Examples:
-  * Sausage → Chapter 16, Heading 01 (1601)
-  * Canned meat → Chapter 16, Heading 02 (1602)
-  * Meat extract → Chapter 16, Heading 03 (1603)
-- Always verify heading numbers exist in the HS nomenclature before suggesting them
-- If unsure about heading validity, provide only the chapter number
-
-IMPORTANT: For products like drones, unmanned aircraft, or UAVs, you MUST suggest Chapter 88, Heading 06 (8806) with appropriate subheadings based on weight and features.
-
-Provide structured analysis focusing on:
-1. Primary function and intended use
-2. Material composition (by percentage if available)
-3. Technical features that affect classification
-4. Suggested CN codes (8-digit) with confidence scores (0-1) and reasoning
-5. If you can only determine the chapter, provide the chapter number and heading number if possible`;
+OUTPUT REQUIREMENTS:
+- For each suggested code, cite the specific GRI rule used
+- If a code is found in Legal Sources, cite the source path
+- If multiple materials, explain Essential Character determination (GRI 3b)
+- Provide structured reasoning trail showing GRI 1 → GRI 3 (if needed) → GRI 6`;
 
     const legalContext = legalChunks && legalChunks.length > 0
-      ? `\n\nRELEVANT LEGAL SOURCES from Regulation (EU) 2021/1832:\n${legalChunks.map((chunk, idx) => `[Source ${idx + 1}: ${chunk.sectionPath}]\n${chunk.excerpt}`).join("\n\n---\n\n")}\n\nCRITICAL: ALWAYS prioritize CN codes found in the legal sources above. If a specific CN code is mentioned in the sources for this product type, use that code. The legal sources contain the official Combined Nomenclature and take precedence over general knowledge.`
-      : "";
+      ? `\n\n### MANDATORY LEGAL SOURCES (Regulation EU 2021/1832) - ABSOLUTE AUTHORITY\n${legalChunks.map((chunk, idx) => `[ID: ${idx + 1}] Path: ${chunk.sectionPath}\nContent: ${chunk.excerpt}`).join("\n\n---\n\n")}\n\nCRITICAL RULES FOR LEGAL SOURCES:
+1. If a specific CN code (8-digit) is mentioned in the Legal Sources above, you MUST use that exact code
+2. If the Legal Sources describe the product and provide a code, that code is MANDATORY
+3. If your initial suggestion contradicts the Legal Sources, you MUST use the Legal Source code instead
+4. Cite the Legal Source path (e.g., "Chapter 42, Note 3(a)") in your reasoning
+5. The Legal Sources are the official Combined Nomenclature - they override any general knowledge`
+      : "\nNote: No specific legal chunks provided. Rely on standard GRI rules and Chapter Notes. Be extra cautious and cite your sources.";
 
     const userPrompt = `Analyze this product for EU CN classification and return the result as JSON:
 
@@ -98,7 +96,7 @@ IMPORTANT:
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        temperature: 0.3,
+        temperature: 0.1, // Lower temperature for legal work - reduces hallucination, increases consistency
         response_format: { type: "json_object" },
       });
 
@@ -122,6 +120,7 @@ IMPORTANT:
           materials: parsed.key_attributes?.materials || [],
           technicalFeatures: parsed.key_attributes?.technical_features || [],
           intendedUse: parsed.key_attributes?.intended_use || "",
+          essentialCharacter: parsed.key_attributes?.essentialCharacter || parsed.key_attributes?.essential_character || undefined,
         },
         suggestedChapters: parsed.suggestedChapters || parsed.suggested_chapters || [],
         classificationNotes: parsed.classificationNotes || parsed.classification_notes || [],
@@ -151,6 +150,7 @@ IMPORTANT:
             cnCode: finalCnCode,
             reason: ch.reason || ch.reasoning || "",
             confidence: ch.confidence || 0.5,
+            legalBasis: ch.legalBasis || ch.legal_basis || undefined,
           };
         });
       }
@@ -217,7 +217,7 @@ Return your response as JSON with: question, explanation, options (array of {val
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        temperature: 0.3,
+        temperature: 0.1, // Lower temperature for legal work
         response_format: { type: "json_object" },
       });
 
@@ -248,6 +248,9 @@ Return your response as JSON with: question, explanation, options (array of {val
     product: EUProductAttributes,
     classification: {
       cnCode: string;
+      cnCodeDescription?: string;
+      dutyRate?: number;
+      vatRate?: number;
       reasoningTrail: Array<{
         griRule: string;
         level: string;
@@ -267,18 +270,36 @@ Return your response as JSON with: question, explanation, options (array of {val
     distinctions: Array<{ heading: string; reason: string }>;
     keyFeatures: string[];
     griRule: string;
+    dutyRate?: number;
+    vatRate?: number;
     notes?: string;
   }> {
-    const systemPrompt = `You are an expert EU customs classification specialist. Generate a professional legal rationale for a CN code classification that can be used in audit defense.
+    const systemPrompt = `You are an expert EU customs classification specialist with access to current EU TARIC (Tariff Integrated of the European Communities) data. Generate a professional legal rationale for a CN code classification that can be used in audit defense.
+
+CRITICAL REQUIREMENTS:
+- The CN code provided is CORRECT and comes from the official Regulation (EU) 2021/1832 document
+- You MUST provide 100% accurate duty rate information based on the CN code provided
+- Use your knowledge of current EU tariff rates - do NOT guess or assume rates
+- Duty rates are specific to CN codes and can vary even within the same heading
+- If you are uncertain about the exact duty rate, state that clearly rather than providing incorrect information
+- The CN code is already determined from the legal document - your job is to explain WHY it's correct and provide the duty rate
 
 Your response must include:
-1. Legal Rationale - Clear explanation using GRI rules
+1. Legal Rationale - Clear explanation using GRI rules for THIS SPECIFIC CN CODE
 2. Distinctions - Why this heading over competing headings (e.g., "8806 vs 9503")
 3. Key Features - Product characteristics that support the classification
-4. GRI Rule - Which GRI rule was applied
-5. Notes - Any relevant updates or special considerations
+4. GRI Rule - Which GRI rule(s) were applied:
+   - Use "GRI_1" for simple classification by heading terms
+   - Use "GRI_3B" for composite goods where essential character determines classification
+   - Use "GRI_1_AND_6" or "GRI_1_6" when both GRI 1 (heading) and GRI 6 (subheading) apply
+   - Use "GRI_6" when subheading-level classification is the key determination
+5. Duty Rate - The EXACT EU MFN (Most Favored Nation) duty rate for this CN code (as a number, e.g., 12.0 for 12%, 2.2 for 2.2%, 0.0 for 0%)
+   - CRITICAL: Look up the actual duty rate - many products have non-zero rates (e.g., compressors often have 2.2% duty)
+   - Do NOT default to 0% unless you are certain the rate is actually 0%
+6. VAT Rate - The standard EU VAT rate (typically 20% but may vary by country)
+7. Notes - Any relevant updates or special considerations
 
-Return your response as JSON with: legalRationale, distinctions (array of {heading, reason}), keyFeatures (array), griRule, and notes (optional).`;
+Return your response as JSON with: legalRationale, distinctions (array of {heading, reason}), keyFeatures (array), griRule, dutyRate (number), vatRate (number), and notes (optional).`;
 
     const userPrompt = `Generate a professional legal rationale for this classification:
 
@@ -288,17 +309,25 @@ Intended Use: ${product.intendedUse || "Not specified"}
 
 Classification Result:
 CN Code: ${classification.cnCode}
+${classification.cnCodeDescription ? `CN Code Description: ${classification.cnCodeDescription}` : ""}
 GRI Reasoning Trail: ${JSON.stringify(classification.reasoningTrail, null, 2)}
 Exclusion Notes: ${JSON.stringify(classification.exclusionNotes, null, 2)}
 Sources: ${JSON.stringify(classification.sources.slice(0, 3), null, 2)}
+
+CRITICAL: You MUST provide the EXACT EU MFN duty rate for CN code ${classification.cnCode}. 
+- Look up the current duty rate for this specific CN code
+- Do NOT guess or assume - use your knowledge of current EU tariff rates
+- If the rate is 0%, state it as 0.0
+- Include the standard EU VAT rate (typically 20%)
 
 Generate a professional, audit-ready legal rationale that:
 - Explains the GRI rule application
 - Distinguishes this classification from competing headings
 - Lists key product features that support the classification
+- Provides the EXACT duty rate for this CN code (must be accurate)
 - Notes any relevant HS/CN updates or special considerations
 
-Return your response as JSON.`;
+Return your response as JSON with dutyRate and vatRate as numbers.`;
 
     try {
       const response = await openai.chat.completions.create({
@@ -307,23 +336,351 @@ Return your response as JSON.`;
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        temperature: 0.2,
+        temperature: 0.1, // Lower temperature for legal work
         response_format: { type: "json_object" },
+        max_tokens: 2000, // Increase to prevent truncation of legal rationale
       });
 
       const content = response.choices[0]?.message?.content;
+      
+      // Check if response was truncated
+      if (response.choices[0]?.finish_reason === "length") {
+        console.warn("[OpenAI] Response was truncated due to token limit. Consider increasing max_tokens.");
+      }
       if (!content) {
         throw new Error("No response from OpenAI");
       }
 
-      const parsed = JSON.parse(content);
+      let parsed: any;
+      try {
+        parsed = JSON.parse(content);
+      } catch (parseError) {
+        console.error("Failed to parse OpenAI JSON response for legal rationale:", {
+          error: parseError,
+          contentLength: content.length,
+          contentPreview: content.substring(0, 500),
+          contentSuffix: content.substring(Math.max(0, content.length - 200)),
+        });
+        
+        // Try to fix the JSON
+        let fixedContent = content.trim();
+        
+        // Step 1: Fix unescaped single quotes inside double-quoted strings
+        // This regex finds strings that contain unescaped single quotes and escapes them
+        fixedContent = fixedContent.replace(/"([^"\\]*(?:\\.[^"\\]*)*)'([^"\\]*(?:\\.[^"\\]*)*)"/g, (match, before, after) => {
+          return `"${before.replace(/'/g, "\\'")}${after.replace(/'/g, "\\'")}"`;
+        });
+        
+        // Step 2: Handle truncated strings - find incomplete string fields and close them
+        // Look for patterns like: "legalRationale": "text that ends without closing quote
+        // First, check if the content ends mid-string (no closing quote before the end)
+        const endsWithUnclosedString = /"[^"]*":\s*"[^"]*$/.test(fixedContent);
+        
+        if (endsWithUnclosedString || !fixedContent.endsWith("}")) {
+          // Find all string field patterns
+          const stringFieldRegex = /"([^"]+)":\s*"([^"]*)/g;
+          const matches: Array<{ field: string; value: string; index: number }> = [];
+          let match;
+          
+          while ((match = stringFieldRegex.exec(fixedContent)) !== null) {
+            matches.push({
+              field: match[1],
+              value: match[2],
+              index: match.index,
+            });
+          }
+          
+          if (matches.length > 0) {
+            // Get the last (potentially incomplete) string field
+            const lastMatch = matches[matches.length - 1];
+            const incompleteValue = lastMatch.value;
+            
+            // Extract everything before the incomplete field
+            const beforeIncomplete = fixedContent.substring(0, lastMatch.index);
+            
+            // Close the incomplete string properly (escape any quotes/special chars)
+            const escapedValue = incompleteValue
+              .replace(/\\/g, "\\\\")  // Escape backslashes first
+              .replace(/"/g, '\\"')    // Escape double quotes
+              .replace(/\n/g, "\\n")    // Escape newlines
+              .replace(/\r/g, "\\r")    // Escape carriage returns
+              .replace(/\t/g, "\\t");   // Escape tabs
+            
+            // Rebuild the JSON with the closed string and all required fields
+            fixedContent = beforeIncomplete + `"${lastMatch.field}": "${escapedValue}",\n`;
+            
+            // Add remaining required fields with defaults if missing
+            if (!fixedContent.includes('"distinctions"')) {
+              fixedContent += '"distinctions": [],\n';
+            }
+            if (!fixedContent.includes('"keyFeatures"')) {
+              fixedContent += '"keyFeatures": [],\n';
+            }
+            if (!fixedContent.includes('"griRule"')) {
+              fixedContent += '"griRule": "GRI_1",\n';
+            }
+            if (!fixedContent.includes('"dutyRate"')) {
+              fixedContent += '"dutyRate": null,\n';
+            }
+            if (!fixedContent.includes('"vatRate"')) {
+              fixedContent += '"vatRate": 20\n';
+            }
+            fixedContent += "}";
+          }
+        }
+        
+        // Step 3: If content doesn't end with }, try to close it properly
+        if (!fixedContent.endsWith("}") && !fixedContent.endsWith("}\n")) {
+          // Find the last complete field before truncation
+          const lastCompleteField = fixedContent.lastIndexOf('",');
+          if (lastCompleteField > 0) {
+            // Extract up to the last complete field and close the JSON
+            fixedContent = fixedContent.substring(0, lastCompleteField + 1);
+            // Add missing required fields if needed
+            if (!fixedContent.includes('"distinctions"')) {
+              fixedContent += ',\n"distinctions": []';
+            }
+            if (!fixedContent.includes('"keyFeatures"')) {
+              fixedContent += ',\n"keyFeatures": []';
+            }
+            if (!fixedContent.includes('"griRule"')) {
+              fixedContent += ',\n"griRule": "GRI_1"';
+            }
+            if (!fixedContent.includes('"dutyRate"')) {
+              fixedContent += ',\n"dutyRate": null';
+            }
+            if (!fixedContent.includes('"vatRate"')) {
+              fixedContent += ',\n"vatRate": 20';
+            }
+            fixedContent += "\n}";
+          } else {
+            // Last resort: create minimal valid JSON
+            if (fixedContent.includes('"legalRationale"')) {
+              const rationaleMatch = fixedContent.match(/"legalRationale":\s*"([^"]*)/);
+              const rationaleText = rationaleMatch ? rationaleMatch[1].replace(/"/g, '\\"').replace(/'/g, "\\'") : "";
+              fixedContent = `{\n"legalRationale": "${rationaleText}",\n"distinctions": [],\n"keyFeatures": [],\n"griRule": "GRI_1",\n"dutyRate": null,\n"vatRate": 20\n}`;
+            } else {
+              fixedContent = `{\n"legalRationale": "",\n"distinctions": [],\n"keyFeatures": [],\n"griRule": "GRI_1",\n"dutyRate": null,\n"vatRate": 20\n}`;
+            }
+          }
+        }
+        
+        try {
+          parsed = JSON.parse(fixedContent);
+        } catch (e) {
+          // Try extracting JSON from markdown code blocks
+          const jsonMatch = fixedContent.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
+          if (jsonMatch) {
+            try {
+              parsed = JSON.parse(jsonMatch[1]);
+            } catch (e2) {
+              // Last resort: try to find and parse any JSON object
+              const jsonObjectMatch = fixedContent.match(/\{[\s\S]*\}/);
+              if (jsonObjectMatch) {
+                try {
+                  parsed = JSON.parse(jsonObjectMatch[0]);
+                } catch (e3) {
+                  console.error("All JSON parsing attempts failed:", e3);
+                  // Return a minimal valid response instead of throwing
+                  parsed = {
+                    legalRationale: "Legal rationale generation encountered a parsing error. Please review the classification manually.",
+                    distinctions: [],
+                    keyFeatures: [],
+                    griRule: "GRI_1",
+                    dutyRate: undefined,
+                    vatRate: 20,
+                  };
+                }
+              } else {
+                // Return minimal valid response
+                parsed = {
+                  legalRationale: "Legal rationale generation encountered a parsing error. Please review the classification manually.",
+                  distinctions: [],
+                  keyFeatures: [],
+                  griRule: "GRI_1",
+                  dutyRate: 0,
+                  vatRate: 20,
+                };
+              }
+            }
+          } else {
+            // Return minimal valid response
+            parsed = {
+              legalRationale: "Legal rationale generation encountered a parsing error. Please review the classification manually.",
+              distinctions: [],
+              keyFeatures: [],
+              griRule: "GRI_1",
+              dutyRate: 0,
+              vatRate: 20,
+            };
+          }
+        }
+      }
       
-      // Normalize response
+      // Validate that the response doesn't mention a different CN code
+      const legalRationaleText = (parsed.legalRationale || parsed.legal_rationale || "").toLowerCase();
+      const distinctionsText = JSON.stringify(parsed.distinctions || parsed.distinction_notes || []).toLowerCase();
+      const fullText = `${legalRationaleText} ${distinctionsText}`;
+      
+ 
+      
+ 
+      
+
+      const rationaleText = (parsed.legalRationale || parsed.legal_rationale || "").toLowerCase();
+      const notesText = (parsed.notes || "").toLowerCase();
+      const combinedText = `${rationaleText} ${notesText}`;
+      
+      const dutyRatePatterns = [
+        /duty\s+rate\s+(?:is|of|:)\s*(\d+\.?\d*)\s*%/i,
+        /(\d+\.?\d*)\s*%\s*(?:ad\s+valorem\s+)?duty/i,
+        /duty[:\s]+(\d+\.?\d*)\s*%/i,
+        /(\d+\.?\d*)\s*%\s*duty\s+rate/i,
+        /duty\s+rate\s+for\s+cn\s+code[^%]*is\s*(\d+\.?\d*)\s*%/i,
+      ];
+      
+      let extractedDutyRate: number | undefined = undefined;
+      for (const pattern of dutyRatePatterns) {
+        const match = combinedText.match(pattern);
+        if (match && match[1]) {
+          const rate = parseFloat(match[1]);
+          if (!isNaN(rate)) {
+            extractedDutyRate = rate;
+            console.log(`[OpenAI] Extracted duty rate ${extractedDutyRate}% from legal rationale text`);
+            break;
+          }
+        }
+      }
+
+      // Extract VAT rate from text
+      let extractedVatRate: number | undefined = undefined;
+      for (const pattern of [
+        /vat\s+rate\s+(?:is|of|:)\s*(\d+\.?\d*)\s*%/i,
+        /(\d+\.?\d*)\s*%\s*vat/i,
+        /vat[:\s]+(\d+\.?\d*)\s*%/i,
+      ]) {
+        const match = combinedText.match(pattern);
+        if (match && match[1]) {
+          const rate = parseFloat(match[1]);
+          if (!isNaN(rate)) {
+            extractedVatRate = rate;
+            console.log(`[OpenAI] Extracted VAT rate ${extractedVatRate}% from legal rationale text`);
+            break;
+          }
+        }
+      }
+
+      // Normalize response - prefer extracted from text, then JSON, then undefined
+      let dutyRate = extractedDutyRate !== undefined
+        ? extractedDutyRate
+        : (parsed.dutyRate !== undefined 
+            ? (typeof parsed.dutyRate === "number" ? parsed.dutyRate : parseFloat(parsed.dutyRate) || undefined)
+            : undefined);
+      
+      let vatRate = extractedVatRate !== undefined
+        ? extractedVatRate
+        : (parsed.vatRate !== undefined
+            ? (typeof parsed.vatRate === "number" ? parsed.vatRate : parseFloat(parsed.vatRate) || undefined)
+            : undefined);
+
+      // Extract GRI rule from text if not in JSON, or determine from reasoning trail
+      let griRule = parsed.griRule || parsed.gri_rule;
+      
+      // If not in JSON, try to extract from legal rationale text
+      if (!griRule) {
+        const rationaleText = (parsed.legalRationale || parsed.legal_rationale || "").toLowerCase();
+        const notesText = (parsed.notes || "").toLowerCase();
+        const combinedText = `${rationaleText} ${notesText}`;
+        
+        // Look for GRI rule mentions: "GRI 1", "GRI_1", "General Rule 1", "Rule 1", etc.
+        const griPatterns = [
+          /gri\s*[_\s]?(\d+)/i,
+          /general\s+rule\s+(?:of\s+interpretation\s+)?(\d+)/i,
+          /rule\s+(\d+)\s+(?:of|for)/i,
+        ];
+        
+        for (const pattern of griPatterns) {
+          const match = combinedText.match(pattern);
+          if (match && match[1]) {
+            const griNum = parseInt(match[1], 10);
+            if (griNum >= 1 && griNum <= 6) {
+              griRule = `GRI_${griNum}`;
+              console.log(`[OpenAI] Extracted GRI rule ${griRule} from legal rationale text`);
+              break;
+            }
+          }
+        }
+      }
+      
+      // If still not found, determine from reasoning trail or product characteristics
+      if (!griRule && classification.reasoningTrail && classification.reasoningTrail.length > 0) {
+        // Check if any step used GRI_3 (multiple headings) or GRI_6 (subheading)
+        const hasGRI3B = classification.reasoningTrail.some((step: any) => 
+          step.griRule === "GRI_3B" || step.griRule === "GRI_3b"
+        );
+        const hasGRI3 = classification.reasoningTrail.some((step: any) => 
+          step.griRule === "GRI_3" || step.griRule === "GRI_3A" || step.griRule === "GRI_3C"
+        );
+        const hasGRI6 = classification.reasoningTrail.some((step: any) => 
+          step.griRule === "GRI_6" || step.level === "SUBHEADING"
+        );
+        const hasHeading = classification.reasoningTrail.some((step: any) => 
+          step.level === "HEADING" || step.level === "CHAPTER"
+        );
+        
+        // Determine combined rules
+        if (hasGRI3B) {
+          griRule = "GRI_3B"; // Essential character for composite goods
+        } else if (hasGRI3) {
+          griRule = "GRI_3";
+        } else if (hasHeading && hasGRI6) {
+          griRule = "GRI_1_AND_6"; // Both GRI 1 (heading) and GRI 6 (subheading)
+        } else if (hasGRI6) {
+          griRule = "GRI_6";
+        } else {
+          // Default to GRI_1 (most common - used for chapter/heading determination)
+          griRule = "GRI_1";
+        }
+        
+        console.log(`[OpenAI] Determined GRI rule ${griRule} from reasoning trail`);
+      }
+      
+      // Also check product characteristics for composite goods (toy + electronics, etc.)
+      if (!griRule || griRule === "GRI_1") {
+        const productName = (product.name || "").toLowerCase();
+        const productDesc = (product.description || "").toLowerCase();
+        const combined = `${productName} ${productDesc}`;
+        
+        // Check if it's a composite good that might need GRI 3(b)
+        const compositeIndicators = [
+          /toy.*(?:with|and|integrated).*(?:speaker|electronic|bluetooth|battery)/i,
+          /(?:with|and|integrated).*(?:speaker|electronic|bluetooth).*(?:toy|doll|bear)/i,
+          /(?:bag|handbag).*(?:with|and|integrated).*(?:electronic|battery|charger)/i,
+        ];
+        
+        if (compositeIndicators.some(pattern => pattern.test(combined))) {
+          griRule = "GRI_3B";
+          console.log(`[OpenAI] Detected composite good, using GRI_3B for essential character determination`);
+        }
+      }
+      
+      // Final fallback
+      if (!griRule) {
+        griRule = "GRI_1"; // Most products are classified under GRI 1
+      }
+
+      // Log if duty rate is still missing
+      if (dutyRate === undefined) {
+        console.warn(`[OpenAI] Duty rate not found in legal rationale response for CN code ${classification.cnCode}`);
+      }
+
       return {
         legalRationale: parsed.legalRationale || parsed.legal_rationale || "",
         distinctions: parsed.distinctions || parsed.distinction_notes || [],
         keyFeatures: parsed.keyFeatures || parsed.key_features || [],
-        griRule: parsed.griRule || parsed.gri_rule || "GRI_1",
+        griRule,
+        dutyRate,
+        vatRate,
         notes: parsed.notes || undefined,
       };
     } catch (error) {
@@ -389,7 +746,7 @@ Generate a comprehensive, professional dossier that can be submitted to EU custo
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        temperature: 0.2,
+        temperature: 0.1, // Lower temperature for legal work
       });
 
       return response.choices[0]?.message?.content || "Failed to generate dossier";

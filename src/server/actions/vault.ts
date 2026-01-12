@@ -313,7 +313,7 @@ export async function uploadSupplierFileAction(formData: FormData) {
   // Log audit entry
   await createAuditLogEntry({
     organizationId,
-    userId: null, // Supplier uploads don't have user ID
+    userId: undefined, // Supplier uploads don't have user ID
     entityType: "VAULT_FILE",
     entityId: vaultFile.id,
     action: "UPLOAD",

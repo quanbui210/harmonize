@@ -303,7 +303,31 @@ export class TARICClient {
       return null;
     }
 
-    const baseRate = chapter < 50 ? 0.0 : 6.5;
+    // Improved mock duty rates based on common EU tariff structure
+    // Note: This is a fallback - real TARIC API should be used in production
+    let baseRate = 0.0;
+    
+    // Textiles and clothing (Chapters 50-63) typically have 12% duty
+    if (chapter >= 50 && chapter <= 63) {
+      baseRate = 12.0;
+    }
+    // Electronics and machinery (Chapters 84-85) typically have 0-6.5%
+    else if (chapter >= 84 && chapter <= 85) {
+      baseRate = 0.0;
+    }
+    // Agricultural products (Chapters 1-24) vary but often 0-15%
+    else if (chapter >= 1 && chapter <= 24) {
+      baseRate = chapter < 10 ? 0.0 : 8.0;
+    }
+    // Other manufactured goods
+    else if (chapter >= 25 && chapter < 50) {
+      baseRate = 0.0;
+    }
+    // Other goods
+    else {
+      baseRate = 6.5;
+    }
+    
     const vatRate = 20.0;
 
     return {

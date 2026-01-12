@@ -40,7 +40,7 @@ export default async function RulingsPage({ searchParams }: Props) {
       total={total}
       currentPage={page}
       limit={limit}
-      marketOptions={marketOptions}
+      marketOptions={[...marketOptions]}
       initialFilters={{
         market: searchParams.market,
         htsCode: searchParams.htsCode,

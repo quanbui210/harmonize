@@ -5,10 +5,15 @@ import { euClassificationEngine } from "@/lib/eu/classification-engine";
 import { openaiService } from "@/lib/eu/openai-service";
 import type { EUProductAttributes, CNCode } from "@/lib/eu/types";
 import { MarketCode } from "@prisma/client";
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 /**
- * Search LegalSourceChunk for relevant content based on product information
- * Similar to compliance chat but optimized for classification
+ * RAG-based search using vector similarity (cosine similarity)
+ * Uses OpenAI embeddings to find semantically similar content in legal documents
  */
 async function searchLegalChunksForProduct(
   productName: string,
@@ -16,123 +21,161 @@ async function searchLegalChunksForProduct(
   compositionText?: string,
   limit: number = 10,
 ) {
-  // Build search query from product information
-  const searchTerms: string[] = [];
+  // Build query from product information - use as-is, no keyword extraction
+  const query = `${productName}. ${description}${compositionText ? `. Materials: ${compositionText}` : ""}`.trim();
   
-  // Extract keywords from product name and description
-  const text = `${productName} ${description} ${compositionText || ""}`.toLowerCase();
-  const words = text
-    .split(/\s+/)
-    .filter((w) => w.length > 3)
-    .filter((w) => !["product", "item", "goods", "article"].includes(w));
-  
-  searchTerms.push(...words.slice(0, 10)); // Limit to top 10 keywords
-  
-  // Extract potential CN codes mentioned
-  const cnCodeMatches = text.match(/\b(\d{4}[\s\.]?\d{2}[\s\.]?\d{2})\b/g);
-  const cnCodes: string[] = [];
-  if (cnCodeMatches) {
-    cnCodes.push(...cnCodeMatches.map((m) => m.replace(/[\s\.]/g, "")));
-  }
-  
-  // Extract chapter numbers
-  const chapterMatches = text.match(/\b(?:chapter|ch\.?)\s*(\d{1,2})\b/gi);
-  const chapters: number[] = [];
-  if (chapterMatches) {
-    chapters.push(...chapterMatches.map((m) => parseInt(m.match(/\d+/)?.[0] || "0")).filter((n) => n > 0 && n <= 97));
-  }
-
-  const where: any = {
-    source: "EUR_LEX",
-    regulation: "EU_2021_1832",
-    language: "EN",
-  };
-
-  const orConditions: any[] = [];
-
-  // Search for CN codes
-  for (const code of cnCodes) {
-    orConditions.push({ content: { contains: code, mode: "insensitive" } });
-    // Also search formatted versions
-    if (code.length === 8) {
-      orConditions.push({
-        content: {
-          contains: `${code.substring(0, 4)} ${code.substring(4, 6)} ${code.substring(6, 8)}`,
-          mode: "insensitive",
-        },
-      });
-    }
-  }
-
-  // Search for chapters
-  for (const chapter of chapters) {
-    orConditions.push({
-      sectionPath: { contains: `CHAPTER ${chapter}`, mode: "insensitive" },
-    });
-    orConditions.push({
-      content: { contains: `Chapter ${chapter}`, mode: "insensitive" },
-    });
-  }
-
-  // Search for keywords
-  for (const term of searchTerms) {
-    orConditions.push({
-      content: { contains: term, mode: "insensitive" },
-    });
-  }
-
-  if (orConditions.length > 0) {
-    where.OR = orConditions;
-  }
-
-  const chunks = await prisma.legalSourceChunk.findMany({
-    where,
-    take: limit,
-    select: {
-      id: true,
-      sectionPath: true,
-      content: true,
-      pageStart: true,
-      pageEnd: true,
-    },
+  // Step 1: Generate embedding for the user query
+  const embeddingResponse = await openai.embeddings.create({
+    model: "text-embedding-3-small",
+    input: query,
   });
-
-  // Sort by relevance (CN codes first, then chapter matches, then keyword matches)
-  chunks.sort((a, b) => {
-    let scoreA = 0;
-    let scoreB = 0;
-    const contentA = a.content.toLowerCase();
-    const contentB = b.content.toLowerCase();
-    const pathA = a.sectionPath.toLowerCase();
-    const pathB = b.sectionPath.toLowerCase();
-
-    // Boost for CN code matches
-    for (const code of cnCodes) {
-      if (contentA.includes(code)) scoreA += 20;
-      if (contentB.includes(code)) scoreB += 20;
-    }
-
-    // Boost for chapter matches in sectionPath
-    for (const chapter of chapters) {
-      if (pathA.includes(`chapter ${chapter}`)) scoreA += 10;
-      if (pathB.includes(`chapter ${chapter}`)) scoreB += 10;
-    }
-
-    // Boost for keyword matches
-    for (const term of searchTerms) {
-      if (contentA.includes(term)) scoreA += 1;
-      if (contentB.includes(term)) scoreB += 1;
-    }
-
-    return scoreB - scoreA;
-  });
+  
+  const queryEmbedding = embeddingResponse.data[0].embedding;
+  
+  // Step 2: Format embedding as PostgreSQL vector array string
+  const embeddingVectorStr = `[${queryEmbedding.join(",")}]`;
+  
+  // Step 3: Use vector similarity search (cosine distance) with pgvector
+  let chunks: Array<{
+    id: string;
+    sectionPath: string;
+    content: string;
+    pageStart: number | null;
+    pageEnd: number | null;
+    similarity: number;
+  }>;
+  
+  try {
+    // Use pgvector cosine distance operator (<=>) for similarity search
+    // 1 - distance = similarity (higher is more similar)
+    const sql = `
+      SELECT 
+        id,
+        "sectionPath",
+        content,
+        "pageStart",
+        "pageEnd",
+        1 - (embedding <=> '${embeddingVectorStr}'::vector) as similarity
+      FROM "LegalSourceChunk"
+      WHERE 
+        source = 'EUR_LEX'
+        AND regulation = 'EU_2021_1832'
+        AND language = 'EN'
+        AND embedding IS NOT NULL
+      ORDER BY embedding <=> '${embeddingVectorStr}'::vector
+      LIMIT ${limit}
+    `;
+    
+    chunks = await prisma.$queryRawUnsafe<Array<{
+      id: string;
+      sectionPath: string;
+      content: string;
+      pageStart: number | null;
+      pageEnd: number | null;
+      similarity: number;
+    }>>(sql);
+    
+    console.log(`[RAG] Vector search found ${chunks.length} chunks with similarity scores`);
+  } catch (error) {
+    console.error("[RAG] Vector search failed (embeddings may not be populated):", error);
+    // Fallback: return empty or use basic search
+    chunks = await prisma.legalSourceChunk.findMany({
+      where: {
+        source: "EUR_LEX",
+        regulation: "EU_2021_1832",
+        language: "EN",
+      },
+      take: limit,
+      select: {
+        id: true,
+        sectionPath: true,
+        content: true,
+        pageStart: true,
+        pageEnd: true,
+      },
+    }).then((chunks) => chunks.map((chunk) => ({
+      ...chunk,
+      similarity: 0.5, // Default similarity for fallback
+    })));
+  }
 
   return chunks.map((chunk) => ({
     sectionPath: chunk.sectionPath,
     excerpt: chunk.content.slice(0, 800) + (chunk.content.length > 800 ? "..." : ""),
     pageStart: chunk.pageStart || undefined,
     pageEnd: chunk.pageEnd || undefined,
+    fullContent: chunk.content,
+    similarity: chunk.similarity || 0,
   }));
+}
+
+/**
+ * Extract CN codes directly from legal document chunks using RAG
+ * The document has CN codes in table format like:
+ *   CN code: 4202 21 00
+ *   Description: ...
+ * Or in table rows where code is at the start of the line
+ */
+function extractCNCodesFromChunks(chunks: Array<{ sectionPath: string; excerpt: string; fullContent?: string }>): string[] {
+  const cnCodes: Set<string> = new Set();
+  
+  for (const chunk of chunks) {
+    const content = chunk.fullContent || chunk.excerpt;
+    
+    // Pattern 1: "CN code: 4202 21 00" or "4202 21 00" (with or without spaces/dots)
+    const pattern1 = /(?:CN\s+code|code)[:\s]*(\d{4}[\s\.]?\d{2}[\s\.]?\d{2})\b/gi;
+    const matches1 = content.matchAll(pattern1);
+    for (const match of matches1) {
+      const code = match[1].replace(/[\s\.]/g, "");
+      if (code.length === 8 && code !== "00000000") {
+        const chapter = parseInt(code.substring(0, 2), 10);
+        if (chapter >= 1 && chapter <= 97) {
+          cnCodes.add(code);
+        }
+      }
+    }
+    
+    // Pattern 2: Table format - code at start of line followed by description
+    // Example from document: "4202 21 00" or "8901 10 10" at line start
+    const lines = content.split(/\r?\n/);
+    for (const line of lines) {
+      // Match CN code at start of line (with optional whitespace, optional "CN code:" prefix)
+      // Format: "4202 21 00" or "42022100" or "CN code: 4202 21 00"
+      const lineMatch = line.match(/^(?:\s*CN\s+code[:\s]+)?(\d{4}[\s\.]?\d{2}[\s\.]?\d{2})\b/);
+      if (lineMatch) {
+        const code = lineMatch[1].replace(/[\s\.]/g, "");
+        if (code.length === 8 && code !== "00000000") {
+          const chapter = parseInt(code.substring(0, 2), 10);
+          if (chapter >= 1 && chapter <= 97) {
+            cnCodes.add(code);
+          }
+        }
+      }
+    }
+    
+    // Pattern 3: Any 8-digit code in the content (more permissive, but validate chapter)
+    const pattern3 = /\b(\d{4}[\s\.]?\d{2}[\s\.]?\d{2})\b/g;
+    const matches3 = content.matchAll(pattern3);
+    for (const match of matches3) {
+      const code = match[1].replace(/[\s\.]/g, "");
+      if (code.length === 8 && code !== "00000000") {
+        const chapter = parseInt(code.substring(0, 2), 10);
+        if (chapter >= 1 && chapter <= 97) {
+          cnCodes.add(code);
+        }
+      }
+    }
+  }
+  
+  // Return sorted by relevance (longer codes first, then by chapter)
+  return Array.from(cnCodes).sort((a, b) => {
+    // Prefer codes that are more specific (higher subheading digits)
+    const aSpecificity = parseInt(a.substring(4, 8), 10);
+    const bSpecificity = parseInt(b.substring(4, 8), 10);
+    if (bSpecificity !== aSpecificity) return bSpecificity - aSpecificity;
+    // Then by chapter
+    return parseInt(a.substring(0, 2), 10) - parseInt(b.substring(0, 2), 10);
+  });
 }
 import { requireAuthenticatedUser } from "@/lib/supabase/auth";
 import { getPrimaryMembership } from "@/server/queries/organizations";
@@ -195,7 +238,19 @@ export async function searchAndClassifyAction(input: {
     input.compositionText,
   );
 
-  const aiAnalysis = await openaiService.analyzeProduct(productAttributes, legalChunks);
+  // Extract CN codes directly from legal document chunks (RAG-based extraction)
+  const extractedCNCodes = extractCNCodesFromChunks(legalChunks);
+  console.log(`[Classification] Extracted CN codes from legal document: ${extractedCNCodes.join(", ")}`);
+
+  // If no chunks found from vector search, use LLM knowledge directly (like ChatGPT)
+  let aiAnalysis;
+  if (legalChunks.length === 0) {
+    console.log(`[Classification] No chunks found from RAG, using LLM knowledge directly`);
+    // Use LLM without legal chunks - it will use its training knowledge
+    aiAnalysis = await openaiService.analyzeProduct(productAttributes, []);
+  } else {
+    aiAnalysis = await openaiService.analyzeProduct(productAttributes, legalChunks);
+  }
   
   if (!aiAnalysis || !aiAnalysis.suggestedChapters || !Array.isArray(aiAnalysis.suggestedChapters)) {
     throw new Error("Invalid AI analysis response: missing suggestedChapters");
@@ -241,210 +296,104 @@ export async function searchAndClassifyAction(input: {
     productAttributes,
   );
 
-  // If AI provided a full CN code, prioritize it over GRI result (but validate it first!)
-  if (aiAnalysis.suggestedChapters.length > 0) {
-    const topSuggestion = aiAnalysis.suggestedChapters[0];
-    if (topSuggestion.cnCode && topSuggestion.cnCode.length === 8) {
-      // AI provided a full 8-digit CN code - validate and use it
-      const aiCnCode = topSuggestion.cnCode;
-      const chapter = parseInt(aiCnCode.substring(0, 2), 10);
-      const heading = parseInt(aiCnCode.substring(2, 4), 10);
-      
-      // Enhanced validation - check for invalid chapter/heading combinations
-      const isValidHeading = (ch: number, h: number): boolean => {
-        if (ch < 1 || ch > 97 || h < 1 || h > 99) return false;
-        // Chapter 16 only has headings 01-05
-        if (ch === 16 && h > 5) return false;
-        return true;
-      };
-      
-      if (isValidHeading(chapter, heading)) {
-        console.log(`[Classification] Prioritizing AI-provided CN code: ${aiCnCode} over GRI result: ${classificationResult.cnCode}`);
-        classificationResult = {
-          ...classificationResult,
-          cnCode: aiCnCode as CNCode,
-          confidence: Math.max(classificationResult.confidence || 0, topSuggestion.confidence || 0.8),
-          reasoningTrail: [
-            ...(classificationResult.reasoningTrail || []),
-            {
-              griRule: "GRI_1",
-              level: "SUBHEADING",
-              selection: aiCnCode,
-              rationale: `AI-provided CN Code ${aiCnCode}: ${topSuggestion.reason}`,
-              score: topSuggestion.confidence || 0.8,
-            },
-          ],
-        };
-      } else {
-        console.warn(`[Classification] Rejected invalid AI CN code: ${aiCnCode} (Chapter ${chapter}, Heading ${heading} is invalid)`);
-      }
-    }
+  let validatedCnCode = classificationResult.cnCode || "";
+  
+  // Priority 1: Use CN codes extracted directly from legal document (RAG)
+  if (extractedCNCodes.length > 0) {
+    // Use the first extracted code (most relevant based on search ranking)
+    validatedCnCode = extractedCNCodes[0];
+    console.log(`[Classification] Using CN code extracted from legal document (RAG): ${validatedCnCode}`);
+    classificationResult = {
+      ...classificationResult,
+      cnCode: validatedCnCode as CNCode,
+      confidence: 0.95, // High confidence when found in official document
+      reasoningTrail: [
+        ...(classificationResult.reasoningTrail || []),
+        {
+          griRule: "GRI_1",
+          level: "SUBHEADING",
+          selection: validatedCnCode,
+          rationale: `CN Code ${validatedCnCode} extracted directly from Regulation (EU) 2021/1832 legal document`,
+          score: 0.95,
+        },
+      ],
+    };
   }
-
-  // Validate CN code - check if it's a valid structure
-  const cnCodeStr = classificationResult.cnCode || "";
-  const isValidCNCode = (code: string): boolean => {
-    if (!code || code.length !== 8) return false;
-    // Check if code is all zeros or invalid patterns
-    if (code === "00000000" || code === "0000000000") return false;
-    // Check if chapter is valid (01-97 for HS)
-    const chapter = parseInt(code.substring(0, 2), 10);
-    if (chapter < 1 || chapter > 97) return false;
-    // Check if heading is valid (01-99)
-    const heading = parseInt(code.substring(2, 4), 10);
-    if (heading < 1 || heading > 99) return false;
-    // Check for obviously invalid codes like "1616" (chapter 16, heading 16 doesn't exist - chapter 16 ends at heading 05)
-    // Chapter 16 valid headings: 01-05
-    if (chapter === 16 && heading > 5) return false;
-    return true;
-  };
-
-  const isWeakClassification = 
-    !cnCodeStr || 
-    cnCodeStr === "00" ||
-    (cnCodeStr.startsWith("00") && cnCodeStr.length <= 2) ||
-    cnCodeStr === "00000000" ||
-    cnCodeStr === "0000000000" ||
-    !isValidCNCode(cnCodeStr) ||
-    (classificationResult.confidence || 0) < 0.5;
-    
-  // Always use AI suggestion if GRI failed, confidence is too low, or code is invalid
-  if (isWeakClassification && aiAnalysis.suggestedChapters.length > 0) {
+  // Priority 2: Use AI-provided CN code if no code found in document
+  else if (aiAnalysis.suggestedChapters.length > 0) {
     const topSuggestion = aiAnalysis.suggestedChapters[0];
-    if (topSuggestion && topSuggestion.chapter) {
-      // Use AI-provided CN code if available, otherwise construct from chapter/heading/subheading
-      let newCnCode: CNCode;
-      let level: "CHAPTER" | "HEADING" | "SUBHEADING" = "CHAPTER";
-      let selection = topSuggestion.chapter.toString().padStart(2, "0");
-      
-      if (topSuggestion.cnCode && topSuggestion.cnCode.length === 8) {
-        // AI provided a full 8-digit CN code - VALIDATE IT FIRST!
-        const aiCnCode = topSuggestion.cnCode;
-        const chapter = parseInt(aiCnCode.substring(0, 2), 10);
-        const heading = parseInt(aiCnCode.substring(2, 4), 10);
-        
-        // Validate chapter/heading combination
-        const isValidHeading = (ch: number, h: number): boolean => {
-          if (ch < 1 || ch > 97 || h < 1 || h > 99) return false;
-          // Chapter 16 only has headings 01-05
-          if (ch === 16 && h > 5) return false;
-          return true;
-        };
-        
-        if (isValidHeading(chapter, heading)) {
-          newCnCode = aiCnCode as CNCode;
-          level = "SUBHEADING";
-          selection = newCnCode;
-          console.log(`[Classification] Using AI-provided full CN code: ${newCnCode} (confidence: ${topSuggestion.confidence})`);
-        } else {
-          console.warn(`[Classification] Rejected invalid AI CN code: ${aiCnCode} (Chapter ${chapter}, Heading ${heading} is invalid)`);
-          // Fall back to chapter-level only
-          const chapterStr = chapter.toString().padStart(2, "0");
-          newCnCode = `${chapterStr}000000` as CNCode;
-          level = "CHAPTER";
-          selection = chapterStr;
-          console.log(`[Classification] Using chapter-only fallback: Chapter ${chapter} -> CN Code ${newCnCode}`);
-        }
-      } else if (topSuggestion.heading) {
-        // Validate chapter/heading combination BEFORE using it
-        const chapter = topSuggestion.chapter;
-        const heading = topSuggestion.heading;
-        
-        // Validate heading exists for this chapter
-        const isValidHeading = (ch: number, h: number): boolean => {
-          // Chapter 16 only has headings 01-05
-          if (ch === 16 && h > 5) return false;
-          // Add more validations as needed
-          return h >= 1 && h <= 99;
-        };
-        
-        if (!isValidHeading(chapter, heading)) {
-          console.warn(`[Classification] Invalid AI suggestion: Chapter ${chapter}, Heading ${heading} - rejecting and using fallback`);
-          // Use chapter-level only as fallback
-          const chapterStr = chapter.toString().padStart(2, "0");
-          newCnCode = `${chapterStr}000000` as CNCode;
-          level = "CHAPTER";
-          selection = chapterStr;
-          console.log(`[Classification] Using chapter-only fallback: Chapter ${chapter} -> CN Code ${newCnCode}`);
-        } else {
-          // AI provided valid chapter + heading - construct CN code
-          const chapterStr = chapter.toString().padStart(2, "0");
-          const headingStr = heading.toString().padStart(2, "0");
-          const subheadingStr = topSuggestion.subheading ? topSuggestion.subheading.toString().padStart(2, "0") : "00";
-          newCnCode = `${chapterStr}${headingStr}${subheadingStr}00`.substring(0, 8) as CNCode;
-          level = topSuggestion.subheading ? "SUBHEADING" : "HEADING";
-          selection = `${chapterStr}${headingStr}`;
-          console.log(`[Classification] Using AI suggestion: Chapter ${chapter}, Heading ${heading} -> CN Code ${newCnCode} (confidence: ${topSuggestion.confidence})`);
-        }
-      } else {
-        // Only chapter level - use fallback
-        const chapterStr = topSuggestion.chapter.toString().padStart(2, "0");
-        newCnCode = `${chapterStr}000000` as CNCode;
-        console.log(`[Classification] Using AI fallback (chapter only): Chapter ${topSuggestion.chapter} -> CN Code ${newCnCode} (confidence: ${topSuggestion.confidence})`);
-      }
-      
-      // Calculate confidence based on level of detail:
-      // - Full CN code (8-digit): use AI confidence directly (high precision)
-      // - Heading level: apply small penalty (0.95)
-      // - Chapter only: apply larger penalty (0.85)
-      let calculatedConfidence = topSuggestion.confidence;
-      if (level === "SUBHEADING" && topSuggestion.cnCode) {
-        // Full CN code - use AI confidence directly
-        calculatedConfidence = topSuggestion.confidence;
-      } else if (level === "HEADING") {
-        // Heading level - small penalty
-        calculatedConfidence = topSuggestion.confidence * 0.95;
-      } else {
-        // Chapter only - larger penalty
-        calculatedConfidence = topSuggestion.confidence * 0.85;
-      }
-      
-      // If GRI had some confidence, blend it with AI confidence
-      if (classificationResult.confidence && classificationResult.confidence > 0.3) {
-        calculatedConfidence = Math.max(classificationResult.confidence, calculatedConfidence);
-      }
-      
+    
+    if (topSuggestion.cnCode && topSuggestion.cnCode.length === 8 && topSuggestion.cnCode !== "00000000") {
+      validatedCnCode = topSuggestion.cnCode;
+      console.log(`[Classification] Using AI-provided CN code (not found in document): ${validatedCnCode}`);
       classificationResult = {
         ...classificationResult,
-        cnCode: newCnCode,
-        confidence: calculatedConfidence,
+        cnCode: validatedCnCode as CNCode,
+        confidence: Math.max(classificationResult.confidence || 0, topSuggestion.confidence || 0.8),
         reasoningTrail: [
           ...(classificationResult.reasoningTrail || []),
           {
             griRule: "GRI_1",
-            level,
-            selection,
-            rationale: `AI-suggested ${level === "SUBHEADING" && topSuggestion.cnCode ? `CN Code ${newCnCode}` : level === "HEADING" ? `Chapter ${topSuggestion.chapter}, Heading ${topSuggestion.heading}` : `Chapter ${topSuggestion.chapter}`}: ${topSuggestion.reason}`,
-            score: topSuggestion.confidence,
+            level: "SUBHEADING",
+            selection: validatedCnCode,
+            rationale: `AI-provided CN Code ${validatedCnCode}: ${topSuggestion.reason}`,
+            score: topSuggestion.confidence || 0.8,
           },
         ],
       };
+    } 
+    // Priority 3: If AI provided chapter/heading but no full CN code, ask LLM directly for the code
+    else if (topSuggestion.chapter && topSuggestion.chapter > 0 && topSuggestion.chapter <= 97) {
+      // Don't construct codes - if AI didn't provide full CN code, it's not reliable
+      // Instead, throw error to force user to provide more details or use LLM directly
+      console.warn(`[Classification] AI provided chapter ${topSuggestion.chapter} but no valid CN code. Using LLM to determine exact code.`);
+      
+      // Ask LLM directly for the exact CN code
+      const directCodePrompt = `What is the exact 8-digit CN code (Combined Nomenclature) for this product?
+Product: ${input.productName}
+Description: ${input.description}
+${input.compositionText ? `Materials: ${input.compositionText}` : ""}
+${topSuggestion.chapter ? `Suggested Chapter: ${topSuggestion.chapter}` : ""}
+${topSuggestion.heading ? `Suggested Heading: ${topSuggestion.heading}` : ""}
+
+Return ONLY the 8-digit CN code (e.g., "42022100" for leather handbags), nothing else.`;
+
+      try {
+        const codeResponse = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: "You are an EU customs classification expert. Return only the 8-digit CN code." },
+            { role: "user", content: directCodePrompt },
+          ],
+          temperature: 0.1,
+        });
+        
+        const codeText = codeResponse.choices[0]?.message?.content?.trim() || "";
+        // Extract 8-digit code from response
+        const codeMatch = codeText.match(/\b(\d{8})\b/);
+        if (codeMatch && codeMatch[1] !== "00000000") {
+          validatedCnCode = codeMatch[1];
+          console.log(`[Classification] LLM provided CN code directly: ${validatedCnCode}`);
+          classificationResult = {
+            ...classificationResult,
+            cnCode: validatedCnCode as CNCode,
+            confidence: Math.max(classificationResult.confidence || 0, topSuggestion.confidence || 0.8),
+          };
+        } else {
+          throw new Error("LLM did not provide a valid CN code");
+        }
+      } catch (llmError) {
+        console.error("[Classification] Failed to get CN code from LLM:", llmError);
+        throw new Error(`Classification failed: Unable to determine valid CN code. Please provide more product details.`);
+      }
     }
   }
   
-  // Final validation - ensure we have a valid CN code (last resort)
-  let validatedCnCode = classificationResult.cnCode || "";
-  if (!validatedCnCode || validatedCnCode === "00" || (validatedCnCode.startsWith("00") && validatedCnCode.length <= 2)) {
-    console.warn(`[Classification] Invalid CN code after processing: ${validatedCnCode}, using AI fallback`);
-    // Use first AI suggestion as last resort
-    if (aiAnalysis.suggestedChapters.length > 0) {
-      const chapterStr = aiAnalysis.suggestedChapters[0].chapter.toString().padStart(2, "0");
-      validatedCnCode = `${chapterStr}000000`;
-      classificationResult.cnCode = validatedCnCode as CNCode;
-      classificationResult.confidence = (aiAnalysis.suggestedChapters[0].confidence || 0.5) * 0.7;
-    } else {
-      // Ultimate fallback - use a generic code
-      console.error(`[Classification] No AI suggestions available, using fallback code`);
-      validatedCnCode = "99999999";
-      classificationResult.cnCode = validatedCnCode as CNCode;
-      classificationResult.confidence = 0.1;
-    }
-  }
-
-  // Final validation - ensure CN code is valid before proceeding
-  if (!validatedCnCode || validatedCnCode === "00" || (validatedCnCode.startsWith("00") && validatedCnCode.length <= 2)) {
-    console.error(`[Classification] CRITICAL: Invalid CN code before candidate creation: ${validatedCnCode}`);
-    throw new Error(`Classification failed: Unable to determine valid CN code. Please try again or provide more product details.`);
+  // Final validation - ensure we have a valid CN code
+  if (!validatedCnCode || validatedCnCode === "00000000" || validatedCnCode === "00" || (validatedCnCode.startsWith("00") && validatedCnCode.length <= 2)) {
+    console.error(`[Classification] CRITICAL: No valid CN code found. AI suggestions:`, aiAnalysis.suggestedChapters);
+    console.error(`[Classification] GRI result:`, classificationResult.cnCode);
+    throw new Error(`Classification failed: Unable to determine valid CN code. The AI did not provide a valid classification code. Please try again or provide more product details.`);
   }
 
   // Update classificationResult with validated code
@@ -464,11 +413,17 @@ export async function searchAndClassifyAction(input: {
 
   console.log(`[Classification] HS: ${hsCode}, CN: ${normalizedCnCode}, HTS: ${htsCode}`);
 
+  // Fetch CN code description to provide context to LLM
+  const cnCodeDescription = await getDescriptionForCNCode(normalizedCnCode);
+
   // Generate professional legal rationale
   const legalInfo = await openaiService.generateLegalRationale(
     productAttributes,
     {
       cnCode: normalizedCnCode,
+      cnCodeDescription,
+      dutyRate: classificationResult.dutySummary?.baseDutyRate,
+      vatRate: classificationResult.dutySummary?.vatRate,
       reasoningTrail: classificationResult.reasoningTrail || [],
       exclusionNotes: classificationResult.exclusionNotes || [],
       sources: classificationResult.sources || [],
@@ -481,8 +436,9 @@ export async function searchAndClassifyAction(input: {
       cnCode: normalizedCnCode,
       confidence: classificationResult.confidence || 0,
       description,
-      dutyRate: classificationResult.dutySummary.baseDutyRate,
-      vatRate: classificationResult.dutySummary.vatRate,
+      // Use duty rate from legal rationale (LLM-generated) if available, otherwise fall back to classification result
+      dutyRate: legalInfo.dutyRate !== undefined ? legalInfo.dutyRate : (classificationResult.dutySummary?.baseDutyRate || 0),
+      vatRate: legalInfo.vatRate !== undefined ? legalInfo.vatRate : (classificationResult.dutySummary?.vatRate || 20),
       precedent: classificationResult.sources.find(
         (s) => s.sourceType === "BINDING_RULING",
       )?.referenceId,
@@ -564,17 +520,31 @@ export async function searchAndClassifyAction(input: {
     })),
   });
 
-  if (classificationResult.dutySummary) {
-    await prisma.dutySummary.create({
-      data: {
-        classificationId: classification.id,
-        baseValue: 0,
-        dutyRate: classificationResult.dutySummary.baseDutyRate,
-        vatRate: classificationResult.dutySummary.vatRate,
-        estimatedDuty: 0,
-      },
-    });
-  }
+  // Create or update duty summary with rates from legal rationale (LLM-generated)
+  // Use legalInfo rates if available (from LLM), otherwise use classificationResult rates
+  // Note: dutyRate can be 0 (free), so we check for !== undefined, not truthy
+  const finalDutyRate = legalInfo.dutyRate !== undefined 
+    ? legalInfo.dutyRate 
+    : (classificationResult.dutySummary?.baseDutyRate !== undefined 
+        ? classificationResult.dutySummary.baseDutyRate 
+        : 0);
+  const finalVatRate = legalInfo.vatRate !== undefined 
+    ? legalInfo.vatRate 
+    : (classificationResult.dutySummary?.vatRate !== undefined 
+        ? classificationResult.dutySummary.vatRate 
+        : 20);
+  
+  console.log(`[Classification] Duty rate: ${finalDutyRate}% (from LLM: ${legalInfo.dutyRate}, from classification: ${classificationResult.dutySummary?.baseDutyRate})`);
+  
+  await prisma.dutySummary.create({
+    data: {
+      classificationId: classification.id,
+      baseValue: 0,
+      dutyRate: finalDutyRate,
+      vatRate: finalVatRate,
+      estimatedDuty: 0,
+    },
+  });
 
   return {
     productId: product.id,

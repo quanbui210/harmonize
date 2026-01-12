@@ -89,11 +89,14 @@ export default async function ClassificationDetailPage({ params }: Props) {
     <div className="container mx-auto max-w-6xl space-y-8 py-8">
       {/* Header */}
       <div className="flex items-start justify-between">
-        <div className="space-y-2">
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-semibold tracking-tight">
-              {classification.product.name}
-            </h1>
+        <div className="space-y-2 flex-1 min-w-0">
+          <h1 className="text-3xl font-semibold tracking-tight break-words">
+            {classification.product.name}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Classification Snapshot
+          </p>
+          <div className="pt-1">
             {classification.dossier && (
               <Badge className="bg-green-600">
                 <CheckCircle2 className="mr-1 h-3 w-3" />
@@ -107,29 +110,28 @@ export default async function ClassificationDetailPage({ params }: Props) {
               </Badge>
             )}
           </div>
-          <p className="text-sm text-muted-foreground">
-            Classification Snapshot
-          </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" asChild>
-            <Link href="/classify">Back to Search</Link>
-          </Button>
-          {classification.dossier ? (
-            <Button className="bg-blue-600 text-white hover:bg-blue-700" asChild>
-              <Link href={`/classify/${classificationId}/dossier`}>
-                <FileText className="mr-2 h-4 w-4" />
-                View Dossier
-              </Link>
+        <div className="flex flex-col items-end gap-3">
+          <div className="flex gap-2">
+            <Button variant="outline" asChild>
+              <Link href="/classify">Back to Search</Link>
             </Button>
-          ) : (
-            <Button className="bg-blue-600 text-white hover:bg-blue-700" asChild>
-              <Link href={`/classify/${classificationId}/dossier`}>
-                <FileText className="mr-2 h-4 w-4" />
-                Generate Dossier
-              </Link>
-            </Button>
-          )}
+            {classification.dossier ? (
+              <Button className="bg-blue-600 text-white hover:bg-blue-700" asChild>
+                <Link href={`/classify/${classificationId}/dossier`}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  View Dossier
+                </Link>
+              </Button>
+            ) : (
+              <Button className="bg-blue-600 text-white hover:bg-blue-700" asChild>
+                <Link href={`/classify/${classificationId}/dossier`}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Generate Dossier
+                </Link>
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 

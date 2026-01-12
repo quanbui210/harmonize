@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { MarketCode } from "@prisma/client";
 
 interface LegalNoteInput {
   chapter: number;
@@ -33,6 +34,7 @@ export async function ingestLegalNotesAction(notes: LegalNoteInput[]) {
           heading: note.heading || null,
           noteKey: note.noteKey || null,
           content: note.content,
+          market: MarketCode.EU, // Legal notes are EU-specific
         },
       });
     }),

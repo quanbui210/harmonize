@@ -8,6 +8,8 @@ import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { createHash } from "crypto";
 import { marked } from "marked";
 import { createAuditLogEntry } from "@/server/actions/audit-log";
+import { getCNCodeDescription } from "@/server/actions/cn-descriptions";
+import { MarketCode } from "@prisma/client";
 
 // Configure marked for safe rendering
 marked.setOptions({
@@ -85,10 +87,31 @@ export async function generateDossierAction(input: {
   // Try to get legal rationale from classification metadata or generate it
   if (cnCode && cnCode !== "00000000") {
     try {
+      const cnCodeDescription = await getCNCodeDescription(cnCode as any, MarketCode.EU);
+      
+      // Check if sources mention a different CN code (potential classification error)
+      const sourceCodes: string[] = [];
+      for (const source of classification.sources) {
+        // Extract CN codes from source excerpts (format: 6109 10 00 or 61091000)
+        const codeMatches = source.excerpt.match(/\b(\d{4}[\s\.]?\d{2}[\s\.]?\d{2})\b/g);
+        if (codeMatches) {
+          sourceCodes.push(...codeMatches.map(m => m.replace(/[\s\.]/g, "").substring(0, 8)));
+        }
+      }
+      
+      // If sources mention a different code, log a warning
+      const uniqueSourceCodes = [...new Set(sourceCodes)];
+      const differentCodes = uniqueSourceCodes.filter(code => code !== cnCode && code.length === 8);
+      if (differentCodes.length > 0) {
+        console.warn(`[Dossier] Warning: Classification has CN code ${cnCode}, but sources mention: ${differentCodes.join(", ")}. This may indicate a classification error.`);
+      }
+      
+      // Ask AI to provide accurate duty rate - don't assume or use mock data
       const legalInfo = await openaiService.generateLegalRationale(
         productAttributes,
         {
           cnCode,
+          cnCodeDescription,
           reasoningTrail,
           exclusionNotes: (classification.exclusionNotes as string[]) || [],
           sources: classification.sources.map((s) => ({
@@ -101,6 +124,33 @@ export async function generateDossierAction(input: {
       legalRationale = legalInfo.legalRationale;
       distinctions = legalInfo.distinctions;
       keyFeatures = legalInfo.keyFeatures;
+      
+      // Use AI-provided duty rate if available, otherwise keep existing
+      const aiDutyRate = legalInfo.dutyRate;
+      const aiVatRate = legalInfo.vatRate;
+      
+      // Update duty summary with AI-provided rates if they exist
+      if (aiDutyRate !== undefined) {
+        if (classification.dutySummary) {
+          await prisma.dutySummary.update({
+            where: { classificationId: classification.id },
+            data: {
+              dutyRate: aiDutyRate,
+              vatRate: aiVatRate || 20.0,
+            },
+          });
+        } else {
+          await prisma.dutySummary.create({
+            data: {
+              classificationId: classification.id,
+              baseValue: 0,
+              dutyRate: aiDutyRate,
+              vatRate: aiVatRate || 20.0,
+              estimatedDuty: 0,
+            },
+          });
+        }
+      }
     } catch (error) {
       console.error("Failed to generate legal rationale:", error);
     }
@@ -389,7 +439,7 @@ function generateHTML(
     <p><strong>Origin:</strong> ${originCountry ? originCountry : "Not provided"}</p>
     <p><strong>End use:</strong> ${classification.product.intendedUse ? classification.product.intendedUse : "Not provided"}</p>
     ${compositionText ? `<p><strong>Materials / composition:</strong> ${compositionText}</p>` : ""}
-    <p><strong>HS Code (International Base):</strong> ${classification.hsCode ? formatHSCode(classification.hsCode) : (classification.htsCode ? formatHSCode(classification.htsCode.substring(0, 6)) : "Pending")}</p>
+    <p><strong>HS Code (International Base):</strong> ${classification.htsCode ? formatHSCode(classification.htsCode.substring(0, 6)) : "Pending"}</p>
     <p><strong>CN Code (EU):</strong> ${classification.htsCode ? formatCNCode(classification.htsCode.substring(0, 8)) : "Pending"}</p>
     <p><strong>HTS Code (USA):</strong> ${classification.htsCode ? formatHTSCode(classification.htsCode) : "Pending"}</p>
     <p><strong>Generated:</strong> ${new Date().toLocaleDateString("en-US", {

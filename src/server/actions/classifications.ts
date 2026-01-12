@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { classificationUpsertSchema } from "@/lib/validation/classification"
 import { createAuditLogEntry } from "@/server/actions/audit-log"
+import { ClassificationStatus, Prisma, RiskType } from "@prisma/client"
 
 const serializeConfidence = (confidence?: number | null) =>
   confidence === null || confidence === undefined
@@ -52,7 +53,7 @@ export async function upsertClassificationAction(input: unknown) {
             sourceType: source.sourceType,
             referenceId: source.referenceId,
             excerpt: source.excerpt,
-            metadata: source.metadata,
+            metadata: source.metadata ? (source.metadata as Prisma.InputJsonValue) : undefined,
           })),
           skipDuplicates: true,
         })
@@ -62,7 +63,7 @@ export async function upsertClassificationAction(input: unknown) {
         await tx.riskFlag.createMany({
           data: riskFlags.map((flag) => ({
             classificationId,
-            riskType: flag.riskType,
+            riskType: flag.riskType as RiskType,
             label: flag.label,
             details: flag.details,
           })),
@@ -99,7 +100,7 @@ export async function upsertClassificationAction(input: unknown) {
       market: data.market,
       hsCode: hsCode,
       htsCode: data.htsCode,
-      status: data.status,
+      status: data.status as ClassificationStatus | undefined,
       confidence: serializeConfidence(data.confidence),
       summary: data.summary,
       reasoningTrail: data.reasoningTrail,
@@ -113,7 +114,7 @@ export async function upsertClassificationAction(input: unknown) {
                 sourceType: source.sourceType,
                 referenceId: source.referenceId,
                 excerpt: source.excerpt,
-                metadata: source.metadata,
+                metadata: source.metadata ? (source.metadata as Prisma.InputJsonValue) : undefined,
               })),
               skipDuplicates: true,
             },
@@ -123,7 +124,7 @@ export async function upsertClassificationAction(input: unknown) {
         ? {
             createMany: {
               data: riskFlags.map((flag) => ({
-                riskType: flag.riskType,
+                riskType: flag.riskType as RiskType,
                 label: flag.label,
                 details: flag.details,
               })),

@@ -25,8 +25,8 @@ export class EORIClient {
       "https://ec.europa.eu/taxation_customs/dds2/eos";
     this.apiKey = config?.apiKey || process.env.EORI_API_KEY;
     this.useMock =
-      config?.useMock ??
-      process.env.NODE_ENV === "development" ||
+      (config?.useMock ??
+      process.env.NODE_ENV === "development") ||
       !this.apiKey;
   }
 

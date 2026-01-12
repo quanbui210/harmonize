@@ -54,7 +54,7 @@ export default async function DossierPage({ params }: Props) {
       </div>
 
       <DossierGenerator 
-        classification={classification}
+        classification={classification as any}
         organizationId={membership.organizationId}
         userId={user.id}
       />

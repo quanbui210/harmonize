@@ -170,10 +170,10 @@ export default async function DashboardPage() {
             <Table>
               <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[200px]">Product</TableHead>
-                    <TableHead className="min-w-[260px] pr-6">Code</TableHead>
-                    <TableHead className="w-[160px] pl-6">Status</TableHead>
-                    <TableHead className="text-right w-[200px]">Action</TableHead>
+                    <TableHead className="w-[600px]">Product</TableHead>
+                    <TableHead className="min-w-[200px] pr-6">Code</TableHead>
+                    <TableHead className="w-[140px] pl-6">Status</TableHead>
+                    <TableHead className="text-right w-[180px]">Action</TableHead>
                   </TableRow>
               </TableHeader>
               <TableBody>
@@ -189,7 +189,7 @@ export default async function DashboardPage() {
                     key={item.id} 
                     className="cursor-pointer hover:bg-muted/50"
                   >
-                    <TableCell className="w-[200px] max-w-[200px]">
+                    <TableCell className="w-[300px] max-w-[300px]">
                       <Link href={`/classify/${item.id}`} className="block w-full">
                         <div className="min-w-0 w-full">
                           <TooltipProvider>
@@ -207,7 +207,7 @@ export default async function DashboardPage() {
                         </div>
                       </Link>
                     </TableCell>
-                    <TableCell className="min-w-[260px] pr-6">
+                    <TableCell className="min-w-[200px] pr-6">
                       <Link href={`/classify/${item.id}`} className="block">
                         {item.htsCode && item.htsCode !== "0000000000" ? (
                           <CodeDisplay
@@ -220,7 +220,7 @@ export default async function DashboardPage() {
                         )}
                       </Link>
                     </TableCell>
-                    <TableCell className="w-[160px] pl-6">
+                    <TableCell className="w-[140px] pl-6">
                       <Link href={`/classify/${item.id}`} className="block">
                         <Badge
                           variant={item.dossier ? "default" : "secondary"}
@@ -229,7 +229,7 @@ export default async function DashboardPage() {
                         </Badge>
                       </Link>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right w-[180px]">
                       <div className="flex items-center justify-end gap-2">
                         <Button 
                           variant="outline" 
@@ -262,12 +262,12 @@ export default async function DashboardPage() {
               <CardDescription>Latest active shipments.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {data.recentShipments.length === 0 && (
+              {data.recentShipments?.length === 0 && (
                 <p className="text-sm text-muted-foreground">
                   No active shipments yet. Create a shipment to get started.
                 </p>
               )}
-              {data.recentShipments.map((shipment: any) => (
+              {data.recentShipments?.map((shipment: any) => (
                 <Link
                   key={shipment.id}
                   href={`/shipments/${shipment.id}`}
@@ -277,7 +277,7 @@ export default async function DashboardPage() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold truncate">{shipment.shipmentNumber}</p>
                       <p className="text-xs text-muted-foreground">
-                        {shipment.items.length} item{shipment.items.length !== 1 ? "s" : ""} · {shipment.type}
+                        {shipment.items?.length ?? 0} item{(shipment.items?.length ?? 0) !== 1 ? "s" : ""} · {shipment.type}
                       </p>
                     </div>
                     <Badge variant={shipment.status === "CLEARED" ? "default" : shipment.status === "IN_TRANSIT" ? "secondary" : "outline"}>

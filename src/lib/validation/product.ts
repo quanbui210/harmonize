@@ -15,7 +15,7 @@ const baseProductSchema = z
     intendedUse: z.string().max(200).optional(),
     targetMarkets: z.array(marketCodeSchema).min(1),
     materials: z.array(materialSchema).default([]),
-    metadata: z.record(z.unknown()).optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
   })
   .superRefine((value, ctx) => {
     const total = value.materials.reduce(

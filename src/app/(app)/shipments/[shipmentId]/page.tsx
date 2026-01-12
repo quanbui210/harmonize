@@ -20,7 +20,7 @@ export default async function ShipmentDetailPage({ params }: Props) {
     const shipment = await getShipmentAction(params.shipmentId);
     return (
       <ShipmentDetailPageClient
-        shipment={shipment}
+        shipment={shipment as any}
         organizationId={membership.organizationId}
       />
     );

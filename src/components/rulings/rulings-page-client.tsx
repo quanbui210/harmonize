@@ -50,7 +50,7 @@ type Props = {
   total: number;
   currentPage: number;
   limit: number;
-  marketOptions: MarketOption[];
+  marketOptions: { value: string; label: string }[];
   initialFilters: {
     market?: string;
     htsCode?: string;
@@ -205,7 +205,7 @@ export function RulingsPageClient({
                 No rulings found. Try adjusting your search criteria.
               </p>
               <p className="text-xs text-muted-foreground mt-2">
-                To populate the database, you'll need to ingest official rulings from customs authorities
+                To populate the database, you&apos;ll need to ingest official rulings from customs authorities
                 (e.g., EU BTI database, US CBP rulings).
               </p>
             </div>

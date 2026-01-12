@@ -7,6 +7,7 @@ import {
   updateProductSchema,
 } from "@/lib/validation/product"
 import { createAuditLogEntry } from "@/server/actions/audit-log"
+import { Prisma } from "@prisma/client"
 
 function mapMaterialPayload(materials: CreateProductInput["materials"]) {
   if (!materials.length) {
@@ -35,7 +36,7 @@ export async function createProductAction(input: unknown) {
       description: payload.description,
       intendedUse: payload.intendedUse,
       targetMarkets: payload.targetMarkets,
-      metadata: payload.metadata,
+      metadata: payload.metadata ? (payload.metadata as Prisma.InputJsonValue) : undefined,
       materials: mapMaterialPayload(payload.materials),
     },
     include: {
@@ -83,7 +84,7 @@ export async function updateProductAction(input: unknown) {
         description: payload.description,
         intendedUse: payload.intendedUse,
         targetMarkets: payload.targetMarkets,
-        metadata: payload.metadata,
+        metadata: payload.metadata ? (payload.metadata as Prisma.InputJsonValue) : undefined,
       },
     })
 
@@ -108,9 +109,10 @@ export async function updateProductAction(input: unknown) {
     });
 
     // Log audit entry (outside transaction to avoid issues)
+    // Note: updateProductSchema omits createdById, so we don't have userId for updates
     await createAuditLogEntry({
       organizationId: payload.organizationId,
-      userId: payload.createdById,
+      userId: undefined, // Update actions don't include userId in schema
       entityType: "PRODUCT",
       entityId: payload.productId,
       action: "UPDATE",

@@ -178,7 +178,7 @@ export function CreateShipmentForm({ organizationId, products }: Props) {
           <CardHeader>
             <CardTitle>Shipment Information</CardTitle>
             <CardDescription>
-              Create a new import or export shipment. After creating, you'll add products from your classifications and specify quantities.
+              Create a new import or export shipment. After creating, you&apos;ll add products from your classifications and specify quantities.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">

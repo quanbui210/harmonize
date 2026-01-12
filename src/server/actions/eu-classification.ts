@@ -4,7 +4,7 @@ import { euClassificationEngine } from "@/lib/eu/classification-engine";
 import { openaiService } from "@/lib/eu/openai-service";
 import type { EUProductAttributes } from "@/lib/eu/types";
 import { prisma } from "@/lib/prisma";
-import { MarketCode } from "@prisma/client";
+import { MarketCode, Prisma } from "@prisma/client";
 import { createHash } from "crypto";
 import { writeFile } from "fs/promises";
 import { join } from "path";
@@ -65,8 +65,8 @@ export async function classifyProductForEUAction(
           htsCode,
           confidence: classificationResult.confidence,
           summary: `CN Code: ${cnCode}. ${classificationResult.sources[0]?.excerpt || ""}`,
-          reasoningTrail: classificationResult.reasoningTrail as unknown,
-          exclusionNotes: classificationResult.exclusionNotes as unknown,
+          reasoningTrail: classificationResult.reasoningTrail as unknown as Prisma.InputJsonValue,
+          exclusionNotes: classificationResult.exclusionNotes as string[],
           requiresReview: classificationResult.confidence < 0.8,
           status: classificationResult.confidence < 0.8 ? "NEEDS_REVIEW" : "DRAFT",
         },
@@ -80,8 +80,8 @@ export async function classifyProductForEUAction(
           htsCode,
           confidence: classificationResult.confidence,
           summary: `CN Code: ${cnCode}. ${classificationResult.sources[0]?.excerpt || ""}`,
-          reasoningTrail: classificationResult.reasoningTrail as unknown,
-          exclusionNotes: classificationResult.exclusionNotes as unknown,
+          reasoningTrail: classificationResult.reasoningTrail as unknown as Prisma.InputJsonValue,
+          exclusionNotes: classificationResult.exclusionNotes as string[],
           requiresReview: classificationResult.confidence < 0.8,
           status: classificationResult.confidence < 0.8 ? "NEEDS_REVIEW" : "DRAFT",
         },
@@ -97,7 +97,7 @@ export async function classifyProductForEUAction(
       sourceType: source.sourceType,
       referenceId: source.referenceId,
       excerpt: source.excerpt,
-      metadata: source.metadata as unknown,
+      metadata: source.metadata ? (source.metadata as Prisma.InputJsonValue) : undefined,
     })),
   });
 

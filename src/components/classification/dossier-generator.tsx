@@ -142,7 +142,7 @@ export function DossierGenerator({ classification, organizationId, userId }: Pro
             <div className="space-y-4">
               <div className="rounded-lg border bg-blue-50 p-4">
                 <p className="text-sm text-blue-900">
-                  <strong>What's included:</strong>
+                  <strong>What&apos;s included:</strong>
                 </p>
                 <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-blue-700">
                   <li>GRI analysis with step-by-step reasoning</li>

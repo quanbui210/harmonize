@@ -54,7 +54,7 @@ export async function createAuditLogEntry(input: {
         entityType: input.entityType,
         entityId: input.entityId,
         action: input.action,
-        payload: input.payload || null,
+        payload: input.payload || undefined,
       },
     });
     console.log("✅ Audit log entry created:", result.id, input.action, input.entityType);
@@ -62,7 +62,7 @@ export async function createAuditLogEntry(input: {
   } catch (error) {
     // Don't throw - audit logging should never break the main flow
     // But log more details to help debug
-    console.error("❌ Failed to create audit log entry:", {
+    console.error(" Failed to create audit log entry:", {
       error: error instanceof Error ? error.message : String(error),
       input: {
         organizationId: input.organizationId,

@@ -4,6 +4,7 @@ import { getSelectedOrganizationId, getAllUserMemberships } from "@/server/queri
 import { getMembersAction, getInvitationsAction } from "@/server/actions/organizations";
 import { prisma } from "@/lib/prisma";
 import { SettingsClient } from "@/components/settings/settings-client";
+import { MembershipRole } from "@prisma/client";
 
 export default async function SettingsPage() {
   const user = await getOptionalUser();
@@ -31,6 +32,7 @@ export default async function SettingsPage() {
       slug: true,
       timezone: true,
       logoUrl: true,
+      createdById: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -41,8 +43,8 @@ export default async function SettingsPage() {
   }
 
   // Get members and invitations (only if user is OWNER or ADMIN)
-  let members = [];
-  let invitations = [];
+  let members: { id: string; role: MembershipRole; createdAt: Date; user: { id: string; email: string; fullName: string | null; }; }[] = [];
+  let invitations: Awaited<ReturnType<typeof getInvitationsAction>> = [];
   
   if (membership.role === "OWNER" || membership.role === "ADMIN") {
     try {

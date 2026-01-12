@@ -47,6 +47,7 @@ export function VaultDashboard({ organizationId }: Props) {
   useEffect(() => {
     loadFiles();
     loadComplianceStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadFiles = async () => {

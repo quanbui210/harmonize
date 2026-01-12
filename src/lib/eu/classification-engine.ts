@@ -2,6 +2,7 @@ import type {
   EUProductAttributes,
   EUClassificationResult,
   CNCode,
+  GRIReasoningStep,
 } from "./types";
 import { griEngine } from "./gri-engine";
 import { taricClient } from "./taric-client";
@@ -171,7 +172,7 @@ export class EUClassificationEngine {
   }
 
   private buildExclusionNotes(
-    reasoningTrail: Array<{ excludedOptions?: string[] }>,
+    reasoningTrail: GRIReasoningStep[],
   ): string[] {
     const notes: string[] = [];
 
