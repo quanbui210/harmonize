@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation"
-import { AlertTriangle, ArrowUpRight, CheckCircle2 } from "lucide-react"
+import { AlertTriangle, ArrowUpRight, CheckCircle2, Check, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -166,93 +166,175 @@ export default async function DashboardPage() {
               <Link href="/classify">View all</Link>
             </Button>
           </CardHeader>
-          <CardContent className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[600px]">Product</TableHead>
-                    <TableHead className="min-w-[200px] pr-6">Code</TableHead>
-                    <TableHead className="w-[140px] pl-6">Status</TableHead>
-                    <TableHead className="text-right w-[180px]">Action</TableHead>
-                  </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.actionItems.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center text-sm">
-                      All classifications are covered. Great job.
-                    </TableCell>
-                  </TableRow>
-                )}
-                {data.actionItems.map((item: any) => (
-                  <TableRow 
-                    key={item.id} 
-                    className="cursor-pointer hover:bg-muted/50"
-                  >
-                    <TableCell className="w-[300px] max-w-[300px]">
-                      <Link href={`/classify/${item.id}`} className="block w-full">
-                        <div className="min-w-0 w-full">
+          <CardContent>
+            {/* Mobile/Tablet: Card Layout */}
+            <div className="space-y-4 md:hidden">
+              {data.actionItems.length === 0 && (
+                <p className="text-center text-sm text-muted-foreground py-8">
+                  All classifications are covered. Great job.
+                </p>
+              )}
+              {data.actionItems.map((item: any) => (
+                <div
+                  key={item.id}
+                  className="block rounded-lg border p-4 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <Link href={`/classify/${item.id}`} className="flex-1 min-w-0">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <p className="font-medium text-sm leading-tight cursor-help">
+                                {item.product?.name ?? "Untitled Product"}
+                              </p>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="max-w-xs">{item.product?.name ?? "Untitled Product"}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </Link>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="shrink-0">
+                              {item.dossier ? (
+                                <Check className="h-5 w-5 text-green-600" />
+                              ) : (
+                                <X className="h-5 w-5 text-muted-foreground" />
+                              )}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{item.dossier ? "Dossier Ready" : "No Dossier"}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    <Link href={`/classify/${item.id}`} className="block">
+                      {item.htsCode && item.htsCode !== "0000000000" ? (
+                        <CodeDisplay
+                          cnCode={item.htsCode.substring(0, 8)}
+                          hsCode={(item as any).hsCode || item.htsCode.substring(0, 6)}
+                          htsCode={item.htsCode}
+                        />
+                      ) : (
+                        <span className="text-sm text-muted-foreground">Pending classification</span>
+                      )}
+                    </Link>
+                    <div className="flex items-center gap-2 pt-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="flex-1"
+                        asChild
+                      >
+                        <Link href={item.dossier 
+                          ? `/classify/${item.id}/dossier` 
+                          : `/classify/${item.id}`}
+                        >
+                          {item.dossier ? "View Dossier" : "View"}
+                        </Link>
+                      </Button>
+                      <DeleteClassificationButton
+                        classificationId={item.id}
+                        productName={item.product?.name ?? "Untitled Product"}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop: Table Layout */}
+            <div className="hidden md:block overflow-x-auto">
+              <Table>
+                <TableHeader>
+                    <TableRow>
+                      <TableHead className="min-w-[200px]">Product</TableHead>
+                      <TableHead className="min-w-[180px]">Code</TableHead>
+                      <TableHead className="min-w-[60px] text-center">Dossier</TableHead>
+                      <TableHead className="text-right min-w-[200px]">Action</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.actionItems.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-sm">
+                        All classifications are covered. Great job.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {data.actionItems.map((item: any) => (
+                    <TableRow 
+                      key={item.id} 
+                      className="cursor-pointer hover:bg-muted/50"
+                    >
+                      <TableCell className="min-w-[200px] max-w-[300px]">
+                        <Link href={`/classify/${item.id}`} className="block w-full">
+                          <div className="min-w-0 w-full">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <p className="font-medium truncate cursor-help w-full">
+                                    {item.product?.name ?? "Untitled Product"}
+                                  </p>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="max-w-xs">{item.product?.name ?? "Untitled Product"}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                        </Link>
+                      </TableCell>
+                      <TableCell className="min-w-[180px]">
+                        <Link href={`/classify/${item.id}`} className="block">
+                          {item.htsCode && item.htsCode !== "0000000000" ? (
+                            <CodeDisplay
+                              cnCode={item.htsCode.substring(0, 8)}
+                              hsCode={(item as any).hsCode || item.htsCode.substring(0, 6)}
+                              htsCode={item.htsCode}
+                            />
+                          ) : (
+                            <span className="text-muted-foreground">Pending classification</span>
+                          )}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="min-w-[60px] text-center">
+                        <Link href={`/classify/${item.id}`} className="flex justify-center">
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <p className="font-medium truncate cursor-help w-full">
-                                  {item.product?.name ?? "Untitled Product"}
-                                </p>
+                                <div>
+                                  {item.dossier ? (
+                                    <Check className="h-5 w-5 text-green-600" />
+                                  ) : (
+                                    <X className="h-5 w-5 text-muted-foreground" />
+                                  )}
+                                </div>
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p className="max-w-xs">{item.product?.name ?? "Untitled Product"}</p>
+                                <p>{item.dossier ? "Dossier Ready" : "No Dossier"}</p>
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
-                        </div>
-                      </Link>
-                    </TableCell>
-                    <TableCell className="min-w-[200px] pr-6">
-                      <Link href={`/classify/${item.id}`} className="block">
-                        {item.htsCode && item.htsCode !== "0000000000" ? (
-                          <CodeDisplay
-                            cnCode={item.htsCode.substring(0, 8)}
-                            hsCode={(item as any).hsCode || item.htsCode.substring(0, 6)}
-                            htsCode={item.htsCode}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="text-right min-w-[200px]">
+                        <div className="flex items-center justify-end">
+                          <DeleteClassificationButton
+                            classificationId={item.id}
+                            productName={item.product?.name ?? "Untitled Product"}
                           />
-                        ) : (
-                          <span className="text-muted-foreground">Pending classification</span>
-                        )}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="w-[140px] pl-6">
-                      <Link href={`/classify/${item.id}`} className="block">
-                        <Badge
-                          variant={item.dossier ? "default" : "secondary"}
-                        >
-                          {item.dossier ? "Dossier Ready" : "No Dossier"}
-                        </Badge>
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-right w-[180px]">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          asChild
-                        >
-                          <Link href={item.dossier 
-                            ? `/classify/${item.id}/dossier` 
-                            : `/classify/${item.id}`}
-                          >
-                            {item.dossier ? "View Dossier" : "View Details"}
-                          </Link>
-                        </Button>
-                        <DeleteClassificationButton
-                          classificationId={item.id}
-                          productName={item.product?.name ?? "Untitled Product"}
-                        />
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
         <div className="space-y-6">

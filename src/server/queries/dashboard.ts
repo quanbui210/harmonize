@@ -42,7 +42,7 @@ export async function getDashboardOverview(organizationId: string) {
     },
   })
 
-  // Get all recent classifications (max 8), not just missing dossiers
+  // Get all recent classifications (up to 50 for show more functionality)
   const actionItems = await prisma.classification.findMany({
     where: {
       organizationId,
@@ -55,7 +55,7 @@ export async function getDashboardOverview(organizationId: string) {
     orderBy: {
       updatedAt: "desc",
     },
-    take: 8,
+    take: 50, // Fetch more to support "show more" functionality
   })
 
   const activeImports = await prisma.classification.findMany({
