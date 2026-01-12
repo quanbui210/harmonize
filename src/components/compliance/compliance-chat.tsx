@@ -231,7 +231,7 @@ export function ComplianceChat({ organizationId, userId, sessionId: initialSessi
                         </ReactMarkdown>
                       </div>
                     ) : (
-                      <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
                     )}
 
                     {/* Sources - Collapsible */}

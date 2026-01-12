@@ -23,10 +23,22 @@ import { getDashboardOverview } from "@/server/queries/dashboard"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { DeleteClassificationButton } from "@/components/classification/delete-classification-button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { CodeDisplay } from "@/components/classification/code-display";
 
 function formatCNCode(cnCode: string): string {
   if (!cnCode || cnCode.length !== 8) return cnCode;
   return `${cnCode.substring(0, 4)} ${cnCode.substring(4, 6)} ${cnCode.substring(6, 8)}`;
+}
+
+function formatHSCode(hsCode: string): string {
+  if (!hsCode || hsCode.length !== 6) return hsCode;
+  return `${hsCode.substring(0, 2)}.${hsCode.substring(2, 4)}.${hsCode.substring(4, 6)}`;
 }
 
 function formatHTSCode(htsCode: string): string {
@@ -157,12 +169,12 @@ export default async function DashboardPage() {
           <CardContent className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Product / SKU</TableHead>
-                  <TableHead>HTS Code</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
+                  <TableRow>
+                    <TableHead className="w-[200px]">Product</TableHead>
+                    <TableHead className="min-w-[260px] pr-6">Code</TableHead>
+                    <TableHead className="w-[160px] pl-6">Status</TableHead>
+                    <TableHead className="text-right w-[200px]">Action</TableHead>
+                  </TableRow>
               </TableHeader>
               <TableBody>
                 {data.actionItems.length === 0 && (
@@ -172,46 +184,46 @@ export default async function DashboardPage() {
                     </TableCell>
                   </TableRow>
                 )}
-                {data.actionItems.map((item) => (
+                {data.actionItems.map((item: any) => (
                   <TableRow 
                     key={item.id} 
                     className="cursor-pointer hover:bg-muted/50"
                   >
-                    <TableCell className="max-w-[200px] md:max-w-[300px] lg:max-w-[400px]">
-                      <Link href={`/classify/${item.id}`} className="block">
-                        <div className="min-w-0">
-                          <p 
-                            className="font-medium truncate cursor-help" 
-                            title={item.product?.name ?? "Untitled Product"}
-                          >
-                            {item.product?.name ?? "Untitled Product"}
-                          </p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {String(item.product?.id ?? "")}
-                          </p>
+                    <TableCell className="w-[200px] max-w-[200px]">
+                      <Link href={`/classify/${item.id}`} className="block w-full">
+                        <div className="min-w-0 w-full">
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <p className="font-medium truncate cursor-help w-full">
+                                  {item.product?.name ?? "Untitled Product"}
+                                </p>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="max-w-xs">{item.product?.name ?? "Untitled Product"}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         </div>
                       </Link>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="min-w-[260px] pr-6">
                       <Link href={`/classify/${item.id}`} className="block">
                         {item.htsCode && item.htsCode !== "0000000000" ? (
-                          <div className="space-y-1">
-                            <p className="font-mono text-sm">
-                              {formatHTSCode(item.htsCode)}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              CN: {formatCNCode(item.htsCode.substring(0, 8))}
-                            </p>
-                          </div>
+                          <CodeDisplay
+                            cnCode={item.htsCode.substring(0, 8)}
+                            hsCode={(item as any).hsCode || item.htsCode.substring(0, 6)}
+                            htsCode={item.htsCode}
+                          />
                         ) : (
                           <span className="text-muted-foreground">Pending classification</span>
                         )}
                       </Link>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="w-[160px] pl-6">
                       <Link href={`/classify/${item.id}`} className="block">
                         <Badge
-                          variant={item.dossier ? "default" : "destructive"}
+                          variant={item.dossier ? "default" : "secondary"}
                         >
                           {item.dossier ? "Dossier Ready" : "No Dossier"}
                         </Badge>
@@ -246,25 +258,33 @@ export default async function DashboardPage() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Quick Access · CBP Rulings</CardTitle>
-              <CardDescription>Latest binding rulings in the vault.</CardDescription>
+              <CardTitle>Recent Shipments</CardTitle>
+              <CardDescription>Latest active shipments.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {data.quickRulings.length === 0 && (
+              {data.recentShipments.length === 0 && (
                 <p className="text-sm text-muted-foreground">
-                  No rulings synced yet. Add CROSS rulings to boost confidence.
+                  No active shipments yet. Create a shipment to get started.
                 </p>
               )}
-              {data.quickRulings.map((ruling) => (
-                <div
-                  key={String(ruling.id)}
-                  className="rounded-xl border p-3"
+              {data.recentShipments.map((shipment: any) => (
+                <Link
+                  key={shipment.id}
+                  href={`/shipments/${shipment.id}`}
+                  className="block rounded-xl border p-3 hover:bg-muted/50 transition-colors"
                 >
-                  <p className="text-sm font-semibold">{String(ruling.reference ?? "")}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {String(ruling.title ?? "")}
-                  </p>
-                </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate">{shipment.shipmentNumber}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {shipment.items.length} item{shipment.items.length !== 1 ? "s" : ""} · {shipment.type}
+                      </p>
+                    </div>
+                    <Badge variant={shipment.status === "CLEARED" ? "default" : shipment.status === "IN_TRANSIT" ? "secondary" : "outline"}>
+                      {shipment.status.replace("_", " ")}
+                    </Badge>
+                  </div>
+                </Link>
               ))}
             </CardContent>
           </Card>
@@ -293,7 +313,7 @@ export default async function DashboardPage() {
                     </p>
                   </div>
                   <Badge
-                    variant={item.requiresReview ? "destructive" : "secondary"}
+                    variant={item.requiresReview ? "secondary" : "default"}
                   >
                     {item.requiresReview ? "Review" : "Audit Ready"}
                   </Badge>

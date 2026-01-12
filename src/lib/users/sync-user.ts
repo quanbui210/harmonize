@@ -5,7 +5,7 @@ import { slugify } from "@/lib/utils"
 
 const randomSuffix = () => Math.random().toString(36).slice(2, 6)
 
-async function createWorkspace(name: string) {
+async function createWorkspace(name: string, createdById: string) {
   const baseSlug = slugify(name) || "workspace"
   let attempt = 0
 
@@ -16,6 +16,7 @@ async function createWorkspace(name: string) {
         data: {
           name,
           slug,
+          createdById,
         },
       })
     } catch (error) {
@@ -65,7 +66,7 @@ export async function ensureUserWorkspace(user: User) {
 
   const organizationName =
     (profile.fullName ? `${profile.fullName.split(" ")[0]}'s Workspace` : "Harmonize Workspace")
-  const organization = await createWorkspace(organizationName)
+  const organization = await createWorkspace(organizationName, profile.id)
 
   return prisma.membership.create({
     data: {

@@ -67,7 +67,22 @@ export async function getDashboardOverview(organizationId: string) {
     take: 3,
   })
 
-  const quickRulings = await prisma.bindingRuling.findMany({
+  // Get recent active shipments (not cancelled)
+  const recentShipments = await (prisma as any).shipment.findMany({
+    where: {
+      organizationId,
+      status: {
+        not: "CANCELLED",
+      },
+    },
+    include: {
+      items: {
+        include: {
+          product: true,
+        },
+        take: 1, // Just get count
+      },
+    },
     orderBy: {
       updatedAt: "desc",
     },
@@ -88,7 +103,7 @@ export async function getDashboardOverview(organizationId: string) {
     rulingsMatched,
     actionItems,
     activeImports,
-    quickRulings,
+    recentShipments,
   }
 }
 

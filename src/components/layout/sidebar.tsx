@@ -11,6 +11,7 @@ import {
   Home,
   LifeBuoy,
   MessageSquare,
+  Settings,
   ShieldCheck,
   Waypoints,
 } from "lucide-react"
@@ -57,6 +58,11 @@ const secondaryNav = [
     icon: AlertTriangle,
   },
   {
+    label: "Settings",
+    href: "/settings",
+    icon: Settings,
+  },
+  {
     label: "Support Center",
     href: "/support",
     icon: LifeBuoy,
@@ -65,9 +71,10 @@ const secondaryNav = [
 
 type SidebarProps = {
   organizationName: string
+  organizationLogoUrl?: string | null
 }
 
-export function Sidebar({ organizationName }: SidebarProps) {
+export function Sidebar({ organizationName, organizationLogoUrl }: SidebarProps) {
   const pathname = usePathname()
 
   return (
@@ -76,9 +83,22 @@ export function Sidebar({ organizationName }: SidebarProps) {
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white">
           <Home className="h-5 w-5" />
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold">HarmonizeAI</p>
-          <p className="text-xs text-muted-foreground">{organizationName}</p>
+          <div className="flex items-center gap-2">
+            {organizationLogoUrl ? (
+              <>
+                <img
+                  src={organizationLogoUrl}
+                  alt={organizationName}
+                  className="h-4 w-4 rounded object-cover"
+                />
+                <p className="text-xs text-muted-foreground truncate">{organizationName}</p>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground truncate">{organizationName}</p>
+            )}
+          </div>
         </div>
       </div>
       <div className="mt-8 space-y-6">
@@ -120,8 +140,8 @@ export function Sidebar({ organizationName }: SidebarProps) {
               asChild
             >
               <Link href="/vault">
-                <FileText className="h-4 w-4" />
-                Request Docs
+              <FileText className="h-4 w-4" />
+              Request Docs
               </Link>
             </Button>
           </div>

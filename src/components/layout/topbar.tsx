@@ -1,24 +1,25 @@
 import { Search } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { UserMenu } from "./user-menu"
+import { OrganizationSwitcher } from "@/components/organizations/organization-switcher"
+import { MembershipRole } from "@prisma/client"
 
 type TopbarProps = {
   organizationName: string
+  organizationId: string
   userName?: string | null
   userEmail?: string | null
+  memberships: Array<{
+    id: string
+    role: MembershipRole
+    organization: {
+      id: string
+      name: string
+    }
+  }>
 }
 
-export function Topbar({ organizationName, userName, userEmail }: TopbarProps) {
-  const initials =
-    userName
-      ?.split(" ")
-      .map((part) => part[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase() ||
-    userEmail?.slice(0, 2).toUpperCase() ||
-    "HM"
-
+export function Topbar({ organizationName, organizationId, userName, userEmail, memberships }: TopbarProps) {
   return (
     <header className="flex items-center justify-between border-b bg-white px-6 py-4">
       <div className="flex flex-1 items-center gap-3">
@@ -31,13 +32,15 @@ export function Topbar({ organizationName, userName, userEmail }: TopbarProps) {
         </div>
       </div>
       <div className="flex items-center gap-4">
-        <div className="text-right">
-          <p className="text-sm font-medium">{userName ?? "Analyst"}</p>
-          <p className="text-xs text-muted-foreground">{organizationName}</p>
-        </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold">
-          {initials}
-        </div>
+        <OrganizationSwitcher
+          currentOrganizationId={organizationId}
+          memberships={memberships}
+        />
+        <UserMenu
+          userName={userName}
+          userEmail={userEmail}
+          organizationName={organizationName}
+        />
       </div>
     </header>
   )

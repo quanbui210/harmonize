@@ -48,11 +48,27 @@ enum RiskType {
   OTHER
 }
 
+enum ShipmentType {
+  IMPORT
+  EXPORT
+}
+
+enum ShipmentStatus {
+  DRAFT
+  IN_TRANSIT
+  CLEARED
+  AUDITED
+  DISPUTED
+  CANCELLED
+}
+
 model Organization {
   id              String           @id @default(cuid())
   name            String
   slug            String           @unique
   timezone        String?          @default("UTC")
+  logoUrl         String?          // URL to organization logo/avatar
+  createdById     String?          // Track who created the org (first OWNER)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   memberships     Membership[]
@@ -61,6 +77,9 @@ model Organization {
   referenceFiles  VaultFile[]
   auditLogs       AuditLog[]
   chatSessions    ChatSession[]
+  shipments       Shipment[]
+  invitations     OrganizationInvitation[]
+  createdBy       User?            @relation("OrganizationCreator", fields: [createdById], references: [id])
 }
 
 model User {
@@ -77,6 +96,8 @@ model User {
   auditLogs       AuditLog[]
   uploads         VaultFile[]      @relation("VaultUploader")
   chatSessions    ChatSession[]    @relation("ChatSessions")
+  createdOrganizations Organization[] @relation("OrganizationCreator")
+  sentInvitations OrganizationInvitation[]
 }
 
 model Membership {
@@ -89,6 +110,25 @@ model Membership {
   organization   Organization   @relation(fields: [organizationId], references: [id])
 
   @@unique([userId, organizationId])
+}
+
+model OrganizationInvitation {
+  id             String         @id @default(cuid())
+  organizationId String
+  email          String
+  role           MembershipRole @default(CONTRIBUTOR)
+  invitedById    String         // Admin/Owner who sent invitation
+  token          String         @unique // Secure token for acceptance
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime       @default(now())
+  
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+  invitedBy      User           @relation(fields: [invitedById], references: [id])
+  
+  @@unique([organizationId, email]) // One pending invitation per email per org
+  @@index([token])
+  @@index([email])
 }
 
 model Product {
@@ -108,6 +148,7 @@ model Product {
   materials       ProductMaterial[]
   referenceFiles  VaultFile[]
   classifications Classification[]
+  shipmentItems   ShipmentItem[]
 
   @@index([organizationId])
   @@index([createdById])
@@ -175,6 +216,7 @@ model Classification {
   dutySummary       DutySummary?
   riskFlags         RiskFlag[]
   sources           ClassificationSource[]
+  shipmentItems     ShipmentItem[]
 
   @@index([organizationId, market])
   @@index([productId, market])
@@ -356,4 +398,70 @@ model ChatMessage {
 
   @@index([sessionId])
   @@index([createdAt])
+}
+
+model Shipment {
+  id                      String            @id @default(cuid())
+  organizationId          String
+  shipmentNumber          String            // User-provided reference
+  type                    ShipmentType
+  status                  ShipmentStatus    @default(DRAFT)
+  originCountry            String?
+  destinationCountry      String?
+  shippingDate            DateTime?
+  arrivalDate             DateTime?
+  customsDeclarationNumber String?
+  invoiceValue            Decimal?          @db.Decimal(12, 2)
+  totalDuty               Decimal?          @db.Decimal(12, 2)
+  incoterms               String?
+  carrier                 String?
+  freightForwarder        String?
+  notes                   String?
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  
+  organization            Organization      @relation(fields: [organizationId], references: [id])
+  items                   ShipmentItem[]
+  documents               ShipmentDocument[]
+  
+  @@index([organizationId, status])
+  @@index([organizationId, type])
+  @@index([shipmentNumber])
+}
+
+model ShipmentItem {
+  id                String          @id @default(cuid())
+  shipmentId        String
+  productId         String
+  classificationId  String?
+  quantity          Decimal         @db.Decimal(10, 2)
+  unitValue         Decimal         @db.Decimal(12, 2)
+  cnCode            String?
+  hsCode            String?
+  htsCode           String?
+  dutyRate          Decimal?        @db.Decimal(5, 2)
+  notes             String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  
+  shipment          Shipment        @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  product           Product        @relation(fields: [productId], references: [id])
+  classification    Classification? @relation(fields: [classificationId], references: [id])
+  
+  @@index([shipmentId])
+  @@index([productId])
+  @@index([classificationId])
+}
+
+model ShipmentDocument {
+  id            String   @id @default(cuid())
+  shipmentId    String
+  documentType  String   // CUSTOMS_DECLARATION, INVOICE, CERTIFICATE, CLEARANCE, etc.
+  fileName      String
+  storagePath   String   // Path in Supabase storage
+  uploadedAt    DateTime @default(now())
+  
+  shipment      Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  
+  @@index([shipmentId])
 }
