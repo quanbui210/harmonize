@@ -83,6 +83,26 @@ export async function generateDossierAction(input: {
   let legalRationale = "";
   let distinctions: Array<{ heading: string; reason: string }> = [];
   let keyFeatures: string[] = [];
+  
+  // Parse alternatives from humanNotes
+  let alternativeClassifications: Array<{
+    cnCode: string;
+    confidence: number;
+    dutyRate: number;
+    reasoning: string;
+    tradeOffs?: string;
+  }> = [];
+  
+  if (classification.humanNotes) {
+    try {
+      const parsed = JSON.parse(classification.humanNotes);
+      if (parsed.alternativeClassifications) {
+        alternativeClassifications = parsed.alternativeClassifications;
+      }
+    } catch (e) {
+      // Not JSON, ignore
+    }
+  }
 
   // Try to get legal rationale from classification metadata or generate it
   if (cnCode && cnCode !== "00000000") {
@@ -169,6 +189,9 @@ export async function generateDossierAction(input: {
       legalRationale, // Pass legal rationale to dossier generator
       distinctions,
       keyFeatures,
+      alternativeClassifications: alternativeClassifications.length > 0 ? alternativeClassifications : undefined,
+      dutyRate: classification.dutySummary ? Number(classification.dutySummary.dutyRate) : undefined,
+      vatRate: classification.dutySummary ? Number(classification.dutySummary.vatRate) : undefined,
     },
   );
 

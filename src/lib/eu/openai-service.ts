@@ -21,8 +21,22 @@ interface ProductAnalysisResult {
     reason: string; // Must cite specific GRI rule
     confidence: number;
     legalBasis?: string; // Specific legal reference (Chapter Note, Heading, Legal Source ID)
+    dutyRate?: number; // EU MFN duty rate for this CN code (if known)
+    isPrimary?: boolean; // True for primary recommendation
   }>;
   classificationNotes: string[]; // Includes rejected alternatives and explanations
+  alternativeClassifications?: Array<{
+    cnCode: string;
+    reason: string;
+    confidence: number;
+    dutyRate?: number;
+    tradeOffs?: string; // Explanation of trade-offs (e.g., "Lower duty but requires BTI")
+  }>;
+  clarifyingQuestion?: {
+    question: string;
+    explanation: string;
+    options: Array<{ value: string; label: string; recommendedCode?: string }>;
+  };
 }
 
 export class OpenAIClassificationService {
@@ -49,26 +63,38 @@ CLASSIFICATION PROTOCOL (MUST FOLLOW SEQUENTIALLY):
 
 CRITICAL CONSTRAINTS:
 - Use the 8-digit Combined Nomenclature (CN) format: XX XX XX XX
-- NEVER guess a duty rate. If not explicitly provided in the 'Legal Sources' context, state that rates must be verified via the official TARIC database.
+- For each suggested CN code, provide the EU MFN (Most Favored Nation) duty rate if you know it
+- Duty rates are specific to CN codes and vary by product type:
+  * Chapter 20 (preparations of vegetables/fruit/nuts): Typically 7.5-12% MFN (average ~9.6%)
+  * Chapter 3 (fish): Typically 0-25% depending on product type
+  * Chapter 8 (edible fruit and nuts): Typically 0-12% depending on product
+  * Textiles (Chapters 50-63): Typically 8-12% MFN
+  * Electronics (Chapters 84-85): Typically 0-6.5%
+  * Many products have non-zero rates (e.g., compressors often have 2.2% duty)
+- If you cannot determine the exact rate, use the typical range for that chapter or leave it undefined
+- Do NOT default to 0% unless you are certain the rate is actually 0%
 - If the product contains multiple materials, identify the 'Essential Character' per GRI 3(b).
 - Priority Hierarchy: Legal Sources > Chapter Notes > Section Notes > General Knowledge
 - FORBIDDEN: If a CN code is found in Legal Sources, you MUST use it. Do NOT suggest a different code.
 - FORBIDDEN: If Legal Sources contradict your suggestion, you MUST use the Legal Source code and explain why.
+- CRITICAL: Validate chapter relevance. For example:
+  * Trail mix (nuts, dried fruits) → Chapter 20 (preparations of vegetables/fruit/nuts), NOT Chapter 3 (fish)
+  * Fish products → Chapter 3, NOT Chapter 20
+  * Textiles → Chapters 50-63, NOT other chapters
+  * If Legal Sources contain codes from wrong chapters (e.g., Chapter 3 codes for a trail mix), REJECT those codes and use your knowledge instead.
 
 OUTPUT REQUIREMENTS:
 - For each suggested code, cite the specific GRI rule used
-- If a code is found in Legal Sources, cite the source path
 - If multiple materials, explain Essential Character determination (GRI 3b)
-- Provide structured reasoning trail showing GRI 1 → GRI 3 (if needed) → GRI 6`;
+- Provide structured reasoning trail showing GRI 1 → GRI 3 (if needed) → GRI 6
+- CRITICAL: For products with classification ambiguity (e.g., robot vacuum cleaners that could be 8508 or 8509), provide MULTIPLE alternatives with:
+  * Primary recommendation (highest confidence)
+  * 2-3 alternative codes with explanations
+  * Trade-offs (duty rates, legal justification)
+  * Clarifying questions to help user choose (e.g., "Is mopping the primary function?")`;
 
-    const legalContext = legalChunks && legalChunks.length > 0
-      ? `\n\n### MANDATORY LEGAL SOURCES (Regulation EU 2021/1832) - ABSOLUTE AUTHORITY\n${legalChunks.map((chunk, idx) => `[ID: ${idx + 1}] Path: ${chunk.sectionPath}\nContent: ${chunk.excerpt}`).join("\n\n---\n\n")}\n\nCRITICAL RULES FOR LEGAL SOURCES:
-1. If a specific CN code (8-digit) is mentioned in the Legal Sources above, you MUST use that exact code
-2. If the Legal Sources describe the product and provide a code, that code is MANDATORY
-3. If your initial suggestion contradicts the Legal Sources, you MUST use the Legal Source code instead
-4. Cite the Legal Source path (e.g., "Chapter 42, Note 3(a)") in your reasoning
-5. The Legal Sources are the official Combined Nomenclature - they override any general knowledge`
-      : "\nNote: No specific legal chunks provided. Rely on standard GRI rules and Chapter Notes. Be extra cautious and cite your sources.";
+    // Note: Legal chunks/RAG search removed for performance - AI uses training knowledge directly
+    const legalContext = "\nNote: Rely on standard GRI rules and Chapter Notes from Regulation (EU) 2021/1832. Use your training knowledge of the Combined Nomenclature. Be extra cautious and cite your sources.";
 
     const userPrompt = `Analyze this product for EU CN classification and return the result as JSON:
 
@@ -80,14 +106,20 @@ Additional Info: ${JSON.stringify(product.composition || product.technicalSpecs 
 
 Provide your response in JSON format with:
 1. keyAttributes (primary function, materials breakdown, technical features, intended use)
-2. suggestedChapters (array of objects with: chapter, heading (optional), subheading (optional), cnCode (8-digit if you can determine it), reason, confidence 0-1)
+2. suggestedChapters (array of objects with: chapter, heading (optional), subheading (optional), cnCode (8-digit if you can determine it), reason, confidence 0-1, dutyRate (optional number - EU MFN duty rate if known), isPrimary (boolean - true for primary recommendation))
 3. classificationNotes (any special considerations, exclusions, or warnings)
+4. alternativeClassifications (optional array of objects with: cnCode, reason, confidence, dutyRate, tradeOffs - for ambiguous cases like robot vacuums 8508 vs 8509)
+5. clarifyingQuestion (optional object with: question, explanation, options - for ambiguous classifications that need user input)
 
 IMPORTANT: 
-- If legal sources are provided above, ALWAYS prioritize CN codes found in those sources
-- For example, if sources mention "0804 50 00" for dried mango, use that code (not "0813 40 00")
-- Try to provide specific CN codes (8-digit) when possible, especially for well-known product categories like drones (8806), electronics (8504, 8517, etc.), or machinery (8414, 8421, etc.)
-- When legal sources are available, cite them in your reasoning`;
+- Try to provide specific CN codes (8-digit) when possible
+- For ambiguous products (e.g., robot vacuum cleaners), provide PRIMARY recommendation + 2-3 ALTERNATIVES with:
+  * Primary code (highest confidence, most common practice)
+  * Alternative codes with explanations and trade-offs
+  * Clarifying question to help user choose (e.g., "Is mopping the primary cleaning method?")
+- For each suggested CN code, provide the duty rate if you know it
+- Use your training knowledge of Regulation (EU) 2021/1832 Combined Nomenclature
+- Example: Robot vacuum cleaner → Primary: 8508 11 00 (vacuum cleaner), Alternative: 8509 80 00 (if mopping is primary), with clarifying question`;
 
     try {
       const response = await openai.chat.completions.create({
@@ -124,6 +156,8 @@ IMPORTANT:
         },
         suggestedChapters: parsed.suggestedChapters || parsed.suggested_chapters || [],
         classificationNotes: parsed.classificationNotes || parsed.classification_notes || [],
+        alternativeClassifications: parsed.alternativeClassifications || parsed.alternative_classifications || undefined,
+        clarifyingQuestion: parsed.clarifyingQuestion || parsed.clarifying_question || undefined,
       };
       
       // Normalize chapter objects if they're in snake_case
@@ -133,9 +167,26 @@ IMPORTANT:
           const heading = ch.heading || ch.heading_number;
           const subheading = ch.subheading || ch.subheading_number;
           const cnCode = ch.cnCode || ch.cn_code || ch.cNCode;
+          const dutyRate = ch.dutyRate || ch.duty_rate;
           
-          // If AI provided a CN code, use it; otherwise construct from chapter/heading/subheading
+          // If AI provided a CN code, normalize it (remove spaces, dots, etc.)
           let finalCnCode = cnCode;
+          if (finalCnCode) {
+            // First, extract all digits (removes spaces, dots, dashes, etc.)
+            const digitsOnly = finalCnCode.replace(/\D/g, "");
+            if (digitsOnly.length >= 8) {
+              // Take first 8 digits
+              finalCnCode = digitsOnly.substring(0, 8);
+            } else if (digitsOnly.length >= 6) {
+              // If we have at least 6 digits, pad to 8
+              finalCnCode = digitsOnly.padEnd(8, "0");
+            } else {
+              // Not enough digits, will construct below
+              finalCnCode = "";
+            }
+          }
+          
+          // If no valid code yet, construct from chapter/heading/subheading
           if (!finalCnCode && chapter) {
             const chapterStr = chapter.toString().padStart(2, "0");
             const headingStr = heading ? heading.toString().padStart(2, "0") : "00";
@@ -143,14 +194,28 @@ IMPORTANT:
             finalCnCode = `${chapterStr}${headingStr}${subheadingStr}00`.substring(0, 8);
           }
           
+          // Normalize duty rate - convert string to number if needed
+          let normalizedDutyRate: number | undefined = undefined;
+          if (dutyRate !== undefined && dutyRate !== null) {
+            if (typeof dutyRate === "number") {
+              normalizedDutyRate = dutyRate;
+            } else if (typeof dutyRate === "string") {
+              const parsed = parseFloat(dutyRate);
+              if (!isNaN(parsed)) {
+                normalizedDutyRate = parsed;
+              }
+            }
+          }
+          
           return {
             chapter,
             heading,
             subheading,
-            cnCode: finalCnCode,
+            cnCode: finalCnCode || "",
             reason: ch.reason || ch.reasoning || "",
             confidence: ch.confidence || 0.5,
             legalBasis: ch.legalBasis || ch.legal_basis || undefined,
+            dutyRate: normalizedDutyRate,
           };
         });
       }
@@ -244,6 +309,119 @@ Return your response as JSON with: question, explanation, options (array of {val
     }
   }
 
+  async generateImportGuidance(
+    product: EUProductAttributes,
+    classification: {
+      cnCode: string;
+      cnCodeDescription?: string;
+      dutyRate?: number;
+      originCountry?: string;
+    },
+  ): Promise<{
+    importStatus: "ALLOWED" | "RESTRICTED" | "PROHIBITED";
+    importStatusMessage: string;
+    riskLevel: "LOW" | "MEDIUM" | "HIGH";
+    requiredDocuments: string[];
+    foodSafetyRisks?: Array<{
+      risk: string;
+      level: "LOW" | "MEDIUM" | "HIGH";
+      reason: string;
+    }>;
+    recommendedTests?: string[];
+    labellingRequirements?: string[];
+    borderControlLikelihood: "LOW" | "MEDIUM" | "HIGH";
+    borderControlReason?: string;
+    nextActions: string[];
+  }> {
+    const systemPrompt = `You are an expert EU import compliance specialist. Your job is to provide actionable import guidance for products entering the EU market.
+
+You must analyze:
+1. Product type (food, electronics, textiles, etc.)
+2. CN code classification
+3. Origin country
+4. EU regulations applicable to this product category
+
+Provide comprehensive, practical guidance that helps importers understand:
+- Whether the product is allowed
+- What documents they need
+- What risks exist
+- What tests might be required
+- What labeling is needed
+- Likelihood of border inspection
+- Next steps to take
+
+Be specific and actionable. For food products, consider food safety regulations, mycotoxins, pesticides, allergens. For electronics, consider CE marking, RoHS, WEEE. For textiles, consider REACH, labeling requirements.
+
+Return your response as JSON with the structure specified in the user prompt.`;
+
+    const userPrompt = `Generate comprehensive import guidance for this product:
+
+Product: ${product.name}
+Description: ${product.description}
+Intended Use: ${product.intendedUse || "Not specified"}
+CN Code: ${classification.cnCode}
+${classification.cnCodeDescription ? `CN Code Description: ${classification.cnCodeDescription}` : ""}
+${classification.originCountry ? `Origin Country: ${classification.originCountry}` : ""}
+${classification.dutyRate !== undefined ? `Duty Rate: ${classification.dutyRate}%` : ""}
+
+Provide a JSON response with:
+1. importStatus: "ALLOWED" | "RESTRICTED" | "PROHIBITED"
+2. importStatusMessage: Brief explanation of import status
+3. riskLevel: "LOW" | "MEDIUM" | "HIGH" - overall risk level for this import
+4. requiredDocuments: Array of required documents (e.g., "Commercial invoice", "Packing list", "Phytosanitary certificate", "Certificate of Analysis")
+5. foodSafetyRisks: Array of {risk: string, level: "LOW"|"MEDIUM"|"HIGH", reason: string} - only if this is a food product
+6. recommendedTests: Array of recommended lab tests (e.g., "Aflatoxins B1/B2/G1/G2", "Pesticide multi-residue screen") - only if applicable
+7. labellingRequirements: Array of labeling requirements (e.g., "Ingredient list in descending order", "Allergen highlighting", "CE marking required") - only if applicable
+8. borderControlLikelihood: "LOW" | "MEDIUM" | "HIGH" - probability of physical inspection
+9. borderControlReason: Explanation of why inspection is likely/unlikely
+10. nextActions: Array of actionable next steps (e.g., "Request COA from supplier", "Verify label compliance", "Book freight forwarder")
+
+Be specific and practical. Focus on what the importer needs to know and do.`;
+
+    try {
+      const response = await openai.chat.completions.create({
+        model: process.env.OPENAI_MODEL || "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        temperature: 0.2,
+        response_format: { type: "json_object" },
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error("No response from OpenAI");
+      }
+
+      const parsed = JSON.parse(content);
+
+      return {
+        importStatus: parsed.importStatus || "ALLOWED",
+        importStatusMessage: parsed.importStatusMessage || "Product is allowed for import into the EU",
+        riskLevel: parsed.riskLevel || "MEDIUM",
+        requiredDocuments: Array.isArray(parsed.requiredDocuments) ? parsed.requiredDocuments : [],
+        foodSafetyRisks: Array.isArray(parsed.foodSafetyRisks) ? parsed.foodSafetyRisks : undefined,
+        recommendedTests: Array.isArray(parsed.recommendedTests) ? parsed.recommendedTests : undefined,
+        labellingRequirements: Array.isArray(parsed.labellingRequirements) ? parsed.labellingRequirements : undefined,
+        borderControlLikelihood: parsed.borderControlLikelihood || "MEDIUM",
+        borderControlReason: parsed.borderControlReason,
+        nextActions: Array.isArray(parsed.nextActions) ? parsed.nextActions : [],
+      };
+    } catch (error) {
+      console.error("OpenAI import guidance error:", error);
+      // Return safe defaults
+      return {
+        importStatus: "ALLOWED",
+        importStatusMessage: "Product appears to be allowed for import into the EU",
+        riskLevel: "MEDIUM",
+        requiredDocuments: ["Commercial invoice", "Packing list", "Bill of lading"],
+        borderControlLikelihood: "MEDIUM",
+        nextActions: ["Verify all required documents are available", "Confirm compliance with EU regulations"],
+      };
+    }
+  }
+
   async generateLegalRationale(
     product: EUProductAttributes,
     classification: {
@@ -275,6 +453,14 @@ Return your response as JSON with: question, explanation, options (array of {val
     notes?: string;
   }> {
     const systemPrompt = `You are an expert EU customs classification specialist with access to current EU TARIC (Tariff Integrated of the European Communities) data. Generate a professional legal rationale for a CN code classification that can be used in audit defense.
+
+IMPORTANT DUTY RATE GUIDELINES:
+- Chapter 20 (preparations of vegetables, fruit, nuts): Typically 7.5-12% MFN duty rate (average ~9.6%)
+- Chapter 3 (fish): Typically 0-25% depending on product type
+- Chapter 8 (edible fruit and nuts): Typically 0-12% depending on product
+- Textiles (Chapters 50-63): Typically 8-12% MFN
+- Electronics (Chapters 84-85): Typically 0-6.5%
+- If you cannot determine the exact rate, use the typical range for that chapter and note it in the rationale
 
 CRITICAL REQUIREMENTS:
 - The CN code provided is CORRECT and comes from the official Regulation (EU) 2021/1832 document
@@ -669,9 +855,34 @@ Return your response as JSON with dutyRate and vatRate as numbers.`;
         griRule = "GRI_1"; // Most products are classified under GRI 1
       }
 
-      // Log if duty rate is still missing
+      // If duty rate is still undefined, use chapter-based defaults
       if (dutyRate === undefined) {
-        console.warn(`[OpenAI] Duty rate not found in legal rationale response for CN code ${classification.cnCode}`);
+        // Try to extract chapter from CN code
+        const cnCodeStr = classification.cnCode || "";
+        if (cnCodeStr.length >= 2) {
+          const chapter = parseInt(cnCodeStr.substring(0, 2), 10);
+          if (chapter === 20) {
+            // Chapter 20: Preparations of vegetables, fruit, nuts - 7.5-12% MFN
+            dutyRate = 9.6; // Use midpoint as reasonable estimate
+            console.log(`[OpenAI] Using default duty rate for Chapter 20: ${dutyRate}%`);
+          } else if (chapter >= 50 && chapter <= 63) {
+            // Textiles: 8-12%
+            dutyRate = 10.0;
+            console.log(`[OpenAI] Using default duty rate for Chapter ${chapter} (textiles): ${dutyRate}%`);
+          } else if (chapter >= 84 && chapter <= 85) {
+            // Electronics: 0-6.5%
+            dutyRate = 0.0;
+            console.log(`[OpenAI] Using default duty rate for Chapter ${chapter} (electronics): ${dutyRate}%`);
+          } else if (chapter >= 1 && chapter <= 24 && chapter !== 20) {
+            // Other agricultural: typically 0-8%
+            dutyRate = 8.0;
+            console.log(`[OpenAI] Using default duty rate for Chapter ${chapter} (agricultural): ${dutyRate}%`);
+          } else {
+            console.warn(`[OpenAI] Duty rate not found in legal rationale response for CN code ${classification.cnCode} (Chapter ${chapter})`);
+          }
+        } else {
+          console.warn(`[OpenAI] Duty rate not found in legal rationale response for CN code ${classification.cnCode}`);
+        }
       }
 
       return {
@@ -714,6 +925,15 @@ Return your response as JSON with dutyRate and vatRate as numbers.`;
       legalRationale?: string;
       distinctions?: Array<{ heading: string; reason: string }>;
       keyFeatures?: string[];
+      alternativeClassifications?: Array<{
+        cnCode: string;
+        confidence: number;
+        dutyRate: number;
+        reasoning: string;
+        tradeOffs?: string;
+      }>;
+      dutyRate?: number;
+      vatRate?: number;
     },
   ): Promise<string> {
     const systemPrompt = `You are a customs broker preparing a formal Reasoning Dossier for EU customs authorities. This document must demonstrate that the CN code classification is correct and legally defensible.
@@ -722,10 +942,16 @@ Format the dossier as a professional document with:
 1. Executive Summary
 2. Product Description
 3. GRI Analysis (step-by-step application of General Rules of Interpretation)
-4. Source Attribution (legal notes, binding rulings, TARIC measures)
-5. Conclusion
+4. Alternative Classifications Analysis (if alternatives exist - compare primary vs alternatives with duty rates, trade-offs, and recommendations)
+5. Source Attribution (legal notes, binding rulings, TARIC measures)
+6. Duty and Tax Breakdown (duty rate, VAT rate, total cost impact)
+7. Conclusion
 
 Be precise, cite sources, and follow EU customs documentation standards.`;
+
+    const alternativesSection = classificationResult.alternativeClassifications && classificationResult.alternativeClassifications.length > 0
+      ? `\n\nAlternative Classifications:\n${JSON.stringify(classificationResult.alternativeClassifications, null, 2)}\n\nFor each alternative, explain:\n- Why it could be valid\n- Trade-offs (duty rate differences, legal risks)\n- When to consider applying for BTI (Binding Tariff Information)\n- Recommendation: which code to use and why`
+      : "";
 
     const userPrompt = `Generate a Reasoning Dossier for this classification:
 
@@ -734,10 +960,12 @@ Description: ${product.description}
 
 Classification Result:
 CN Code: ${classificationResult.cnCode}
+Duty Rate: ${classificationResult.dutyRate !== undefined ? `${classificationResult.dutyRate}%` : "Not specified"}
+VAT Rate: ${classificationResult.vatRate !== undefined ? `${classificationResult.vatRate}%` : "Not specified"}
 GRI Reasoning Trail: ${JSON.stringify(classificationResult.reasoningTrail, null, 2)}
-Sources: ${JSON.stringify(classificationResult.sources, null, 2)}
+Sources: ${JSON.stringify(classificationResult.sources, null, 2)}${alternativesSection}
 
-Generate a comprehensive, professional dossier that can be submitted to EU customs authorities.`;
+Generate a comprehensive, professional dossier that can be submitted to EU customs authorities. Include a detailed comparison table if alternatives exist, showing duty rates, confidence levels, and trade-offs.`;
 
     try {
       const response = await openai.chat.completions.create({

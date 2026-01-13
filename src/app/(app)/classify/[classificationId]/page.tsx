@@ -5,9 +5,13 @@ import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import Link from "next/link";
-import { CheckCircle2, FileText, AlertTriangle } from "lucide-react";
+import { CheckCircle2, FileText, AlertTriangle, Plus, Waypoints, Info } from "lucide-react";
+import { getRegulatoryProductType } from "@/lib/regulatory/product-type";
 import { DeleteClassificationButton } from "@/components/classification/delete-classification-button";
+import { ImportGuidanceSection } from "@/components/classification/import-guidance-section";
+import { AlternativeClassifications } from "@/components/classification/alternative-classifications";
 
 type Props = {
   params: { classificationId: string };
@@ -52,8 +56,17 @@ export default async function ClassificationDetailPage({ params }: Props) {
       sources: true,
       dutySummary: true,
       dossier: true,
+      labels: {
+        where: {
+          isDraft: false,
+        },
+        orderBy: {
+          generatedAt: "desc",
+        },
+        take: 5,
+      },
     },
-  });
+  }) as any; // Type assertion needed until Prisma types are regenerated
 
   if (!classification) {
     redirect("/classify");
@@ -63,6 +76,9 @@ export default async function ClassificationDetailPage({ params }: Props) {
   const cnCode = classification.htsCode?.substring(0, 8) || "";
   const htsCode = classification.htsCode || "";
   const hasValidCode = htsCode && htsCode !== "0000000000";
+  
+  // Determine if this is a food/beverage product (for label generation)
+  const isFoodProduct = cnCode ? getRegulatoryProductType(cnCode) === "FOOD" : false;
 
   const cnMeta = hasValidCode
     ? await prisma.cnCodeDescription.findUnique({
@@ -84,6 +100,35 @@ export default async function ClassificationDetailPage({ params }: Props) {
   // Parse stored legal rationale data
   const distinctions = (classification.distinctions as Array<{ heading: string; reason: string }>) || [];
   const keyFeatures = (classification.keyFeatures as string[]) || [];
+  
+  // Parse import guidance and alternatives from humanNotes (temporary storage until we add proper fields)
+  let importGuidance = null;
+  let alternativeClassifications: Array<{
+    cnCode: string;
+    htsCode: string;
+    confidence: number;
+    dutyRate: number;
+    vatRate: number;
+    reasoning: string;
+    tradeOffs?: string;
+  }> = [];
+  
+  if (classification.humanNotes) {
+    try {
+      const parsed = JSON.parse(classification.humanNotes);
+      // Support both old format (direct import guidance) and new format (object with importGuidance and alternatives)
+      if (parsed.importStatus) {
+        // Old format - direct import guidance
+        importGuidance = parsed;
+      } else if (parsed.importGuidance) {
+        // New format - object with importGuidance and alternatives
+        importGuidance = parsed.importGuidance;
+        alternativeClassifications = parsed.alternativeClassifications || [];
+      }
+    } catch (e) {
+      // Not JSON, ignore
+    }
+  }
 
   return (
     <div className="container mx-auto max-w-6xl space-y-8 py-8">
@@ -112,10 +157,18 @@ export default async function ClassificationDetailPage({ params }: Props) {
           </div>
         </div>
         <div className="flex flex-col items-end gap-3">
-          <div className="flex gap-2">
-            <Button variant="outline" asChild>
-              <Link href="/classify">Back to Search</Link>
-            </Button>
+          <Button variant="outline" asChild>
+            <Link href="/classify">Back to Search</Link>
+          </Button>
+          <div className="flex items-center gap-2">
+            {classification.labels && classification.labels.length > 0 && (
+              <Button className="bg-green-600 text-white hover:bg-green-700" asChild>
+                <Link href={`/labels/${classification.labels[0].id}`}>
+                  <Waypoints className="mr-2 h-4 w-4" />
+                  View Label
+                </Link>
+              </Button>
+            )}
             {classification.dossier ? (
               <Button className="bg-blue-600 text-white hover:bg-blue-700" asChild>
                 <Link href={`/classify/${classificationId}/dossier`}>
@@ -124,12 +177,28 @@ export default async function ClassificationDetailPage({ params }: Props) {
                 </Link>
               </Button>
             ) : (
-              <Button className="bg-blue-600 text-white hover:bg-blue-700" asChild>
-                <Link href={`/classify/${classificationId}/dossier`}>
-                  <FileText className="mr-2 h-4 w-4" />
-                  Generate Dossier
-                </Link>
-              </Button>
+              <>
+                <Button className="bg-blue-600 text-white hover:bg-blue-700" asChild>
+                  <Link href={`/classify/${classificationId}/dossier`}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    Generate Dossier
+                  </Link>
+                </Button>
+                {hasValidCode && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button className="text-muted-foreground hover:text-foreground transition-colors">
+                        <Info className="h-4 w-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="text-sm">
+                        Given recent scrutiny on tech imports, we recommend generating a defense dossier for CN Code {formatCNCode(cnCode)} to ensure compliance with customs authorities.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -288,44 +357,118 @@ export default async function ClassificationDetailPage({ params }: Props) {
         </Card>
       </div>
 
-      {/* Bottom Section: Notes & Recommendations */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {classification.griRule && (
-          <Card>
-            <CardHeader>
-              <CardTitle>GRI Rule Applied</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                This classification was determined using <strong>{classification.griRule}</strong>.
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        <Card className="bg-blue-50 border-blue-200">
+      {/* Product Labeling Section - Only for Food/Beverage Products, hide if labels already exist */}
+      {isFoodProduct && (!classification.labels || classification.labels.length === 0) && (
+        <Card className="bg-gradient-to-br from-green-50 to-blue-50 border-green-200">
           <CardHeader>
-            <CardTitle>Defense Dossier Recommendation</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Waypoints className="h-5 w-5 text-green-700" />
+              Product Labeling
+            </CardTitle>
+            <CardDescription>
+              Generate compliant EU/Finnish labels for food, beverage, and dried goods products
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <p className="text-sm text-blue-900 mb-4">
-              {hasValidCode 
-                ? `Given recent scrutiny on tech imports, we recommend generating a defense dossier for CN Code ${formatCNCode(cnCode)} to ensure compliance with customs authorities.`
-                : "Complete the classification to generate a defense dossier."}
-            </p>
-            <Button 
-              className="bg-blue-600 text-white hover:bg-blue-700" 
-              asChild
-              disabled={!hasValidCode}
-            >
-              <Link href={`/classify/${classificationId}/dossier`}>
-                <FileText className="mr-2 h-4 w-4" />
-                {classification.dossier ? "View Compliance Dossier" : "Generate Compliance Dossier"}
-              </Link>
-            </Button>
+          <CardContent className="space-y-4">
+            <div className="rounded-lg bg-white/60 p-4 border border-green-200">
+              <p className="text-sm text-muted-foreground mb-3">
+                <strong className="text-foreground">Product labels are available for:</strong> Food products, beverages, dried goods, meat, fish, dairy, supplements, and pet food.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Our label generator creates compliant bilingual (Finnish/Swedish) labels with nutrition tables, ingredient lists, allergen warnings, and all mandatory EU requirements. Labels can be exported as PDF or SVG for printing.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <Button asChild className="bg-green-600 hover:bg-green-700 text-white">
+                <Link href={`/labels/new?classificationId=${classificationId}`}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Product Label
+                </Link>
+              </Button>
+              {classification.labels && classification.labels.length > 0 && (
+                <Button variant="outline" asChild>
+                  <Link href={`/labels/${classification.labels[0].id}`}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    View Existing Labels ({classification.labels.length})
+                  </Link>
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
-      </div>
+      )}
+
+
+
+      {/* Alternative Classifications */}
+      {alternativeClassifications.length > 0 && (
+        <AlternativeClassifications
+          alternatives={alternativeClassifications}
+          primaryCode={cnCode}
+          primaryDutyRate={Number(classification.dutySummary?.dutyRate || 0)}
+          primaryVatRate={Number(classification.dutySummary?.vatRate || 20)}
+        />
+      )}
+
+      {/* Import Guidance Section */}
+      {importGuidance && (
+        <div>
+          <h2 className="text-2xl font-semibold mb-6">Import Guidance</h2>
+          <ImportGuidanceSection guidance={importGuidance} />
+        </div>
+      )}
+
+      {/* Associated Labels */}
+      {classification.labels && classification.labels.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Waypoints className="h-5 w-5" />
+              Product Labels
+            </CardTitle>
+            <CardDescription>Labels generated for this classification</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {classification.labels.map((label) => {
+                const labelData = label.labelData as any;
+                const productName = typeof labelData.productName === "string" 
+                  ? labelData.productName 
+                  : labelData.productName?.original || "Unnamed Product";
+                return (
+                  <div key={label.id} className="flex items-center justify-between rounded-lg border p-3">
+                    <div className="flex-1">
+                      <p className="font-semibold">{productName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Generated {new Date(label.generatedAt).toLocaleDateString()}
+                        {label.complianceScore !== null && (
+                          <span className="ml-2">
+                            • Compliance: {Number(label.complianceScore)}%
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/labels/${label.id}`}>
+                        <FileText className="mr-2 h-4 w-4" />
+                        View Label
+                      </Link>
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-4 pt-4 border-t">
+              <Button variant="outline" asChild>
+                <Link href={`/labels/new?classificationId=${classificationId}`}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create New Label
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Sources & References */}
       {classification.sources.length > 0 && (

@@ -79,6 +79,8 @@ model Organization {
   chatSessions    ChatSession[]
   shipments       Shipment[]
   invitations     OrganizationInvitation[]
+  productImages   ProductImage[]
+  labels          Label[]
   createdBy       User?            @relation("OrganizationCreator", fields: [createdById], references: [id])
 }
 
@@ -98,6 +100,8 @@ model User {
   chatSessions    ChatSession[]    @relation("ChatSessions")
   createdOrganizations Organization[] @relation("OrganizationCreator")
   sentInvitations OrganizationInvitation[]
+  productImages   ProductImage[]   @relation("ProductImageUploader")
+  legalAcceptances UserLegalAcceptance[] @relation("LegalAcceptances")
 }
 
 model Membership {
@@ -149,6 +153,8 @@ model Product {
   referenceFiles  VaultFile[]
   classifications Classification[]
   shipmentItems   ShipmentItem[]
+  images          ProductImage[]
+  labels          Label[]
 
   @@index([organizationId])
   @@index([createdById])
@@ -185,6 +191,27 @@ model VaultFile {
   @@index([productId])
 }
 
+model ProductImage {
+  id              String   @id @default(cuid())
+  productId       String?  // Optional - can be uploaded before product creation
+  organizationId String
+  uploadedById   String
+  storagePath    String
+  contentType    String
+  sizeBytes      Int
+  ocrText        String?  // Extracted text from OCR
+  ocrConfidence  Float?   // OCR confidence score (0-1)
+  extractedData   Json?    // Structured extracted data (materials, specs, etc.)
+  createdAt      DateTime @default(now())
+  
+  product        Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  uploadedBy     User     @relation("ProductImageUploader", fields: [uploadedById], references: [id])
+  
+  @@index([productId])
+  @@index([organizationId])
+}
+
 model Classification {
   id                String                 @id @default(cuid())
   organizationId    String
@@ -217,6 +244,7 @@ model Classification {
   riskFlags         RiskFlag[]
   sources           ClassificationSource[]
   shipmentItems     ShipmentItem[]
+  labels            Label[]
 
   @@index([organizationId, market])
   @@index([productId, market])
@@ -299,6 +327,73 @@ model LegalSourceChunk {
 
   @@index([regulation, language])
   @@index([source])
+}
+
+model RegulatoryDocument {
+  id            String   @id @default(cuid())
+  source        String   // "RUOKAVIRASTO", "TUKES", "TULLI", "EU"
+  documentType  String   // "FOOD_GUIDE", "SAFETY_REGULATION", "CUSTOMS_GUIDE"
+  title         String
+  language      String   // "FI", "SV", "EN"
+  pdfUrl        String?  // Original PDF URL
+  storagePath   String?  // Local storage path
+  version       String?
+  effectiveDate DateTime?
+  chunks        RegulatoryDocumentChunk[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([source, documentType, language])
+  @@index([source, documentType])
+  @@index([language])
+}
+
+model RegulatoryDocumentChunk {
+  id          String              @id @default(cuid())
+  documentId  String
+  chunkIndex  Int
+  sectionPath String              // e.g., "Section 5.3", "Chapter 2.1"
+  content     String
+  pageNumber  Int?
+  embedding   Unsupported("vector")?
+  metadata    Json?               // { "section": "5.3", "topic": "QUID", "language": "FI" }
+  document    RegulatoryDocument  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId, chunkIndex])
+  @@index([sectionPath])
+}
+
+model UserLegalAcceptance {
+  id               String   @id @default(cuid())
+  userId           String
+  feature          String   // "LABELING_WIZARD", "CLASSIFICATION", etc.
+  disclaimerVersion String
+  acceptedAt       DateTime @default(now())
+  ipAddress        String?
+  userAgent        String?
+  user             User     @relation("LegalAcceptances", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, feature])
+  @@index([userId])
+}
+
+model Label {
+  id              String         @id @default(cuid())
+  organizationId  String
+  productId       String?
+  classificationId String?
+  labelData       Json           // LabelData structure
+  complianceScore Decimal        @db.Decimal(5, 2)
+  version         Int            @default(1)
+  isDraft         Boolean        @default(true)
+  generatedAt     DateTime       @default(now())
+  organization    Organization   @relation(fields: [organizationId], references: [id])
+  product         Product?       @relation(fields: [productId], references: [id])
+  classification  Classification? @relation(fields: [classificationId], references: [id])
+
+  @@index([organizationId])
+  @@index([productId])
+  @@index([classificationId])
 }
 
 model CnCodeDescription {

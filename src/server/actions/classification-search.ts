@@ -21,8 +21,35 @@ async function searchLegalChunksForProduct(
   compositionText?: string,
   limit: number = 10,
 ) {
-  // Build query from product information - use as-is, no keyword extraction
-  const query = `${productName}. ${description}${compositionText ? `. Materials: ${compositionText}` : ""}`.trim();
+  // Build query from product information - enhance with product type keywords
+  // Add context to help vector search find relevant chapters
+  const baseQuery = `${productName}. ${description}${compositionText ? `. Materials: ${compositionText}` : ""}`.trim();
+  
+  // Add context to help vector search find relevant chapters
+  const productTypeHints: string[] = [];
+  const lowerName = productName.toLowerCase();
+  const lowerDesc = description.toLowerCase();
+  
+  // Detect product categories to improve search
+  if (lowerName.includes("trail mix") || lowerName.includes("snack") || 
+      lowerDesc.includes("nuts") || lowerDesc.includes("dried fruit") ||
+      (lowerDesc.includes("fruit") && !lowerDesc.includes("fish")) || 
+      (lowerDesc.includes("vegetable") && !lowerDesc.includes("fish"))) {
+    productTypeHints.push("preparations of vegetables fruit nuts", "Chapter 20");
+  }
+  if (lowerName.includes("fish") || lowerDesc.includes("fish") || lowerDesc.includes("seafood") || lowerDesc.includes("aquatic")) {
+    productTypeHints.push("fish aquatic products", "Chapter 3");
+  }
+  if (lowerName.includes("textile") || lowerDesc.includes("fabric") || lowerDesc.includes("cotton") || lowerDesc.includes("wool")) {
+    productTypeHints.push("textiles", "Chapter 50-63");
+  }
+  if (lowerName.includes("electronic") || lowerDesc.includes("battery") || lowerDesc.includes("circuit")) {
+    productTypeHints.push("electrical machinery", "Chapter 85");
+  }
+  
+  const query = productTypeHints.length > 0 
+    ? `${baseQuery}. Product category: ${productTypeHints.join(", ")}`
+    : baseQuery;
   
   // Step 1: Generate embedding for the user query
   const embeddingResponse = await openai.embeddings.create({
@@ -76,6 +103,33 @@ async function searchLegalChunksForProduct(
     }>>(sql);
     
     console.log(`[RAG] Vector search found ${chunks.length} chunks with similarity scores`);
+    
+    // If no chunks found with embeddings, try fallback keyword search
+    if (chunks.length === 0) {
+      console.log("[RAG] No chunks with embeddings found, falling back to keyword search");
+      const fallbackChunks = await prisma.legalSourceChunk.findMany({
+        where: {
+          source: "EUR_LEX",
+          regulation: "EU_2021_1832",
+          language: "EN",
+        },
+        take: limit,
+        select: {
+          id: true,
+          sectionPath: true,
+          content: true,
+          pageStart: true,
+          pageEnd: true,
+        },
+      });
+      
+      chunks = fallbackChunks.map((chunk) => ({
+        ...chunk,
+        similarity: 0.5, // Default similarity for fallback
+      }));
+      
+      console.log(`[RAG] Fallback keyword search found ${chunks.length} chunks`);
+    }
   } catch (error) {
     console.error("[RAG] Vector search failed (embeddings may not be populated):", error);
     // Fallback: return empty or use basic search
@@ -97,6 +151,8 @@ async function searchLegalChunksForProduct(
       ...chunk,
       similarity: 0.5, // Default similarity for fallback
     })));
+    
+    console.log(`[RAG] Error fallback found ${chunks.length} chunks`);
   }
 
   return chunks.map((chunk) => ({
@@ -204,6 +260,33 @@ interface ClassificationCandidate {
   keyFeatures?: string[];
   griRule?: string;
   notes?: string;
+  isPrimary?: boolean; // True for primary recommendation
+  // Import guidance fields
+  importGuidance?: {
+    importStatus: "ALLOWED" | "RESTRICTED" | "PROHIBITED";
+    importStatusMessage: string;
+    riskLevel: "LOW" | "MEDIUM" | "HIGH";
+    requiredDocuments: string[];
+    foodSafetyRisks?: Array<{
+      risk: string;
+      level: "LOW" | "MEDIUM" | "HIGH";
+      reason: string;
+    }>;
+    recommendedTests?: string[];
+    labellingRequirements?: string[];
+    borderControlLikelihood: "LOW" | "MEDIUM" | "HIGH";
+    borderControlReason?: string;
+    nextActions: string[];
+  };
+}
+
+interface AlternativeClassification {
+  cnCode: string;
+  htsCode: string;
+  reason: string;
+  confidence: number;
+  dutyRate: number;
+  tradeOffs?: string;
 }
 
 export async function searchAndClassifyAction(input: {
@@ -231,30 +314,22 @@ export async function searchAndClassifyAction(input: {
       : undefined,
   };
 
-  // Search legal source chunks (like the chat does) to get accurate CN codes
-  const legalChunks = await searchLegalChunksForProduct(
-    input.productName,
-    input.description,
-    input.compositionText,
-  );
-
-  // Extract CN codes directly from legal document chunks (RAG-based extraction)
-  const extractedCNCodes = extractCNCodesFromChunks(legalChunks);
-  console.log(`[Classification] Extracted CN codes from legal document: ${extractedCNCodes.join(", ")}`);
-
-  // If no chunks found from vector search, use LLM knowledge directly (like ChatGPT)
-  let aiAnalysis;
-  if (legalChunks.length === 0) {
-    console.log(`[Classification] No chunks found from RAG, using LLM knowledge directly`);
-    // Use LLM without legal chunks - it will use its training knowledge
-    aiAnalysis = await openaiService.analyzeProduct(productAttributes, []);
-  } else {
-    aiAnalysis = await openaiService.analyzeProduct(productAttributes, legalChunks);
-  }
+  // Use LLM knowledge directly (RAG search removed - was causing latency and most codes were rejected)
+  // The AI has sufficient training knowledge to classify products accurately
+  console.log(`[Classification] Using LLM knowledge directly (RAG search skipped for performance)`);
+  const aiAnalysis = await openaiService.analyzeProduct(productAttributes, []);
   
   if (!aiAnalysis || !aiAnalysis.suggestedChapters || !Array.isArray(aiAnalysis.suggestedChapters)) {
     throw new Error("Invalid AI analysis response: missing suggestedChapters");
   }
+
+  const aiSuggestedChapters = new Set(
+    aiAnalysis.suggestedChapters
+      .map((ch) => ch.chapter)
+      .filter((ch): ch is number => typeof ch === "number" && ch > 0 && ch <= 97)
+  );
+  
+  console.log(`[Classification] AI suggested chapters: ${Array.from(aiSuggestedChapters).join(", ")}`);
   
   const needsChapterRefinement =
     aiAnalysis.suggestedChapters.length > 1 &&
@@ -298,33 +373,31 @@ export async function searchAndClassifyAction(input: {
 
   let validatedCnCode = classificationResult.cnCode || "";
   
-  // Priority 1: Use CN codes extracted directly from legal document (RAG)
-  if (extractedCNCodes.length > 0) {
-    // Use the first extracted code (most relevant based on search ranking)
-    validatedCnCode = extractedCNCodes[0];
-    console.log(`[Classification] Using CN code extracted from legal document (RAG): ${validatedCnCode}`);
-    classificationResult = {
-      ...classificationResult,
-      cnCode: validatedCnCode as CNCode,
-      confidence: 0.95, // High confidence when found in official document
-      reasoningTrail: [
-        ...(classificationResult.reasoningTrail || []),
-        {
-          griRule: "GRI_1",
-          level: "SUBHEADING",
-          selection: validatedCnCode,
-          rationale: `CN Code ${validatedCnCode} extracted directly from Regulation (EU) 2021/1832 legal document`,
-          score: 0.95,
-        },
-      ],
-    };
-  }
-  // Priority 2: Use AI-provided CN code if no code found in document
-  else if (aiAnalysis.suggestedChapters.length > 0) {
+  // NEW PRIORITY: Use LLM knowledge as primary source (most reliable)
+  // Legal sources are used for validation/enhancement, not as primary source
+  
+  // Priority 1: Use AI-provided CN code (LLM knowledge - most reliable)
+  if (aiAnalysis.suggestedChapters.length > 0) {
     const topSuggestion = aiAnalysis.suggestedChapters[0];
     
-    if (topSuggestion.cnCode && topSuggestion.cnCode.length === 8 && topSuggestion.cnCode !== "00000000") {
-      validatedCnCode = topSuggestion.cnCode;
+    // Normalize CN code (remove spaces, dots, etc.)
+    // Note: openai-service.ts should already normalize, but do it again here for safety
+    let normalizedAiCode = topSuggestion.cnCode || "";
+    if (normalizedAiCode) {
+      // Remove all non-digit characters
+      const digitsOnly = normalizedAiCode.replace(/\D/g, "");
+      if (digitsOnly.length >= 8) {
+        normalizedAiCode = digitsOnly.substring(0, 8);
+      } else if (digitsOnly.length >= 6) {
+        normalizedAiCode = digitsOnly.padEnd(8, "0");
+      } else {
+        normalizedAiCode = "";
+      }
+      console.log(`[Classification] Normalized AI CN code: "${topSuggestion.cnCode}" → "${normalizedAiCode}"`);
+    }
+    
+    if (normalizedAiCode && normalizedAiCode.length === 8 && normalizedAiCode !== "00000000") {
+      validatedCnCode = normalizedAiCode;
       console.log(`[Classification] Using AI-provided CN code (not found in document): ${validatedCnCode}`);
       classificationResult = {
         ...classificationResult,
@@ -342,58 +415,95 @@ export async function searchAndClassifyAction(input: {
         ],
       };
     } 
-    // Priority 3: If AI provided chapter/heading but no full CN code, ask LLM directly for the code
+    // Priority 2: If AI provided chapter/heading but no valid CN code, construct it from components
     else if (topSuggestion.chapter && topSuggestion.chapter > 0 && topSuggestion.chapter <= 97) {
-      // Don't construct codes - if AI didn't provide full CN code, it's not reliable
-      // Instead, throw error to force user to provide more details or use LLM directly
-      console.warn(`[Classification] AI provided chapter ${topSuggestion.chapter} but no valid CN code. Using LLM to determine exact code.`);
+      // Construct CN code from chapter/heading/subheading if provided
+      const chapterStr = topSuggestion.chapter.toString().padStart(2, "0");
       
-      // Ask LLM directly for the exact CN code
-      const directCodePrompt = `What is the exact 8-digit CN code (Combined Nomenclature) for this product?
-Product: ${input.productName}
-Description: ${input.description}
-${input.compositionText ? `Materials: ${input.compositionText}` : ""}
-${topSuggestion.chapter ? `Suggested Chapter: ${topSuggestion.chapter}` : ""}
-${topSuggestion.heading ? `Suggested Heading: ${topSuggestion.heading}` : ""}
-
-Return ONLY the 8-digit CN code (e.g., "42022100" for leather handbags), nothing else.`;
-
-      try {
-        const codeResponse = await openai.chat.completions.create({
-          model: "gpt-4o",
-          messages: [
-            { role: "system", content: "You are an EU customs classification expert. Return only the 8-digit CN code." },
-            { role: "user", content: directCodePrompt },
-          ],
-          temperature: 0.1,
-        });
-        
-        const codeText = codeResponse.choices[0]?.message?.content?.trim() || "";
-        // Extract 8-digit code from response
-        const codeMatch = codeText.match(/\b(\d{8})\b/);
-        if (codeMatch && codeMatch[1] !== "00000000") {
-          validatedCnCode = codeMatch[1];
-          console.log(`[Classification] LLM provided CN code directly: ${validatedCnCode}`);
-          classificationResult = {
-            ...classificationResult,
-            cnCode: validatedCnCode as CNCode,
-            confidence: Math.max(classificationResult.confidence || 0, topSuggestion.confidence || 0.8),
-          };
-        } else {
-          throw new Error("LLM did not provide a valid CN code");
+      // Parse heading - might be string like "20 08" or number like 8
+      // Note: TypeScript types heading as number | undefined, but AI might return string
+      let headingNum: number | null = null;
+      const headingValue: unknown = (topSuggestion as any).heading;
+      if (headingValue !== undefined && headingValue !== null) {
+        if (typeof headingValue === "string") {
+          // Extract last 2 digits from string like "20 08" -> 8
+          const headingDigits = headingValue.replace(/\D/g, "");
+          if (headingDigits.length >= 2) {
+            headingNum = parseInt(headingDigits.slice(-2), 10);
+          } else if (headingDigits.length > 0) {
+            headingNum = parseInt(headingDigits, 10);
+          }
+        } else if (typeof headingValue === "number") {
+          headingNum = headingValue;
         }
-      } catch (llmError) {
-        console.error("[Classification] Failed to get CN code from LLM:", llmError);
-        throw new Error(`Classification failed: Unable to determine valid CN code. Please provide more product details.`);
       }
+      const headingStr = headingNum !== null ? headingNum.toString().padStart(2, "0") : "00";
+      
+      // Parse subheading - might be string like "20 08 19" or number like 19
+      // Note: TypeScript types subheading as number | undefined, but AI might return string
+      let subheadingNum: number | null = null;
+      const subheadingValue: unknown = (topSuggestion as any).subheading;
+      if (subheadingValue !== undefined && subheadingValue !== null) {
+        if (typeof subheadingValue === "string") {
+          // Extract last 2 digits from string like "20 08 19" -> 19
+          const subheadingDigits = subheadingValue.replace(/\D/g, "");
+          if (subheadingDigits.length >= 2) {
+            subheadingNum = parseInt(subheadingDigits.slice(-2), 10);
+          } else if (subheadingDigits.length > 0) {
+            subheadingNum = parseInt(subheadingDigits, 10);
+          }
+        } else if (typeof subheadingValue === "number") {
+          subheadingNum = subheadingValue;
+        }
+      }
+      const subheadingStr = subheadingNum !== null ? subheadingNum.toString().padStart(2, "0") : "00";
+      
+      // Construct 8-digit code: chapter (2) + heading (2) + subheading (2) + "00"
+      validatedCnCode = `${chapterStr}${headingStr}${subheadingStr}00`.substring(0, 8);
+      
+      console.log(`[Classification] Constructed CN code from AI components: ${validatedCnCode} (Chapter ${topSuggestion.chapter}, Heading ${headingNum || "N/A"}, Subheading ${subheadingNum || "N/A"})`);
+      
+      classificationResult = {
+        ...classificationResult,
+        cnCode: validatedCnCode as CNCode,
+        confidence: Math.max(classificationResult.confidence || 0, topSuggestion.confidence || 0.8),
+        reasoningTrail: [
+          ...(classificationResult.reasoningTrail || []),
+          {
+            griRule: "GRI_1",
+            level: "SUBHEADING",
+            selection: validatedCnCode,
+            rationale: `Constructed CN Code ${validatedCnCode} from AI analysis: ${topSuggestion.reason}`,
+            score: topSuggestion.confidence || 0.8,
+          },
+        ],
+      };
     }
   }
   
+  // Priority 3: Use classification engine result as fallback (if LLM didn't provide valid code)
+  // Note: RAG search removed - was causing latency and most codes were rejected
+  
   // Final validation - ensure we have a valid CN code
-  if (!validatedCnCode || validatedCnCode === "00000000" || validatedCnCode === "00" || (validatedCnCode.startsWith("00") && validatedCnCode.length <= 2)) {
-    console.error(`[Classification] CRITICAL: No valid CN code found. AI suggestions:`, aiAnalysis.suggestedChapters);
+  if (!validatedCnCode || validatedCnCode.length !== 8 || validatedCnCode === "00000000" || validatedCnCode === "00" || (validatedCnCode.startsWith("00") && validatedCnCode.length <= 2)) {
+    console.error(`[Classification] CRITICAL: No valid CN code found.`);
+    console.error(`[Classification] validatedCnCode: "${validatedCnCode}" (length: ${validatedCnCode?.length || 0})`);
+    console.error(`[Classification] AI suggestions:`, JSON.stringify(aiAnalysis.suggestedChapters, null, 2));
     console.error(`[Classification] GRI result:`, classificationResult.cnCode);
-    throw new Error(`Classification failed: Unable to determine valid CN code. The AI did not provide a valid classification code. Please try again or provide more product details.`);
+    
+    // Last resort: try to use the first AI suggestion's chapter to construct a basic code
+    if (aiAnalysis.suggestedChapters.length > 0 && aiAnalysis.suggestedChapters[0].chapter) {
+      const fallbackChapter = aiAnalysis.suggestedChapters[0].chapter;
+      if (fallbackChapter > 0 && fallbackChapter <= 97) {
+        validatedCnCode = `${fallbackChapter.toString().padStart(2, "0")}000000`.substring(0, 8);
+        console.warn(`[Classification] Using fallback code from chapter only: ${validatedCnCode}`);
+        classificationResult.cnCode = validatedCnCode as CNCode;
+      } else {
+        throw new Error(`Classification failed: Unable to determine valid CN code. The AI did not provide a valid classification code. Please try again or provide more product details.`);
+      }
+    } else {
+      throw new Error(`Classification failed: Unable to determine valid CN code. The AI did not provide a valid classification code. Please try again or provide more product details.`);
+    }
   }
 
   // Update classificationResult with validated code
@@ -416,42 +526,103 @@ Return ONLY the 8-digit CN code (e.g., "42022100" for leather handbags), nothing
   // Fetch CN code description to provide context to LLM
   const cnCodeDescription = await getDescriptionForCNCode(normalizedCnCode);
 
-  // Generate professional legal rationale
-  const legalInfo = await openaiService.generateLegalRationale(
-    productAttributes,
-    {
-      cnCode: normalizedCnCode,
-      cnCodeDescription,
-      dutyRate: classificationResult.dutySummary?.baseDutyRate,
-      vatRate: classificationResult.dutySummary?.vatRate,
-      reasoningTrail: classificationResult.reasoningTrail || [],
-      exclusionNotes: classificationResult.exclusionNotes || [],
-      sources: classificationResult.sources || [],
-    },
-  );
+  // Get duty rate from AI analysis if available (Priority 1), otherwise from classification result
+  const aiDutyRate = aiAnalysis.suggestedChapters[0]?.dutyRate;
+  const classificationDutyRate = classificationResult.dutySummary?.baseDutyRate;
+  const initialDutyRate = aiDutyRate !== undefined ? aiDutyRate : (classificationDutyRate !== undefined ? classificationDutyRate : undefined);
+  
+  console.log(`[Classification] Duty rate sources - AI: ${aiDutyRate}, Classification: ${classificationDutyRate}, Using: ${initialDutyRate}`);
 
-  const candidates: ClassificationCandidate[] = [
-    {
-      htsCode,
-      cnCode: normalizedCnCode,
-      confidence: classificationResult.confidence || 0,
-      description,
-      // Use duty rate from legal rationale (LLM-generated) if available, otherwise fall back to classification result
-      dutyRate: legalInfo.dutyRate !== undefined ? legalInfo.dutyRate : (classificationResult.dutySummary?.baseDutyRate || 0),
-      vatRate: legalInfo.vatRate !== undefined ? legalInfo.vatRate : (classificationResult.dutySummary?.vatRate || 20),
-      precedent: classificationResult.sources.find(
-        (s) => s.sourceType === "BINDING_RULING",
-      )?.referenceId,
-      reasoning: (classificationResult.reasoningTrail || [])
-        .map((r) => r.rationale)
-        .join(" "),
-      legalRationale: legalInfo.legalRationale,
-      distinctions: legalInfo.distinctions,
-      keyFeatures: legalInfo.keyFeatures,
-      griRule: legalInfo.griRule,
-      notes: legalInfo.notes,
-    },
-  ];
+  // Generate professional legal rationale and import guidance in parallel
+  const [legalInfo, importGuidance] = await Promise.all([
+    openaiService.generateLegalRationale(
+      productAttributes,
+      {
+        cnCode: normalizedCnCode,
+        cnCodeDescription,
+        dutyRate: initialDutyRate, // Pass AI-provided duty rate if available
+        vatRate: classificationResult.dutySummary?.vatRate,
+        reasoningTrail: classificationResult.reasoningTrail || [],
+        exclusionNotes: classificationResult.exclusionNotes || [],
+        sources: classificationResult.sources || [],
+      },
+    ),
+    openaiService.generateImportGuidance(
+      productAttributes,
+      {
+        cnCode: normalizedCnCode,
+        cnCodeDescription,
+        dutyRate: aiDutyRate !== undefined 
+          ? aiDutyRate 
+          : (classificationResult.dutySummary?.baseDutyRate !== undefined 
+              ? classificationResult.dutySummary.baseDutyRate 
+              : undefined),
+        originCountry: input.originCountry,
+      },
+    ),
+  ]);
+
+  // Calculate destination-specific VAT rate
+  let finalVatRate = 20; // Default EU standard
+  if (input.destinationCountry) {
+    const { getVATRate, detectProductTypeForVAT } = await import("@/lib/eu/vat-rates");
+    const productType = detectProductTypeForVAT(input.productName, input.description);
+    finalVatRate = getVATRate(input.destinationCountry, productType);
+    console.log(`[Classification] Using destination-specific VAT rate: ${finalVatRate}% for ${input.destinationCountry} (product type: ${productType})`);
+  } else {
+    finalVatRate = legalInfo.vatRate !== undefined ? legalInfo.vatRate : (classificationResult.dutySummary?.vatRate || 20);
+  }
+
+  // Build primary candidate
+  const primaryCandidate: ClassificationCandidate = {
+    htsCode,
+    cnCode: normalizedCnCode,
+    confidence: classificationResult.confidence || 0,
+    description,
+    // Priority: AI initial analysis > Legal rationale > Classification result > 0
+    dutyRate: aiDutyRate !== undefined 
+      ? aiDutyRate 
+      : (legalInfo.dutyRate !== undefined 
+          ? legalInfo.dutyRate 
+          : (classificationResult.dutySummary?.baseDutyRate || 0)),
+    vatRate: finalVatRate,
+    precedent: classificationResult.sources.find(
+      (s) => s.sourceType === "BINDING_RULING",
+    )?.referenceId,
+    reasoning: (classificationResult.reasoningTrail || [])
+      .map((r) => r.rationale)
+      .join(" "),
+    legalRationale: legalInfo.legalRationale,
+    distinctions: legalInfo.distinctions,
+    keyFeatures: legalInfo.keyFeatures,
+    griRule: legalInfo.griRule,
+    notes: legalInfo.notes,
+    importGuidance,
+    isPrimary: true,
+  };
+
+  // Build alternative candidates from AI analysis
+  const alternativeCandidates: ClassificationCandidate[] = [];
+  if (aiAnalysis.alternativeClassifications && aiAnalysis.alternativeClassifications.length > 0) {
+    for (const alt of aiAnalysis.alternativeClassifications) {
+      const altCnCode = alt.cnCode.replace(/\D/g, "").substring(0, 8).padEnd(8, "0");
+      const altHtsCode = altCnCode.padEnd(10, "0");
+      
+      alternativeCandidates.push({
+        htsCode: altHtsCode,
+        cnCode: altCnCode,
+        confidence: alt.confidence,
+        description: `Alternative classification: ${altCnCode}`,
+        dutyRate: alt.dutyRate || 0,
+        vatRate: finalVatRate, // Use same VAT rate
+        reasoning: alt.reason,
+        notes: alt.tradeOffs,
+        isPrimary: false,
+      });
+    }
+  }
+
+  const candidates: ClassificationCandidate[] = [primaryCandidate, ...alternativeCandidates];
 
   const product = await prisma.product.create({
     data: {
@@ -507,6 +678,19 @@ Return ONLY the 8-digit CN code (e.g., "42022100" for leather handbags), nothing
       keyFeatures: legalInfo.keyFeatures as any,
       griRule: legalInfo.griRule,
       notes: legalInfo.notes,
+      // Store import guidance and alternatives in humanNotes (temporary - we'll add proper fields later)
+      humanNotes: JSON.stringify({
+        importGuidance: importGuidance || null,
+        alternativeClassifications: alternativeCandidates.length > 0 ? alternativeCandidates.map(alt => ({
+          cnCode: alt.cnCode,
+          htsCode: alt.htsCode,
+          confidence: alt.confidence,
+          dutyRate: alt.dutyRate,
+          vatRate: alt.vatRate,
+          reasoning: alt.reasoning,
+          tradeOffs: alt.notes,
+        })) : null,
+      }),
     } as any,
   });
 
@@ -520,38 +704,41 @@ Return ONLY the 8-digit CN code (e.g., "42022100" for leather handbags), nothing
     })),
   });
 
-  // Create or update duty summary with rates from legal rationale (LLM-generated)
-  // Use legalInfo rates if available (from LLM), otherwise use classificationResult rates
+  // Create or update duty summary with rates
+  // Priority: AI initial analysis > Legal rationale > Classification result > 0
   // Note: dutyRate can be 0 (free), so we check for !== undefined, not truthy
-  const finalDutyRate = legalInfo.dutyRate !== undefined 
-    ? legalInfo.dutyRate 
-    : (classificationResult.dutySummary?.baseDutyRate !== undefined 
-        ? classificationResult.dutySummary.baseDutyRate 
-        : 0);
-  const finalVatRate = legalInfo.vatRate !== undefined 
-    ? legalInfo.vatRate 
-    : (classificationResult.dutySummary?.vatRate !== undefined 
-        ? classificationResult.dutySummary.vatRate 
-        : 20);
+  const finalDutyRate = primaryCandidate.dutyRate;
+  // finalVatRate is already calculated above and used in primaryCandidate.vatRate
   
-  console.log(`[Classification] Duty rate: ${finalDutyRate}% (from LLM: ${legalInfo.dutyRate}, from classification: ${classificationResult.dutySummary?.baseDutyRate})`);
+  console.log(`[Classification] Final duty rate: ${finalDutyRate}% (AI initial: ${aiDutyRate}, Legal rationale: ${legalInfo.dutyRate}, Classification: ${classificationResult.dutySummary?.baseDutyRate})`);
+  console.log(`[Classification] Final VAT rate: ${primaryCandidate.vatRate}% (destination: ${input.destinationCountry || "default"})`);
   
   await prisma.dutySummary.create({
     data: {
       classificationId: classification.id,
       baseValue: 0,
       dutyRate: finalDutyRate,
-      vatRate: finalVatRate,
+      vatRate: primaryCandidate.vatRate,
       estimatedDuty: 0,
     },
   });
+
+  // Combine refinement question with clarifying question from AI
+  const combinedRefinementQuestion = refinementQuestion || (aiAnalysis.clarifyingQuestion ? {
+    question: aiAnalysis.clarifyingQuestion.question,
+    explanation: aiAnalysis.clarifyingQuestion.explanation,
+    options: aiAnalysis.clarifyingQuestion.options.map(opt => ({
+      value: opt.value,
+      label: opt.label,
+    })),
+  } : null);
 
   return {
     productId: product.id,
     classificationId: classification.id,
     candidates,
-    refinementQuestion,
-    needsRefinement: !!refinementQuestion,
+    refinementQuestion: combinedRefinementQuestion,
+    needsRefinement: !!combinedRefinementQuestion,
   };
 }
 

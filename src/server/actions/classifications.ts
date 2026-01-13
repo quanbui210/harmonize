@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma"
 import { classificationUpsertSchema } from "@/lib/validation/classification"
 import { createAuditLogEntry } from "@/server/actions/audit-log"
 import { ClassificationStatus, Prisma, RiskType } from "@prisma/client"
+import { requireAuthenticatedUser } from "@/lib/supabase/auth"
+import { getPrimaryMembership } from "@/server/queries/organizations"
 
 const serializeConfidence = (confidence?: number | null) =>
   confidence === null || confidence === undefined
@@ -166,5 +168,64 @@ export async function listClassificationsAction(organizationId: string) {
       riskFlags: true,
     },
   })
+}
+
+export async function getClassificationAction(classificationId: string) {
+  const user = await requireAuthenticatedUser();
+  const membership = await getPrimaryMembership(user.id);
+  
+  if (!membership?.organizationId) {
+    throw new Error("User must belong to an organization");
+  }
+
+  const classification = await prisma.classification.findFirst({
+    where: {
+      id: classificationId,
+      organizationId: membership.organizationId,
+    },
+    include: {
+      product: true,
+      dutySummary: true,
+    },
+  });
+
+  if (!classification) {
+    throw new Error("Classification not found");
+  }
+
+  return classification;
+}
+
+export async function getClassificationsForLabelAction() {
+  const user = await requireAuthenticatedUser();
+  const membership = await getPrimaryMembership(user.id);
+  
+  if (!membership?.organizationId) {
+    throw new Error("User must belong to an organization");
+  }
+
+  const classifications = await prisma.classification.findMany({
+    where: {
+      organizationId: membership.organizationId,
+    },
+    include: {
+      product: true,
+      dutySummary: true,
+    },
+    orderBy: {
+      updatedAt: "desc",
+    },
+    take: 100, // Limit to recent classifications
+  });
+
+  return classifications.map((c) => ({
+    id: c.id,
+    productName: c.product.name,
+    cnCode: c.htsCode?.substring(0, 8) || "",
+    description: c.product.description || "",
+    originCountry: (c.product.metadata as any)?.originCountry || "",
+    htsCode: c.htsCode || "",
+    createdAt: c.createdAt,
+  }));
 }
 

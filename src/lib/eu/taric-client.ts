@@ -315,9 +315,14 @@ export class TARICClient {
     else if (chapter >= 84 && chapter <= 85) {
       baseRate = 0.0;
     }
-    // Agricultural products (Chapters 1-24) vary but often 0-15%
     else if (chapter >= 1 && chapter <= 24) {
-      baseRate = chapter < 10 ? 0.0 : 8.0;
+      if (chapter < 10) {
+        baseRate = 0.0;
+      } else if (chapter === 20) {
+        baseRate = 9.6;
+      } else {
+        baseRate = 8.0;
+      }
     }
     // Other manufactured goods
     else if (chapter >= 25 && chapter < 50) {

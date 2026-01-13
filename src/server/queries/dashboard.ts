@@ -42,7 +42,7 @@ export async function getDashboardOverview(organizationId: string) {
     },
   })
 
-  // Get all recent classifications (up to 50 for show more functionality)
+  // Get recent classifications for dashboard (limited to 12, use "View all" for more)
   const actionItems = await prisma.classification.findMany({
     where: {
       organizationId,
@@ -55,7 +55,7 @@ export async function getDashboardOverview(organizationId: string) {
     orderBy: {
       updatedAt: "desc",
     },
-    take: 50, // Fetch more to support "show more" functionality
+    take: 12, // Limit to 12 items on dashboard
   })
 
   const activeImports = await prisma.classification.findMany({

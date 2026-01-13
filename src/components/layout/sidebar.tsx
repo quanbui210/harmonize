@@ -44,6 +44,11 @@ const primaryNav = [
     href: "/rulings",
     icon: BookOpenCheck,
   },
+  {
+    label: "Product Labels",
+    href: "/labels",
+    icon: Waypoints,
+  },
 ]
 
 const secondaryNav = [
@@ -142,6 +147,16 @@ export function Sidebar({ organizationName, organizationLogoUrl }: SidebarProps)
               <Link href="/vault">
               <FileText className="h-4 w-4" />
               Request Docs
+              </Link>
+            </Button>
+            <Button 
+              variant="outline" 
+              className="w-full justify-start gap-2"
+              asChild
+            >
+              <Link href="/labels/new">
+                <Waypoints className="h-4 w-4" />
+                New Label
               </Link>
             </Button>
           </div>
