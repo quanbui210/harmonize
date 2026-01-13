@@ -227,12 +227,12 @@ export default async function ClassifyPage() {
                     <TableCell>
                       <Link href={`/classify/${item.id}`} className="block">
                         {item.dossier ? (
-                          <Badge className="bg-green-600">
+                          <Badge variant="outline" className="border-green-600 text-green-700 bg-green-50">
                             <CheckCircle2 className="mr-1 h-3 w-3" />
                             Ready
                           </Badge>
                         ) : (
-                          <Badge variant="destructive">
+                          <Badge variant="outline" className="border-amber-500 text-amber-700 bg-amber-50">
                             <AlertTriangle className="mr-1 h-3 w-3" />
                             Missing
                           </Badge>
