@@ -12,6 +12,7 @@ import { getRegulatoryProductType } from "@/lib/regulatory/product-type";
 import { requireAuthenticatedUser } from "@/lib/supabase/auth";
 import { getPrimaryMembership } from "@/server/queries/organizations";
 import { prisma } from "@/lib/prisma";
+import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import OpenAI from "openai";
 
 export interface GenerateLabelInput {
@@ -180,10 +181,13 @@ Return JSON only in this exact format:
     temperature: 0,
   });
 
-  const content = response.choices[0]?.message?.content?.trim();
+  let content = response.choices[0]?.message?.content?.trim();
   if (!content) {
     throw new Error("OCR failed to return text");
   }
+  
+  // Strip markdown code blocks if present (```json ... ``` or ``` ... ```)
+  content = content.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
   
   // Try to parse as JSON first (for structured data)
   try {
@@ -271,5 +275,64 @@ export async function getLabelAction(labelId: string) {
   }
 
   return label;
+}
+
+export async function getProductImagesForClassificationAction(classificationId: string) {
+  const user = await requireAuthenticatedUser();
+  const membership = await getPrimaryMembership(user.id);
+  
+  if (!membership?.organizationId) {
+    throw new Error("User must belong to an organization");
+  }
+
+  // Get classification with product
+  const classification = await prisma.classification.findFirst({
+    where: {
+      id: classificationId,
+      organizationId: membership.organizationId,
+    },
+    include: {
+      product: {
+        include: {
+          images: {
+            orderBy: {
+              createdAt: "desc",
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!classification) {
+    throw new Error("Classification not found");
+  }
+
+  // Only get images that are directly linked to this product
+  // This ensures we only show images belonging to the selected classification
+  const productImages = classification.product.images || [];
+
+  if (productImages.length === 0) {
+    return [];
+  }
+
+  // Get signed URLs for images
+  const supabase = getSupabaseAdminClient();
+  const imagesWithUrls = await Promise.all(
+    productImages.map(async (image) => {
+      const { data } = await supabase.storage
+        .from("product-images")
+        .createSignedUrl(image.storagePath, 3600); // 1 hour expiry
+
+      return {
+        id: image.id,
+        url: data?.signedUrl || null,
+        ocrText: image.ocrText,
+        createdAt: image.createdAt,
+      };
+    })
+  );
+
+  return imagesWithUrls.filter((img) => img.url !== null);
 }
 

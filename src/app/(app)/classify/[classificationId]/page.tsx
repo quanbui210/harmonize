@@ -12,6 +12,7 @@ import { getRegulatoryProductType } from "@/lib/regulatory/product-type";
 import { DeleteClassificationButton } from "@/components/classification/delete-classification-button";
 import { ImportGuidanceSection } from "@/components/classification/import-guidance-section";
 import { AlternativeClassifications } from "@/components/classification/alternative-classifications";
+import { ReactElement, JSXElementConstructor, ReactNode, ReactPortal, AwaitedReactNode, Key } from "react";
 
 type Props = {
   params: { classificationId: string };
@@ -156,51 +157,49 @@ export default async function ClassificationDetailPage({ params }: Props) {
             )}
           </div>
         </div>
-        <div className="flex flex-col items-end gap-3">
+        <div className="flex items-center gap-2">
           <Button variant="outline" asChild>
             <Link href="/classify">Back to Search</Link>
           </Button>
-          <div className="flex items-center gap-2">
-            {classification.labels && classification.labels.length > 0 && (
-              <Button className="bg-green-600 text-white hover:bg-green-700" asChild>
-                <Link href={`/labels/${classification.labels[0].id}`}>
-                  <Waypoints className="mr-2 h-4 w-4" />
-                  View Label
-                </Link>
-              </Button>
-            )}
-            {classification.dossier ? (
+          {classification.labels && classification.labels.length > 0 && (
+            <Button className="bg-green-600 text-white hover:bg-green-700" asChild>
+              <Link href={`/labels/${classification.labels[0].id}`}>
+                <Waypoints className="mr-2 h-4 w-4" />
+                View Label
+              </Link>
+            </Button>
+          )}
+          {classification.dossier ? (
+            <Button className="bg-blue-600 text-white hover:bg-blue-700" asChild>
+              <Link href={`/classify/${classificationId}/dossier`}>
+                <FileText className="mr-2 h-4 w-4" />
+                View Dossier
+              </Link>
+            </Button>
+          ) : (
+            <>
               <Button className="bg-blue-600 text-white hover:bg-blue-700" asChild>
                 <Link href={`/classify/${classificationId}/dossier`}>
                   <FileText className="mr-2 h-4 w-4" />
-                  View Dossier
+                  Generate Dossier
                 </Link>
               </Button>
-            ) : (
-              <>
-                <Button className="bg-blue-600 text-white hover:bg-blue-700" asChild>
-                  <Link href={`/classify/${classificationId}/dossier`}>
-                    <FileText className="mr-2 h-4 w-4" />
-                    Generate Dossier
-                  </Link>
-                </Button>
-                {hasValidCode && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button className="text-muted-foreground hover:text-foreground transition-colors">
-                        <Info className="h-4 w-4" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      <p className="text-sm">
-                        Given recent scrutiny on tech imports, we recommend generating a defense dossier for CN Code {formatCNCode(cnCode)} to ensure compliance with customs authorities.
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-              </>
-            )}
-          </div>
+              {hasValidCode && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground">
+                      <Info className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p className="text-sm">
+                      Given recent scrutiny on tech imports, we recommend generating a defense dossier for CN Code {formatCNCode(cnCode)} to ensure compliance with customs authorities.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </>
+          )}
         </div>
       </div>
 
@@ -430,7 +429,7 @@ export default async function ClassificationDetailPage({ params }: Props) {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {classification.labels.map((label) => {
+              {classification.labels.map((label: any) => {
                 const labelData = label.labelData as any;
                 const productName = typeof labelData.productName === "string" 
                   ? labelData.productName 
@@ -479,7 +478,7 @@ export default async function ClassificationDetailPage({ params }: Props) {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {classification.sources.map((source, index) => (
+              {classification.sources.map((source: { sourceType: string | number | bigint | boolean | ReactElement<any, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<AwaitedReactNode> | null | undefined; referenceId: string | number | bigint | boolean | ReactElement<any, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<AwaitedReactNode> | null | undefined; excerpt: string | number | bigint | boolean | ReactElement<any, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<AwaitedReactNode> | null | undefined; }, index: Key | null | undefined) => (
                 <div key={index} className="flex items-start gap-3 rounded-lg border p-3">
                   <Badge variant="outline">{source.sourceType}</Badge>
                   <div className="flex-1">

@@ -534,7 +534,7 @@ export function CreateShipmentForm({ organizationId, products }: Props) {
           </CardContent>
         </Card>
 
-        <div className="flex justify-end gap-4">
+        <div className="flex justify-end gap-4 mt-6">
           <Button type="button" variant="outline" asChild>
             <Link href="/shipments">Cancel</Link>
           </Button>

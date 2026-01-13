@@ -30,6 +30,11 @@ const primaryNav = [
     icon: FlaskConical,
   },
   {
+    label: "Product Labels",
+    href: "/labels",
+    icon: Waypoints,
+  },
+  {
     label: "Compliance Vault",
     href: "/vault",
     icon: FileText,
@@ -43,11 +48,6 @@ const primaryNav = [
     label: "Ruling Database",
     href: "/rulings",
     icon: BookOpenCheck,
-  },
-  {
-    label: "Product Labels",
-    href: "/labels",
-    icon: Waypoints,
   },
 ]
 
@@ -140,13 +140,13 @@ export function Sidebar({ organizationName, organizationLogoUrl }: SidebarProps)
               New Classification
             </Button>
             <Button 
-              variant="outline" 
-              className="w-full justify-start gap-2"
+              variant="secondary" 
+              className="w-full justify-start gap-2 bg-slate-600 text-white hover:bg-slate-500"
               asChild
             >
-              <Link href="/vault">
-              <FileText className="h-4 w-4" />
-              Request Docs
+              <Link href="/labels/new">
+                <Waypoints className="h-4 w-4" />
+                New Label
               </Link>
             </Button>
             <Button 
@@ -154,9 +154,9 @@ export function Sidebar({ organizationName, organizationLogoUrl }: SidebarProps)
               className="w-full justify-start gap-2"
               asChild
             >
-              <Link href="/labels/new">
-                <Waypoints className="h-4 w-4" />
-                New Label
+              <Link href="/vault">
+              <FileText className="h-4 w-4" />
+              Request Docs
               </Link>
             </Button>
           </div>

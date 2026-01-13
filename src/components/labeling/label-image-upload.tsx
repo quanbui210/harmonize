@@ -109,6 +109,10 @@ export function LabelImageUpload({ onTextExtracted, disabled }: LabelImageUpload
 
   const handleRemoveImage = (id: string) => {
     setImages(images.filter((img) => img.id !== id));
+    // Reset file input to allow re-uploading
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   return (

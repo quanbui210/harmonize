@@ -88,9 +88,7 @@ export default async function ClassifyPage() {
             View and manage all product classifications ({classifications.length} total)
           </p>
         </div>
-        <Button className="bg-blue-600 text-white hover:bg-blue-700" asChild>
-          <Link href="/classify#search">+ New Classification</Link>
-        </Button>
+     
       </div>
 
       {/* Search Form Section */}

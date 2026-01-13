@@ -12,6 +12,7 @@ import {
 import { LABEL_SIZES, type LabelSize } from "@/lib/labeling/label-renderer";
 import type { MissingField, LabelAnalysis } from "@/lib/labeling/label-analyzer";
 import { LabelImageUpload } from "@/components/labeling/label-image-upload";
+import { ProductImageSelector } from "@/components/labeling/product-image-selector";
 import { LabelPreview } from "@/components/labeling/label-preview";
 import { ComplianceAuditReport } from "@/components/labeling/compliance-audit-report";
 import { LabelWizardSteps } from "@/components/labeling/label-wizard-steps";
@@ -36,6 +37,7 @@ interface FormState {
   labelSize: LabelSize;
   bestBeforeDate: string;
   netQuantity: string;
+  netQuantityUnit: "g" | "kg";
   importerAddress: {
     companyName: string;
     street: string;
@@ -63,6 +65,7 @@ const initialForm: FormState = {
   labelSize: LABEL_SIZES[2], // Standard 100×150mm
   bestBeforeDate: "",
   netQuantity: "",
+  netQuantityUnit: "g" as const,
   importerAddress: {
     companyName: "",
     street: "",
@@ -170,37 +173,67 @@ export default function NewLabelPage() {
   const handleChange = (key: keyof FormState, value: any) => {
     // Special handling for originalLabelText - detect and parse JSON if pasted
     if (key === "originalLabelText" && typeof value === "string") {
-      // Try to detect if it's JSON (handle multi-line JSON and various formats)
-      const trimmed = value.trim();
-      
-      // Check if it looks like JSON (starts with { and contains "text" key)
-      if ((trimmed.startsWith("{") && trimmed.includes('"text"')) || 
-          (trimmed.startsWith("{") && trimmed.includes("text"))) {
+      // Helper function to extract plain text from JSON
+      const extractTextFromJSON = (jsonString: string): { text: string; bestBeforeDate?: string; netQuantity?: string } | null => {
+        let trimmed = jsonString.trim();
+        
+        // Strip markdown code blocks if present (```json ... ``` or ``` ... ```)
+        trimmed = trimmed.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+        
+        // Check if it looks like JSON (starts with { and contains "text" key)
+        if (!trimmed.startsWith("{") || (!trimmed.includes('"text"') && !trimmed.includes('"text"'))) {
+          return null;
+        }
+        
         try {
           // Try to parse as JSON
           const parsed = JSON.parse(trimmed);
-          if (parsed && parsed.text && typeof parsed.text === "string") {
-            // It's JSON from OCR - extract structured data
-            let netQuantityValue = "";
-            if (parsed.netQuantity) {
-              const match = parsed.netQuantity.match(/^(\d+)/) || parsed.netQuantity.match(/(\d+)/);
-              netQuantityValue = match ? match[1] : parsed.netQuantity.replace(/[^0-9]/g, "");
-            }
-            
-            // Update form with extracted data
-            setForm((prev) => ({
-              ...prev,
-              originalLabelText: parsed.text, // Only plain text in textarea
-              bestBeforeDate: parsed.bestBeforeDate && parsed.bestBeforeDate.trim() !== "" ? parsed.bestBeforeDate : prev.bestBeforeDate,
-              netQuantity: netQuantityValue || prev.netQuantity,
-            }));
-            return; // Don't set the JSON string as the value
+          if (parsed && typeof parsed === "object" && parsed.text && typeof parsed.text === "string") {
+            return {
+              text: parsed.text,
+              bestBeforeDate: parsed.bestBeforeDate,
+              netQuantity: parsed.netQuantity,
+            };
           }
         } catch (e) {
-          // Not valid JSON, treat as plain text
-          // Continue to set the value as-is
+          // Not valid JSON, return null
+          return null;
         }
+        
+        return null;
+      };
+      
+      // Try to extract text from JSON
+      const extracted = extractTextFromJSON(value);
+      
+      if (extracted) {
+        // It's JSON from OCR - extract structured data and show only plain text
+        let netQuantityValue = "";
+        let netQuantityUnit: "g" | "kg" = "g";
+        if (extracted.netQuantity && typeof extracted.netQuantity === "string") {
+          const match = extracted.netQuantity.match(/^(\d+)/) || extracted.netQuantity.match(/(\d+)/);
+          netQuantityValue = match ? match[1] : extracted.netQuantity.replace(/[^0-9]/g, "");
+          // Detect unit (kg or g)
+          const lowerQuantity = extracted.netQuantity.toLowerCase();
+          if (lowerQuantity.includes("kg") || lowerQuantity.includes("kilogram")) {
+            netQuantityUnit = "kg";
+          }
+        }
+        
+        // Update form with extracted data - ONLY plain text in textarea
+        setForm((prev) => ({
+          ...prev,
+          originalLabelText: extracted.text, // Only plain text in textarea, never JSON
+          bestBeforeDate: extracted.bestBeforeDate && typeof extracted.bestBeforeDate === "string" && extracted.bestBeforeDate.trim() !== "" 
+            ? extracted.bestBeforeDate 
+            : prev.bestBeforeDate,
+          netQuantity: netQuantityValue || prev.netQuantity,
+          netQuantityUnit: netQuantityValue ? netQuantityUnit : prev.netQuantityUnit,
+        }));
+        return; // Don't set the JSON string as the value
       }
+      
+      // Not JSON or parsing failed - treat as plain text and set normally
     }
     
     // Normal update for all other cases
@@ -332,7 +365,7 @@ export default function NewLabelPage() {
             ? `${form.importerAddress.companyName}, ${form.importerAddress.street}, ${form.importerAddress.postalCode}, ${form.importerAddress.city}, ${form.importerAddress.country}`
             : (missingFieldsData["importer_address"] as string | undefined),
         bestBeforeDate: form.bestBeforeDate || undefined,
-        netQuantity: form.netQuantity ? `${form.netQuantity}g` : undefined,
+        netQuantity: form.netQuantity ? `${form.netQuantity}${form.netQuantityUnit}` : undefined,
       });
 
       setGeneratedLabel(result.label);
@@ -428,37 +461,61 @@ export default function NewLabelPage() {
       return; // Invalid input
     }
     
-    // Check if it's already JSON string
-    const trimmed = text.trim();
-    
-    try {
-      // Try to parse as JSON
-      const parsed = JSON.parse(trimmed);
+    // Helper function to extract plain text from JSON
+    const extractTextFromJSON = (jsonString: string): { text: string; bestBeforeDate?: string; netQuantity?: string } | null => {
+      let trimmed = jsonString.trim();
       
-      // Verify it has the expected structure with text property
-      if (parsed && typeof parsed === "object" && parsed.text && typeof parsed.text === "string") {
-        // Extract number from netQuantity (e.g., "240g" -> "240")
-        let netQuantityValue = "";
-        if (parsed.netQuantity && typeof parsed.netQuantity === "string") {
-          // Match numbers at the start or extract all digits
-          const match = parsed.netQuantity.match(/^(\d+)/) || parsed.netQuantity.match(/(\d+)/);
-          netQuantityValue = match ? match[1] : parsed.netQuantity.replace(/[^0-9]/g, "");
-        }
+      // Strip markdown code blocks if present (```json ... ``` or ``` ... ```)
+      trimmed = trimmed.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+      
+      // Try to parse as JSON
+      try {
+        const parsed = JSON.parse(trimmed);
         
-        // Update form with extracted data - ONLY plain text goes to textarea
-        setForm((prev) => ({ 
-          ...prev, 
-          originalLabelText: parsed.text, // CRITICAL: Only the plain text, NOT the JSON
-          bestBeforeDate: parsed.bestBeforeDate && typeof parsed.bestBeforeDate === "string" && parsed.bestBeforeDate.trim() !== "" 
-            ? parsed.bestBeforeDate 
-            : prev.bestBeforeDate,
-          netQuantity: netQuantityValue || prev.netQuantity,
-        }));
-        return; // Exit early - don't set the JSON string
+        if (parsed && typeof parsed === "object" && parsed.text && typeof parsed.text === "string") {
+          return {
+            text: parsed.text,
+            bestBeforeDate: parsed.bestBeforeDate,
+            netQuantity: parsed.netQuantity,
+          };
+        }
+      } catch (e) {
+        // Not valid JSON, return null
+        return null;
       }
-    } catch (e) {
-      // Not valid JSON or parsing failed - treat as plain text
-      // This should not happen if OCR is working correctly
+      
+      return null;
+    };
+    
+    // Try to extract text from JSON
+    const extracted = extractTextFromJSON(text);
+    
+    if (extracted) {
+      // Successfully parsed JSON - extract only the plain text
+      let netQuantityValue = "";
+      let netQuantityUnit: "g" | "kg" = "g";
+      if (extracted.netQuantity && typeof extracted.netQuantity === "string") {
+        // Match numbers at the start or extract all digits
+        const match = extracted.netQuantity.match(/^(\d+)/) || extracted.netQuantity.match(/(\d+)/);
+        netQuantityValue = match ? match[1] : extracted.netQuantity.replace(/[^0-9]/g, "");
+        // Detect unit (kg or g)
+        const lowerQuantity = extracted.netQuantity.toLowerCase();
+        if (lowerQuantity.includes("kg") || lowerQuantity.includes("kilogram")) {
+          netQuantityUnit = "kg";
+        }
+      }
+      
+      // Update form with extracted data - ONLY plain text goes to textarea
+      setForm((prev) => ({ 
+        ...prev, 
+        originalLabelText: extracted.text, // CRITICAL: Only the plain text, NOT the JSON
+        bestBeforeDate: extracted.bestBeforeDate && typeof extracted.bestBeforeDate === "string" && extracted.bestBeforeDate.trim() !== "" 
+          ? extracted.bestBeforeDate 
+          : prev.bestBeforeDate,
+        netQuantity: netQuantityValue || prev.netQuantity,
+        netQuantityUnit: netQuantityValue ? netQuantityUnit : prev.netQuantityUnit,
+      }));
+      return; // Exit early - don't set the JSON string
     }
     
     // Fallback: If not JSON or doesn't have text property, treat as plain text
@@ -468,28 +525,43 @@ export default function NewLabelPage() {
   
   // Effect to parse JSON if it's already in the textarea (fix for existing JSON)
   useEffect(() => {
-    if (form.originalLabelText && form.originalLabelText.trim().startsWith("{")) {
-      try {
-        const parsed = JSON.parse(form.originalLabelText.trim());
-        if (parsed && parsed.text && typeof parsed.text === "string") {
-          // It's JSON - extract the text
+    if (form.originalLabelText) {
+      let trimmed = form.originalLabelText.trim();
+      
+      // Strip markdown code blocks if present (```json ... ``` or ``` ... ```)
+      trimmed = trimmed.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+      
+      // Check if it looks like JSON with text field
+      if (trimmed.startsWith("{") && (trimmed.includes('"text"') || trimmed.includes("text"))) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (parsed && typeof parsed === "object" && parsed.text && typeof parsed.text === "string") {
+          // It's JSON - extract the text and replace with plain text only
           let netQuantityValue = "";
+          let netQuantityUnit: "g" | "kg" = "g";
           if (parsed.netQuantity && typeof parsed.netQuantity === "string") {
             const match = parsed.netQuantity.match(/^(\d+)/) || parsed.netQuantity.match(/(\d+)/);
             netQuantityValue = match ? match[1] : parsed.netQuantity.replace(/[^0-9]/g, "");
+            // Detect unit (kg or g)
+            const lowerQuantity = parsed.netQuantity.toLowerCase();
+            if (lowerQuantity.includes("kg") || lowerQuantity.includes("kilogram")) {
+              netQuantityUnit = "kg";
+            }
           }
           
           setForm((prev) => ({
             ...prev,
-            originalLabelText: parsed.text,
+            originalLabelText: parsed.text, // Replace JSON with plain text only
             bestBeforeDate: parsed.bestBeforeDate && typeof parsed.bestBeforeDate === "string" && parsed.bestBeforeDate.trim() !== "" 
               ? parsed.bestBeforeDate 
               : prev.bestBeforeDate,
             netQuantity: netQuantityValue || prev.netQuantity,
+            netQuantityUnit: netQuantityValue ? netQuantityUnit : prev.netQuantityUnit,
           }));
+          }
+        } catch (e) {
+          // Not valid JSON, ignore - keep as is
         }
-      } catch (e) {
-        // Not JSON, ignore
       }
     }
   }, []); // Only run once on mount
@@ -590,10 +662,26 @@ export default function NewLabelPage() {
               </p>
             </div>
 
-            <LabelImageUpload
-              onTextExtracted={handleLabelTextExtracted}
-              disabled={isPending || isAnalyzing}
-            />
+            {/* {selectedClassificationId && selectedClassificationId !== "none" && (
+              <ProductImageSelector
+                classificationId={selectedClassificationId}
+                onImageSelected={handleLabelTextExtracted}
+                disabled={isPending || isAnalyzing}
+              />
+            )} */}
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Upload Label Image</Label>
+              <p className="text-xs text-muted-foreground">
+                {selectedClassificationId && selectedClassificationId !== "none"
+                  ? "Or upload a new label image. The clearer the text and data visible in the image, the better the extraction results will be."
+                  : "Upload a photo of your existing product label. We'll extract the text automatically. The clearer the text and data visible in the image, the better the extraction results will be."}
+              </p>
+              <LabelImageUpload
+                onTextExtracted={handleLabelTextExtracted}
+                disabled={isPending || isAnalyzing}
+              />
+            </div>
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
@@ -603,7 +691,7 @@ export default function NewLabelPage() {
                 <Input
                   value={form.productName}
                   onChange={(e) => handleChange("productName", e.target.value)}
-                  placeholder="Dried mango slices"
+                  placeholder="e.g. Dried mango slices"
                 />
               </div>
               <div className="space-y-2">
@@ -671,21 +759,11 @@ export default function NewLabelPage() {
                 rows={3}
                 value={form.description}
                 onChange={(e) => handleChange("description", e.target.value)}
-                placeholder="Sweetened dried mango slices packaged for retail..."
+                placeholder="e.g. Sweetened dried mango slices packaged for retail..."
               />
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  Origin country <span className="text-red-500">*</span>
-                </label>
-                <Input
-                  value={form.originCountry}
-                  onChange={(e) => handleChange("originCountry", e.target.value)}
-                  placeholder="Vietnam"
-                />
-              </div>
+            <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
                 <label className="text-sm font-medium">
                   Destination country <span className="text-red-500">*</span>
@@ -693,12 +771,9 @@ export default function NewLabelPage() {
                 <Input
                   value={form.destinationCountry}
                   onChange={(e) => handleChange("destinationCountry", e.target.value)}
-                  placeholder="Finland"
+                  placeholder="e.g. Finland"
                 />
               </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <label className="text-sm font-medium">
                   Best Before Date <span className="text-red-500">*</span>
@@ -721,16 +796,26 @@ export default function NewLabelPage() {
                     type="number"
                     value={form.netQuantity}
                     onChange={(e) => handleChange("netQuantity", e.target.value)}
-                    placeholder="200"
+                    placeholder="e.g. 200"
                     min="0"
                     step="1"
+                    className="flex-1"
                   />
-                  <span className="flex items-center text-sm text-muted-foreground px-3 border rounded-md">
-                    g
-                  </span>
+                  <Select
+                    value={form.netQuantityUnit}
+                    onValueChange={(value) => handleChange("netQuantityUnit", value as "g" | "kg")}
+                  >
+                    <SelectTrigger className="w-20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="g">g</SelectItem>
+                      <SelectItem value="kg">kg</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Extracted from label image if available (in grams)
+                  Extracted from label image if available
                 </p>
               </div>
             </div>
@@ -748,12 +833,12 @@ export default function NewLabelPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">
-                    Company / c/o <span className="text-xs text-muted-foreground font-normal">(optional)</span>
+                    Company Name <span className="text-red-500">*</span>
                   </label>
                   <Input
                     value={form.importerAddress.companyName}
                     onChange={(e) => handleChange("importerAddress", { ...form.importerAddress, companyName: e.target.value })}
-                    placeholder="Company Name"
+                    placeholder="e.g. Company Name"
                   />
                 </div>
                 <div className="space-y-2">
@@ -763,7 +848,7 @@ export default function NewLabelPage() {
                   <Input
                     value={form.importerAddress.street}
                     onChange={(e) => handleChange("importerAddress", { ...form.importerAddress, street: e.target.value })}
-                    placeholder="Opastinsilta 1"
+                    placeholder="e.g. Opastinsilta 1"
                   />
                 </div>
               </div>
@@ -776,7 +861,7 @@ export default function NewLabelPage() {
                   <Input
                     value={form.importerAddress.postalCode}
                     onChange={(e) => handleChange("importerAddress", { ...form.importerAddress, postalCode: e.target.value })}
-                    placeholder="00520"
+                    placeholder="e.g. 00520"
                   />
                 </div>
                 <div className="space-y-2">
@@ -786,7 +871,7 @@ export default function NewLabelPage() {
                   <Input
                     value={form.importerAddress.city}
                     onChange={(e) => handleChange("importerAddress", { ...form.importerAddress, city: e.target.value })}
-                    placeholder="Helsinki"
+                    placeholder="e.g. Helsinki"
                   />
                 </div>
               </div>
@@ -798,7 +883,7 @@ export default function NewLabelPage() {
                 <Input
                   value={form.importerAddress.country}
                   onChange={(e) => handleChange("importerAddress", { ...form.importerAddress, country: e.target.value })}
-                  placeholder="Finland"
+                  placeholder="e.g. Finland"
                 />
               </div>
             </div>
@@ -809,10 +894,10 @@ export default function NewLabelPage() {
                 rows={4}
                 value={form.originalLabelText}
                 onChange={(e) => handleChange("originalLabelText", e.target.value)}
-                placeholder="Paste text from the original (e.g., Vietnamese) label"
+                placeholder="Paste text from the original (e.g., Vietnamese) label. Or add more necessary info here for better results."
               />
               <p className="text-xs text-muted-foreground">
-                You can paste manually or upload an image above to auto-fill via OCR.
+                You can paste manually or upload an image above to auto-fill via OCR. You can also add more necessary information here for better label generation results.
               </p>
             </div>
 
