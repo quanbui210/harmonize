@@ -32,6 +32,20 @@ function isPublicPath(pathname: string) {
 }
 
 export async function middleware(request: NextRequest) {
+  const { pathname, searchParams } = request.nextUrl
+  const hasAuthCode = searchParams.has("code")
+
+
+  if (hasAuthCode && pathname !== "/auth/callback") {
+    const redirectUrl = request.nextUrl.clone()
+    redirectUrl.pathname = "/auth/callback"
+
+    if (!redirectUrl.searchParams.has("redirectTo")) {
+      redirectUrl.searchParams.set("redirectTo", "/dashboard")
+    }
+    return NextResponse.redirect(redirectUrl)
+  }
+
   const response = NextResponse.next()
   const supabase = createServerClient(getSupabaseUrl(), getSupabaseAnonKey(), {
     cookies: {
@@ -53,18 +67,7 @@ export async function middleware(request: NextRequest) {
     data: { session },
   } = await supabase.auth.getSession()
 
-  const { pathname, searchParams } = request.nextUrl
   const publicRoute = isPublicPath(pathname)
-  const hasAuthCode = searchParams.has("code")
-
-  // Redirect to callback if we have an auth code but no session
-  // This handles cases where OAuth redirects to / instead of /auth/callback
-  if (!session && hasAuthCode && pathname !== "/auth/callback") {
-    const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = "/auth/callback"
-    // Preserve all search params (code, redirectTo, etc.)
-    return NextResponse.redirect(redirectUrl)
-  }
 
   if (!session && !publicRoute) {
     const redirectUrl = request.nextUrl.clone()
@@ -93,6 +96,16 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!.*\\.[\\w]+$|_next).*)", "/"],
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api (API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - files with extensions (e.g., .png, .jpg, etc.)
+     */
+    "/((?!api|_next/static|_next/image|favicon.ico|.*\\.[\\w]+$).*)",
+  ],
 }
 
