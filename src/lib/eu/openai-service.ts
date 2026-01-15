@@ -11,26 +11,26 @@ interface ProductAnalysisResult {
     materials: Array<{ material: string; percentage: number }>;
     technicalFeatures: string[];
     intendedUse: string;
-    essentialCharacter?: string; // GRI 3(b) determination for multi-material products
+    essentialCharacter?: string;
   };
   suggestedChapters: Array<{
     chapter: number;
     heading?: number;
     subheading?: number;
-    cnCode?: string; // 8-digit CN code if AI can determine it
-    reason: string; // Must cite specific GRI rule
+    cnCode?: string;
+    reason: string;
     confidence: number;
-    legalBasis?: string; // Specific legal reference (Chapter Note, Heading, Legal Source ID)
-    dutyRate?: number; // EU MFN duty rate for this CN code (if known)
-    isPrimary?: boolean; // True for primary recommendation
+    legalBasis?: string;
+    dutyRate?: number;
+    isPrimary?: boolean;
   }>;
-  classificationNotes: string[]; // Includes rejected alternatives and explanations
+  classificationNotes: string[];
   alternativeClassifications?: Array<{
     cnCode: string;
     reason: string;
     confidence: number;
     dutyRate?: number;
-    tradeOffs?: string; // Explanation of trade-offs (e.g., "Lower duty but requires BTI")
+    tradeOffs?: string;
   }>;
   clarifyingQuestion?: {
     question: string;
@@ -93,7 +93,6 @@ OUTPUT REQUIREMENTS:
   * Trade-offs (duty rates, legal justification)
   * Clarifying questions to help user choose (e.g., "Is mopping the primary function?")`;
 
-    // Note: Legal chunks/RAG search removed for performance - AI uses training knowledge directly
     const legalContext = "\nNote: Rely on standard GRI rules and Chapter Notes from Regulation (EU) 2021/1832. Use your training knowledge of the Combined Nomenclature. Be extra cautious and cite your sources.";
 
     const userPrompt = `Analyze this product for EU CN classification and return the result as JSON:
@@ -128,7 +127,7 @@ IMPORTANT:
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        temperature: 0.1, // Lower temperature for legal work - reduces hallucination, increases consistency
+        temperature: 0.1,
         response_format: { type: "json_object" },
       });
 
@@ -141,11 +140,9 @@ IMPORTANT:
       try {
         parsed = JSON.parse(content);
       } catch (parseError) {
-        console.error("Failed to parse OpenAI JSON response:", content);
         throw new Error("OpenAI returned invalid JSON");
       }
       
-      // Normalize snake_case to camelCase (OpenAI often returns snake_case)
       const normalized: ProductAnalysisResult = {
         keyAttributes: parsed.keyAttributes || parsed.key_attributes || {
           primaryFunction: parsed.key_attributes?.primary_function || "",
@@ -157,10 +154,43 @@ IMPORTANT:
         suggestedChapters: parsed.suggestedChapters || parsed.suggested_chapters || [],
         classificationNotes: parsed.classificationNotes || parsed.classification_notes || [],
         alternativeClassifications: parsed.alternativeClassifications || parsed.alternative_classifications || undefined,
-        clarifyingQuestion: parsed.clarifyingQuestion || parsed.clarifying_question || undefined,
+        clarifyingQuestion: (() => {
+          const cq = parsed.clarifyingQuestion || parsed.clarifying_question;
+          if (!cq) return undefined;
+          
+          // Normalize options array
+          let options: Array<{ value: string; label: string; recommendedCode?: string }> = [];
+          if (cq.options && Array.isArray(cq.options)) {
+            options = cq.options.map((opt: any) => {
+              if (typeof opt === "string") {
+                return { value: opt, label: opt };
+              }
+              if (opt && typeof opt === "object") {
+                return {
+                  value: opt.value || opt.label || String(opt),
+                  label: opt.label || opt.value || String(opt),
+                  recommendedCode: opt.recommendedCode || opt.recommended_code,
+                };
+              }
+              return { value: String(opt), label: String(opt) };
+            }).filter((opt: any) => opt.value && opt.label);
+          }
+          
+          const result = {
+            question: cq.question || cq.question_text || "",
+            explanation: cq.explanation || cq.explanation_text || "",
+            options: options.length > 0 ? options : undefined,
+          };
+          
+          // Debug: Log if options are empty
+          if (result.options && result.options.length === 0) {
+            console.log("[OpenAI] Clarifying question has empty options array. Raw options:", cq.options);
+          }
+          
+          return result.options ? result : undefined;
+        })(),
       };
       
-      // Normalize chapter objects if they're in snake_case
       if (normalized.suggestedChapters.length > 0) {
         normalized.suggestedChapters = normalized.suggestedChapters.map((ch: any) => {
           const chapter = ch.chapter || ch.chapter_number || 0;
@@ -169,24 +199,18 @@ IMPORTANT:
           const cnCode = ch.cnCode || ch.cn_code || ch.cNCode;
           const dutyRate = ch.dutyRate || ch.duty_rate;
           
-          // If AI provided a CN code, normalize it (remove spaces, dots, etc.)
           let finalCnCode = cnCode;
           if (finalCnCode) {
-            // First, extract all digits (removes spaces, dots, dashes, etc.)
             const digitsOnly = finalCnCode.replace(/\D/g, "");
             if (digitsOnly.length >= 8) {
-              // Take first 8 digits
               finalCnCode = digitsOnly.substring(0, 8);
             } else if (digitsOnly.length >= 6) {
-              // If we have at least 6 digits, pad to 8
               finalCnCode = digitsOnly.padEnd(8, "0");
             } else {
-              // Not enough digits, will construct below
               finalCnCode = "";
             }
           }
           
-          // If no valid code yet, construct from chapter/heading/subheading
           if (!finalCnCode && chapter) {
             const chapterStr = chapter.toString().padStart(2, "0");
             const headingStr = heading ? heading.toString().padStart(2, "0") : "00";
@@ -194,7 +218,6 @@ IMPORTANT:
             finalCnCode = `${chapterStr}${headingStr}${subheadingStr}00`.substring(0, 8);
           }
           
-          // Normalize duty rate - convert string to number if needed
           let normalizedDutyRate: number | undefined = undefined;
           if (dutyRate !== undefined && dutyRate !== null) {
             if (typeof dutyRate === "number") {
@@ -221,22 +244,15 @@ IMPORTANT:
       }
       
       if (!normalized.suggestedChapters || !Array.isArray(normalized.suggestedChapters)) {
-        console.error("Invalid OpenAI response structure. Expected suggestedChapters array, got:", {
-          hasSuggestedChapters: !!normalized.suggestedChapters,
-          type: typeof normalized.suggestedChapters,
-          fullResponse: parsed,
-        });
         throw new Error("OpenAI response missing suggestedChapters array");
       }
       
       if (normalized.suggestedChapters.length === 0) {
-        console.warn("OpenAI response has no suggested chapters:", parsed);
         throw new Error("OpenAI response has no suggested chapters");
       }
       
       return normalized;
     } catch (error) {
-      console.error("OpenAI classification error:", error);
       throw new Error("Failed to analyze product with AI");
     }
   }
@@ -282,7 +298,7 @@ Return your response as JSON with: question, explanation, options (array of {val
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        temperature: 0.1, // Lower temperature for legal work
+        temperature: 0.1,
         response_format: { type: "json_object" },
       });
 
@@ -293,7 +309,6 @@ Return your response as JSON with: question, explanation, options (array of {val
 
       const parsed = JSON.parse(content);
       
-      // Normalize response (handle both camelCase and snake_case)
       return {
         question: parsed.question || parsed.question_text || "Which classification best matches this product?",
         explanation: parsed.explanation || parsed.explanation_text || "Multiple classification options are possible.",
@@ -304,7 +319,6 @@ Return your response as JSON with: question, explanation, options (array of {val
         field: parsed.field || parsed.attribute_field || "classification",
       };
     } catch (error) {
-      console.error("OpenAI refinement question error:", error);
       throw error;
     }
   }
@@ -409,8 +423,6 @@ Be specific and practical. Focus on what the importer needs to know and do.`;
         nextActions: Array.isArray(parsed.nextActions) ? parsed.nextActions : [],
       };
     } catch (error) {
-      console.error("OpenAI import guidance error:", error);
-      // Return safe defaults
       return {
         importStatus: "ALLOWED",
         importStatusMessage: "Product appears to be allowed for import into the EU",
@@ -522,17 +534,13 @@ Return your response as JSON with dutyRate and vatRate as numbers.`;
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        temperature: 0.1, // Lower temperature for legal work
+        temperature: 0.1,
         response_format: { type: "json_object" },
-        max_tokens: 2000, // Increase to prevent truncation of legal rationale
+        max_tokens: 2000,
       });
 
       const content = response.choices[0]?.message?.content;
       
-      // Check if response was truncated
-      if (response.choices[0]?.finish_reason === "length") {
-        console.warn("[OpenAI] Response was truncated due to token limit. Consider increasing max_tokens.");
-      }
       if (!content) {
         throw new Error("No response from OpenAI");
       }
@@ -541,29 +549,15 @@ Return your response as JSON with dutyRate and vatRate as numbers.`;
       try {
         parsed = JSON.parse(content);
       } catch (parseError) {
-        console.error("Failed to parse OpenAI JSON response for legal rationale:", {
-          error: parseError,
-          contentLength: content.length,
-          contentPreview: content.substring(0, 500),
-          contentSuffix: content.substring(Math.max(0, content.length - 200)),
-        });
-        
-        // Try to fix the JSON
         let fixedContent = content.trim();
         
-        // Step 1: Fix unescaped single quotes inside double-quoted strings
-        // This regex finds strings that contain unescaped single quotes and escapes them
         fixedContent = fixedContent.replace(/"([^"\\]*(?:\\.[^"\\]*)*)'([^"\\]*(?:\\.[^"\\]*)*)"/g, (match, before, after) => {
           return `"${before.replace(/'/g, "\\'")}${after.replace(/'/g, "\\'")}"`;
         });
         
-        // Step 2: Handle truncated strings - find incomplete string fields and close them
-        // Look for patterns like: "legalRationale": "text that ends without closing quote
-        // First, check if the content ends mid-string (no closing quote before the end)
         const endsWithUnclosedString = /"[^"]*":\s*"[^"]*$/.test(fixedContent);
         
         if (endsWithUnclosedString || !fixedContent.endsWith("}")) {
-          // Find all string field patterns
           const stringFieldRegex = /"([^"]+)":\s*"([^"]*)/g;
           const matches: Array<{ field: string; value: string; index: number }> = [];
           let match;
@@ -577,25 +571,20 @@ Return your response as JSON with dutyRate and vatRate as numbers.`;
           }
           
           if (matches.length > 0) {
-            // Get the last (potentially incomplete) string field
             const lastMatch = matches[matches.length - 1];
             const incompleteValue = lastMatch.value;
             
-            // Extract everything before the incomplete field
             const beforeIncomplete = fixedContent.substring(0, lastMatch.index);
             
-            // Close the incomplete string properly (escape any quotes/special chars)
             const escapedValue = incompleteValue
-              .replace(/\\/g, "\\\\")  // Escape backslashes first
-              .replace(/"/g, '\\"')    // Escape double quotes
-              .replace(/\n/g, "\\n")    // Escape newlines
-              .replace(/\r/g, "\\r")    // Escape carriage returns
-              .replace(/\t/g, "\\t");   // Escape tabs
+              .replace(/\\/g, "\\\\")
+              .replace(/"/g, '\\"')
+              .replace(/\n/g, "\\n")
+              .replace(/\r/g, "\\r")
+              .replace(/\t/g, "\\t");
             
-            // Rebuild the JSON with the closed string and all required fields
             fixedContent = beforeIncomplete + `"${lastMatch.field}": "${escapedValue}",\n`;
             
-            // Add remaining required fields with defaults if missing
             if (!fixedContent.includes('"distinctions"')) {
               fixedContent += '"distinctions": [],\n';
             }
@@ -615,14 +604,11 @@ Return your response as JSON with dutyRate and vatRate as numbers.`;
           }
         }
         
-        // Step 3: If content doesn't end with }, try to close it properly
         if (!fixedContent.endsWith("}") && !fixedContent.endsWith("}\n")) {
-          // Find the last complete field before truncation
           const lastCompleteField = fixedContent.lastIndexOf('",');
           if (lastCompleteField > 0) {
-            // Extract up to the last complete field and close the JSON
             fixedContent = fixedContent.substring(0, lastCompleteField + 1);
-            // Add missing required fields if needed
+            
             if (!fixedContent.includes('"distinctions"')) {
               fixedContent += ',\n"distinctions": []';
             }
@@ -640,7 +626,7 @@ Return your response as JSON with dutyRate and vatRate as numbers.`;
             }
             fixedContent += "\n}";
           } else {
-            // Last resort: create minimal valid JSON
+            
             if (fixedContent.includes('"legalRationale"')) {
               const rationaleMatch = fixedContent.match(/"legalRationale":\s*"([^"]*)/);
               const rationaleText = rationaleMatch ? rationaleMatch[1].replace(/"/g, '\\"').replace(/'/g, "\\'") : "";
@@ -654,20 +640,16 @@ Return your response as JSON with dutyRate and vatRate as numbers.`;
         try {
           parsed = JSON.parse(fixedContent);
         } catch (e) {
-          // Try extracting JSON from markdown code blocks
           const jsonMatch = fixedContent.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
           if (jsonMatch) {
             try {
               parsed = JSON.parse(jsonMatch[1]);
             } catch (e2) {
-              // Last resort: try to find and parse any JSON object
               const jsonObjectMatch = fixedContent.match(/\{[\s\S]*\}/);
               if (jsonObjectMatch) {
                 try {
                   parsed = JSON.parse(jsonObjectMatch[0]);
                 } catch (e3) {
-                  console.error("All JSON parsing attempts failed:", e3);
-                  // Return a minimal valid response instead of throwing
                   parsed = {
                     legalRationale: "Legal rationale generation encountered a parsing error. Please review the classification manually.",
                     distinctions: [],
@@ -678,7 +660,6 @@ Return your response as JSON with dutyRate and vatRate as numbers.`;
                   };
                 }
               } else {
-                // Return minimal valid response
                 parsed = {
                   legalRationale: "Legal rationale generation encountered a parsing error. Please review the classification manually.",
                   distinctions: [],
@@ -690,7 +671,6 @@ Return your response as JSON with dutyRate and vatRate as numbers.`;
               }
             }
           } else {
-            // Return minimal valid response
             parsed = {
               legalRationale: "Legal rationale generation encountered a parsing error. Please review the classification manually.",
               distinctions: [],
@@ -703,16 +683,6 @@ Return your response as JSON with dutyRate and vatRate as numbers.`;
         }
       }
       
-      // Validate that the response doesn't mention a different CN code
-      const legalRationaleText = (parsed.legalRationale || parsed.legal_rationale || "").toLowerCase();
-      const distinctionsText = JSON.stringify(parsed.distinctions || parsed.distinction_notes || []).toLowerCase();
-      const fullText = `${legalRationaleText} ${distinctionsText}`;
-      
- 
-      
- 
-      
-
       const rationaleText = (parsed.legalRationale || parsed.legal_rationale || "").toLowerCase();
       const notesText = (parsed.notes || "").toLowerCase();
       const combinedText = `${rationaleText} ${notesText}`;
@@ -732,13 +702,12 @@ Return your response as JSON with dutyRate and vatRate as numbers.`;
           const rate = parseFloat(match[1]);
           if (!isNaN(rate)) {
             extractedDutyRate = rate;
-            console.log(`[OpenAI] Extracted duty rate ${extractedDutyRate}% from legal rationale text`);
             break;
           }
         }
       }
 
-      // Extract VAT rate from text
+      
       let extractedVatRate: number | undefined = undefined;
       for (const pattern of [
         /vat\s+rate\s+(?:is|of|:)\s*(\d+\.?\d*)\s*%/i,
@@ -750,13 +719,12 @@ Return your response as JSON with dutyRate and vatRate as numbers.`;
           const rate = parseFloat(match[1]);
           if (!isNaN(rate)) {
             extractedVatRate = rate;
-            console.log(`[OpenAI] Extracted VAT rate ${extractedVatRate}% from legal rationale text`);
             break;
           }
         }
       }
 
-      // Normalize response - prefer extracted from text, then JSON, then undefined
+      
       let dutyRate = extractedDutyRate !== undefined
         ? extractedDutyRate
         : (parsed.dutyRate !== undefined 
@@ -769,16 +737,13 @@ Return your response as JSON with dutyRate and vatRate as numbers.`;
             ? (typeof parsed.vatRate === "number" ? parsed.vatRate : parseFloat(parsed.vatRate) || undefined)
             : undefined);
 
-      // Extract GRI rule from text if not in JSON, or determine from reasoning trail
       let griRule = parsed.griRule || parsed.gri_rule;
       
-      // If not in JSON, try to extract from legal rationale text
       if (!griRule) {
         const rationaleText = (parsed.legalRationale || parsed.legal_rationale || "").toLowerCase();
         const notesText = (parsed.notes || "").toLowerCase();
         const combinedText = `${rationaleText} ${notesText}`;
         
-        // Look for GRI rule mentions: "GRI 1", "GRI_1", "General Rule 1", "Rule 1", etc.
         const griPatterns = [
           /gri\s*[_\s]?(\d+)/i,
           /general\s+rule\s+(?:of\s+interpretation\s+)?(\d+)/i,
@@ -791,16 +756,14 @@ Return your response as JSON with dutyRate and vatRate as numbers.`;
             const griNum = parseInt(match[1], 10);
             if (griNum >= 1 && griNum <= 6) {
               griRule = `GRI_${griNum}`;
-              console.log(`[OpenAI] Extracted GRI rule ${griRule} from legal rationale text`);
               break;
             }
           }
         }
       }
       
-      // If still not found, determine from reasoning trail or product characteristics
       if (!griRule && classification.reasoningTrail && classification.reasoningTrail.length > 0) {
-        // Check if any step used GRI_3 (multiple headings) or GRI_6 (subheading)
+        
         const hasGRI3B = classification.reasoningTrail.some((step: any) => 
           step.griRule === "GRI_3B" || step.griRule === "GRI_3b"
         );
@@ -814,30 +777,24 @@ Return your response as JSON with dutyRate and vatRate as numbers.`;
           step.level === "HEADING" || step.level === "CHAPTER"
         );
         
-        // Determine combined rules
         if (hasGRI3B) {
-          griRule = "GRI_3B"; // Essential character for composite goods
+          griRule = "GRI_3B";
         } else if (hasGRI3) {
           griRule = "GRI_3";
         } else if (hasHeading && hasGRI6) {
-          griRule = "GRI_1_AND_6"; // Both GRI 1 (heading) and GRI 6 (subheading)
+          griRule = "GRI_1_AND_6";
         } else if (hasGRI6) {
           griRule = "GRI_6";
         } else {
-          // Default to GRI_1 (most common - used for chapter/heading determination)
           griRule = "GRI_1";
         }
-        
-        console.log(`[OpenAI] Determined GRI rule ${griRule} from reasoning trail`);
       }
       
-      // Also check product characteristics for composite goods (toy + electronics, etc.)
       if (!griRule || griRule === "GRI_1") {
         const productName = (product.name || "").toLowerCase();
         const productDesc = (product.description || "").toLowerCase();
         const combined = `${productName} ${productDesc}`;
         
-        // Check if it's a composite good that might need GRI 3(b)
         const compositeIndicators = [
           /toy.*(?:with|and|integrated).*(?:speaker|electronic|bluetooth|battery)/i,
           /(?:with|and|integrated).*(?:speaker|electronic|bluetooth).*(?:toy|doll|bear)/i,
@@ -846,42 +803,27 @@ Return your response as JSON with dutyRate and vatRate as numbers.`;
         
         if (compositeIndicators.some(pattern => pattern.test(combined))) {
           griRule = "GRI_3B";
-          console.log(`[OpenAI] Detected composite good, using GRI_3B for essential character determination`);
         }
       }
       
-      // Final fallback
       if (!griRule) {
-        griRule = "GRI_1"; // Most products are classified under GRI 1
+        griRule = "GRI_1";
       }
 
-      // If duty rate is still undefined, use chapter-based defaults
       if (dutyRate === undefined) {
-        // Try to extract chapter from CN code
+        
         const cnCodeStr = classification.cnCode || "";
         if (cnCodeStr.length >= 2) {
           const chapter = parseInt(cnCodeStr.substring(0, 2), 10);
           if (chapter === 20) {
-            // Chapter 20: Preparations of vegetables, fruit, nuts - 7.5-12% MFN
-            dutyRate = 9.6; // Use midpoint as reasonable estimate
-            console.log(`[OpenAI] Using default duty rate for Chapter 20: ${dutyRate}%`);
+            dutyRate = 9.6;
           } else if (chapter >= 50 && chapter <= 63) {
-            // Textiles: 8-12%
             dutyRate = 10.0;
-            console.log(`[OpenAI] Using default duty rate for Chapter ${chapter} (textiles): ${dutyRate}%`);
           } else if (chapter >= 84 && chapter <= 85) {
-            // Electronics: 0-6.5%
             dutyRate = 0.0;
-            console.log(`[OpenAI] Using default duty rate for Chapter ${chapter} (electronics): ${dutyRate}%`);
           } else if (chapter >= 1 && chapter <= 24 && chapter !== 20) {
-            // Other agricultural: typically 0-8%
             dutyRate = 8.0;
-            console.log(`[OpenAI] Using default duty rate for Chapter ${chapter} (agricultural): ${dutyRate}%`);
-          } else {
-            console.warn(`[OpenAI] Duty rate not found in legal rationale response for CN code ${classification.cnCode} (Chapter ${chapter})`);
           }
-        } else {
-          console.warn(`[OpenAI] Duty rate not found in legal rationale response for CN code ${classification.cnCode}`);
         }
       }
 
@@ -895,8 +837,6 @@ Return your response as JSON with dutyRate and vatRate as numbers.`;
         notes: parsed.notes || undefined,
       };
     } catch (error) {
-      console.error("OpenAI legal rationale error:", error);
-      // Fallback
       return {
         legalRationale: `Classification determined by ${classification.reasoningTrail[0]?.griRule || "GRI_1"}. ${classification.reasoningTrail[0]?.rationale || ""}`,
         distinctions: [],
@@ -974,12 +914,11 @@ Generate a comprehensive, professional dossier that can be submitted to EU custo
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        temperature: 0.1, // Lower temperature for legal work
+        temperature: 0.1,
       });
 
       return response.choices[0]?.message?.content || "Failed to generate dossier";
     } catch (error) {
-      console.error("OpenAI dossier generation error:", error);
       throw new Error("Failed to generate reasoning dossier");
     }
   }

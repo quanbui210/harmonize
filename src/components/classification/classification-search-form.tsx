@@ -114,6 +114,13 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
         });
 
         setResult(res);
+        
+        // Debug: Log result to check if refinement question exists
+        console.log("[UI] Classification result:", {
+          hasRefinementQuestion: !!res.refinementQuestion,
+          refinementQuestion: res.refinementQuestion,
+          needsRefinement: res.needsRefinement,
+        });
 
         if (!res.needsRefinement) {
           router.push(`/classify/${res.classificationId}`);
@@ -396,7 +403,7 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
         </CardContent>
       </Card>
 
-      {result?.refinementQuestion && (
+      {result?.refinementQuestion && result.refinementQuestion.question && (
         <Card className="border-blue-200 bg-blue-50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -417,17 +424,21 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
             </div>
 
             <div className="space-y-2">
-              {result.refinementQuestion.options.map((option) => (
-                <Button
-                  key={option.value}
-                  variant="outline"
-                  className="w-full justify-start bg-white"
-                  onClick={() => handleRefinementAnswer(option.value)}
-                  disabled={isPending}
-                >
-                  {option.label}
-                </Button>
-              ))}
+              {result.refinementQuestion.options && result.refinementQuestion.options.length > 0 ? (
+                result.refinementQuestion.options.map((option) => (
+                  <Button
+                    key={option.value}
+                    variant="outline"
+                    className="w-full justify-start bg-white"
+                    onClick={() => handleRefinementAnswer(option.value)}
+                    disabled={isPending}
+                  >
+                    {option.label || option.value}
+                  </Button>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">No options available</p>
+              )}
             </div>
 
             {result.refinementQuestion.options.some((o) => o.value === "other") && (

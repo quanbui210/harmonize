@@ -109,20 +109,20 @@ async function searchLegalChunksForProduct(
       console.log("[RAG] No chunks with embeddings found, falling back to keyword search");
       const fallbackChunks = await prisma.legalSourceChunk.findMany({
         where: {
-          source: "EUR_LEX",
-          regulation: "EU_2021_1832",
-          language: "EN",
+    source: "EUR_LEX",
+    regulation: "EU_2021_1832",
+    language: "EN",
         },
-        take: limit,
-        select: {
-          id: true,
-          sectionPath: true,
-          content: true,
-          pageStart: true,
-          pageEnd: true,
-        },
-      });
-      
+    take: limit,
+    select: {
+      id: true,
+      sectionPath: true,
+      content: true,
+      pageStart: true,
+      pageEnd: true,
+    },
+  });
+
       chunks = fallbackChunks.map((chunk) => ({
         ...chunk,
         similarity: 0.5, // Default similarity for fallback
@@ -399,21 +399,21 @@ export async function searchAndClassifyAction(input: {
     if (normalizedAiCode && normalizedAiCode.length === 8 && normalizedAiCode !== "00000000") {
       validatedCnCode = normalizedAiCode;
       console.log(`[Classification] Using AI-provided CN code (not found in document): ${validatedCnCode}`);
-      classificationResult = {
-        ...classificationResult,
+        classificationResult = {
+          ...classificationResult,
         cnCode: validatedCnCode as CNCode,
-        confidence: Math.max(classificationResult.confidence || 0, topSuggestion.confidence || 0.8),
-        reasoningTrail: [
-          ...(classificationResult.reasoningTrail || []),
-          {
-            griRule: "GRI_1",
-            level: "SUBHEADING",
+          confidence: Math.max(classificationResult.confidence || 0, topSuggestion.confidence || 0.8),
+          reasoningTrail: [
+            ...(classificationResult.reasoningTrail || []),
+            {
+              griRule: "GRI_1",
+              level: "SUBHEADING",
             selection: validatedCnCode,
             rationale: `AI-provided CN Code ${validatedCnCode}: ${topSuggestion.reason}`,
-            score: topSuggestion.confidence || 0.8,
-          },
-        ],
-      };
+              score: topSuggestion.confidence || 0.8,
+            },
+          ],
+        };
     } 
     // Priority 2: If AI provided chapter/heading but no valid CN code, construct it from components
     else if (topSuggestion.chapter && topSuggestion.chapter > 0 && topSuggestion.chapter <= 97) {
@@ -497,7 +497,7 @@ export async function searchAndClassifyAction(input: {
       if (fallbackChapter > 0 && fallbackChapter <= 97) {
         validatedCnCode = `${fallbackChapter.toString().padStart(2, "0")}000000`.substring(0, 8);
         console.warn(`[Classification] Using fallback code from chapter only: ${validatedCnCode}`);
-        classificationResult.cnCode = validatedCnCode as CNCode;
+      classificationResult.cnCode = validatedCnCode as CNCode;
       } else {
         throw new Error(`Classification failed: Unable to determine valid CN code. The AI did not provide a valid classification code. Please try again or provide more product details.`);
       }
@@ -536,16 +536,16 @@ export async function searchAndClassifyAction(input: {
   // Generate professional legal rationale and import guidance in parallel
   const [legalInfo, importGuidance] = await Promise.all([
     openaiService.generateLegalRationale(
-      productAttributes,
-      {
-        cnCode: normalizedCnCode,
+    productAttributes,
+    {
+      cnCode: normalizedCnCode,
         cnCodeDescription,
         dutyRate: initialDutyRate, // Pass AI-provided duty rate if available
         vatRate: classificationResult.dutySummary?.vatRate,
-        reasoningTrail: classificationResult.reasoningTrail || [],
-        exclusionNotes: classificationResult.exclusionNotes || [],
-        sources: classificationResult.sources || [],
-      },
+      reasoningTrail: classificationResult.reasoningTrail || [],
+      exclusionNotes: classificationResult.exclusionNotes || [],
+      sources: classificationResult.sources || [],
+    },
     ),
     openaiService.generateImportGuidance(
       productAttributes,
@@ -575,10 +575,10 @@ export async function searchAndClassifyAction(input: {
 
   // Build primary candidate
   const primaryCandidate: ClassificationCandidate = {
-    htsCode,
-    cnCode: normalizedCnCode,
-    confidence: classificationResult.confidence || 0,
-    description,
+      htsCode,
+      cnCode: normalizedCnCode,
+      confidence: classificationResult.confidence || 0,
+      description,
     // Priority: AI initial analysis > Legal rationale > Classification result > 0
     dutyRate: aiDutyRate !== undefined 
       ? aiDutyRate 
@@ -586,17 +586,17 @@ export async function searchAndClassifyAction(input: {
           ? legalInfo.dutyRate 
           : (classificationResult.dutySummary?.baseDutyRate || 0)),
     vatRate: finalVatRate,
-    precedent: classificationResult.sources.find(
-      (s) => s.sourceType === "BINDING_RULING",
-    )?.referenceId,
-    reasoning: (classificationResult.reasoningTrail || [])
-      .map((r) => r.rationale)
-      .join(" "),
-    legalRationale: legalInfo.legalRationale,
-    distinctions: legalInfo.distinctions,
-    keyFeatures: legalInfo.keyFeatures,
-    griRule: legalInfo.griRule,
-    notes: legalInfo.notes,
+      precedent: classificationResult.sources.find(
+        (s) => s.sourceType === "BINDING_RULING",
+      )?.referenceId,
+      reasoning: (classificationResult.reasoningTrail || [])
+        .map((r) => r.rationale)
+        .join(" "),
+      legalRationale: legalInfo.legalRationale,
+      distinctions: legalInfo.distinctions,
+      keyFeatures: legalInfo.keyFeatures,
+      griRule: legalInfo.griRule,
+      notes: legalInfo.notes,
     importGuidance,
     isPrimary: true,
   };
@@ -713,25 +713,48 @@ export async function searchAndClassifyAction(input: {
   console.log(`[Classification] Final duty rate: ${finalDutyRate}% (AI initial: ${aiDutyRate}, Legal rationale: ${legalInfo.dutyRate}, Classification: ${classificationResult.dutySummary?.baseDutyRate})`);
   console.log(`[Classification] Final VAT rate: ${primaryCandidate.vatRate}% (destination: ${input.destinationCountry || "default"})`);
   
-  await prisma.dutySummary.create({
-    data: {
-      classificationId: classification.id,
-      baseValue: 0,
+    await prisma.dutySummary.create({
+      data: {
+        classificationId: classification.id,
+        baseValue: 0,
       dutyRate: finalDutyRate,
       vatRate: primaryCandidate.vatRate,
-      estimatedDuty: 0,
-    },
+        estimatedDuty: 0,
+      },
   });
 
   // Combine refinement question with clarifying question from AI
   const combinedRefinementQuestion = refinementQuestion || (aiAnalysis.clarifyingQuestion ? {
     question: aiAnalysis.clarifyingQuestion.question,
     explanation: aiAnalysis.clarifyingQuestion.explanation,
-    options: aiAnalysis.clarifyingQuestion.options.map(opt => ({
-      value: opt.value,
-      label: opt.label,
-    })),
+    options: (aiAnalysis.clarifyingQuestion.options || []).map(opt => {
+      // Handle different possible structures
+      if (typeof opt === "string") {
+        return { value: opt, label: opt };
+      }
+      if (opt && typeof opt === "object") {
+        return {
+          value: opt.value || opt.label || String(opt),
+          label: opt.label || opt.value || String(opt),
+        };
+      }
+      return { value: String(opt), label: String(opt) };
+    }).filter(opt => opt.value && opt.label), // Filter out any invalid options
+    field: "classification", // Default field for clarifying questions
   } : null);
+
+  // Debug: Log if question exists
+  if (combinedRefinementQuestion) {
+    console.log("[Classification] Refinement question generated:", {
+      question: combinedRefinementQuestion.question,
+      explanation: combinedRefinementQuestion.explanation,
+      optionsCount: combinedRefinementQuestion.options?.length || 0,
+      options: combinedRefinementQuestion.options,
+      field: combinedRefinementQuestion.field,
+    });
+  } else {
+    console.log("[Classification] No refinement question generated");
+  }
 
   return {
     productId: product.id,

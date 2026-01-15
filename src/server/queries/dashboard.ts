@@ -42,30 +42,62 @@ export async function getDashboardOverview(organizationId: string) {
     },
   })
 
-  // Get recent classifications for dashboard (limited to 12, use "View all" for more)
-  const actionItems = await prisma.classification.findMany({
-    where: {
-      organizationId,
-    },
-    include: {
-      product: true,
-      dossier: true, // Include dossier relation to check if it exists
-      dutySummary: true,
-    },
-    orderBy: {
-      updatedAt: "desc",
-    },
-    take: 12, // Limit to 12 items on dashboard
-  })
 
-  const activeImports = await prisma.classification.findMany({
-    where: { organizationId },
-    include: { product: true },
-    orderBy: {
-      createdAt: "desc",
-    },
-    take: 3,
-  })
+  // Get recent classifications for dashboard (limited to 12, use "View all" for more)
+  // Handle orphaned classifications (where product was deleted) by using raw query or filtering
+  let actionItems: any[] = [];
+  let activeImports: any[] = [];
+  
+  try {
+    // First, get product IDs that exist
+    const existingProductIds = await prisma.product.findMany({
+      where: { organizationId },
+      select: { id: true },
+    });
+    const productIdSet = new Set(existingProductIds.map(p => p.id));
+    
+    // Get classifications and filter by existing products
+    const allActionItems = await prisma.classification.findMany({
+      where: {
+        organizationId,
+        productId: {
+          in: Array.from(productIdSet),
+        },
+      },
+      include: {
+        product: true,
+        dossier: true,
+        dutySummary: true,
+      },
+      orderBy: {
+        updatedAt: "desc",
+      },
+      take: 12,
+    });
+    
+    actionItems = allActionItems;
+
+    const allActiveImportsData = await prisma.classification.findMany({
+      where: { 
+        organizationId,
+        productId: {
+          in: Array.from(productIdSet),
+        },
+      },
+      include: { product: true },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 3,
+    });
+    
+    activeImports = allActiveImportsData;
+  } catch (error) {
+    // Fallback: if there's an error, return empty arrays
+    console.error("Error fetching dashboard classifications:", error);
+    actionItems = [];
+    activeImports = [];
+  }
 
   // Get recent active shipments (not cancelled)
   const recentShipments = await (prisma as any).shipment.findMany({

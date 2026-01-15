@@ -29,20 +29,20 @@ export function LandingContent() {
       <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto max-w-7xl px-6 py-4">
           <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2">
+            <Link href="/" className="flex items-center gap-2 group transition-all duration-300 hover:opacity-80">
               <Image 
                 src="/appicon.svg" 
                 alt="HarmonizeAI" 
                 width={32} 
                 height={32}
-                className="h-8 w-8"
+                className="h-8 w-8 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6"
               />
-              <span className="text-xl font-semibold tracking-tight">HarmonizeAI</span>
+              <span className="text-xl font-semibold tracking-tight transition-all duration-300 group-hover:translate-x-0.5">HarmonizeAI</span>
             </Link>
             <div className="hidden md:flex items-center gap-6">
               <a 
                 href="#features" 
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="text-sm text-muted-foreground hover:text-foreground transition-all duration-300 relative group"
                 onClick={(e) => {
                   e.preventDefault();
                   const element = document.getElementById("features");
@@ -50,10 +50,11 @@ export function LandingContent() {
                 }}
               >
                 Platform
+                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-foreground transition-all duration-300 group-hover:w-full"></span>
               </a>
               <a 
                 href="#sources" 
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="text-sm text-muted-foreground hover:text-foreground transition-all duration-300 relative group"
                 onClick={(e) => {
                   e.preventDefault();
                   const element = document.getElementById("sources");
@@ -61,10 +62,11 @@ export function LandingContent() {
                 }}
               >
                 Data Sources
+                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-foreground transition-all duration-300 group-hover:w-full"></span>
               </a>
               <a 
                 href="#reliability" 
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="text-sm text-muted-foreground hover:text-foreground transition-all duration-300 relative group"
                 onClick={(e) => {
                   e.preventDefault();
                   const element = document.getElementById("reliability");
@@ -72,15 +74,20 @@ export function LandingContent() {
                 }}
               >
                 Reliability
+                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-foreground transition-all duration-300 group-hover:w-full"></span>
               </a>
               <Link 
                 href="/login?redirectTo=/dashboard" 
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="text-sm text-muted-foreground hover:text-foreground transition-all duration-300 relative group"
               >
                 Login
+                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-foreground transition-all duration-300 group-hover:w-full"></span>
               </Link>
             </div>
-            <Button asChild>
+            <Button 
+              asChild
+              className="transition-all duration-300 ease-out hover:scale-105 hover:shadow-lg hover:shadow-foreground/10"
+            >
               <Link href="/login?redirectTo=/dashboard">Get Started</Link>
             </Button>
           </div>
@@ -99,17 +106,20 @@ export function LandingContent() {
                 Import with <span className="text-primary">Total Legal Certainty</span>
               </h1>
               <p className="text-base text-muted-foreground italic mb-8 leading-relaxed max-w-2xl">
-                HarmonizeAI automates HTS code verification and provides bulletproof audit protection 
-                for modern B2B importers. Every classification is backed by official EU regulations, 
-                binding rulings, and defensible legal reasoning.
+                HarmonizeAI helps you check whether your product can be imported into the EU and what is required to do it legally. We analyze your product against official EU regulations and customs guidance so you can avoid delays, fines, and rejected shipments.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
-                <Button size="lg" asChild>
+                <Button 
+                  size="lg" 
+                  asChild
+                  className="transition-all duration-300 ease-out hover:scale-105 hover:shadow-lg hover:shadow-foreground/10"
+                >
                   <Link href="/login?redirectTo=/dashboard">Start Risk Scan</Link>
                 </Button>
                 <Button 
                   size="lg" 
                   variant="outline"
+                  className="transition-all duration-300 ease-out hover:scale-105 hover:bg-foreground hover:text-background hover:border-foreground hover:shadow-lg hover:shadow-foreground/10"
                   onClick={(e) => {
                     e.preventDefault();
                     const element = document.getElementById("sources");
@@ -119,9 +129,9 @@ export function LandingContent() {
                   Learn More
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground mt-12 uppercase tracking-wider italic">
+              {/* <p className="text-xs text-muted-foreground mt-12 uppercase tracking-wider italic">
                 Trusted by 200+ Global Logistics Partners
-              </p>
+              </p> */}
             </div>
           </ScrollAnimation>
           
@@ -151,85 +161,77 @@ export function LandingContent() {
         </ScrollAnimation>
 
         <div className="space-y-12">
-          <ScrollAnimation delay={100}>
-            <div className="border-b border-border/30 pb-8">
-              <div className="flex items-start gap-6">
-                <div className="flex-shrink-0">
-                  <Search className="h-6 w-6 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2">
-                    Automated HTS Classification
-                  </h3>
-                  <p className="text-base text-muted-foreground italic leading-relaxed">
-                    Upload product images and descriptions to receive instant, AI-powered HTS code classifications. 
-                    Our system analyzes product characteristics against the Harmonized System Tariff and provides 
-                    detailed legal reasoning for every classification decision.
-                  </p>
-                </div>
+          <div className="stagger-fade-in group border-b border-border/30 pb-8 transition-all duration-500 ease-out hover:border-border/60 hover:pb-10 cursor-default" style={{ animationDelay: '0ms' }}>
+            <div className="flex items-start gap-6">
+              <div className="flex-shrink-0 transition-transform duration-500 ease-out group-hover:scale-110 group-hover:rotate-3">
+                <Search className="h-6 w-6 text-primary transition-all duration-500 group-hover:text-foreground" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
+                  Automated HTS Classification
+                </h3>
+                <p className="text-base text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
+                  Upload product images and descriptions to receive instant, AI-powered HTS code classifications. 
+                  Our system analyzes product characteristics against the Harmonized System Tariff and provides 
+                  detailed legal reasoning for every classification decision.
+                </p>
               </div>
             </div>
-          </ScrollAnimation>
+          </div>
 
-          <ScrollAnimation delay={200}>
-            <div className="border-b border-border/30 pb-8">
-              <div className="flex items-start gap-6">
-                <div className="flex-shrink-0">
-                  <Shield className="h-6 w-6 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2">
-                    Risk Monitoring & Alerts
-                  </h3>
-                  <p className="text-base text-muted-foreground italic leading-relaxed">
-                    Continuous monitoring of your classifications against regulatory changes, binding rulings, 
-                    and enforcement actions. Receive proactive alerts when your products may be at risk of 
-                    customs challenges.
-                  </p>
-                </div>
+          <div className="stagger-fade-in group border-b border-border/30 pb-8 transition-all duration-500 ease-out hover:border-border/60 hover:pb-10 cursor-default" style={{ animationDelay: '150ms' }}>
+            <div className="flex items-start gap-6">
+              <div className="flex-shrink-0 transition-transform duration-500 ease-out group-hover:scale-110 group-hover:rotate-3">
+                <Shield className="h-6 w-6 text-primary transition-all duration-500 group-hover:text-foreground" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
+                  Risk Monitoring & Alerts
+                </h3>
+                <p className="text-base text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
+                  Continuous monitoring of your classifications against regulatory changes, binding rulings, 
+                  and enforcement actions. Receive proactive alerts when your products may be at risk of 
+                  customs challenges.
+                </p>
               </div>
             </div>
-          </ScrollAnimation>
+          </div>
 
-          <ScrollAnimation delay={300}>
-            <div className="border-b border-border/30 pb-8">
-              <div className="flex items-start gap-6">
-                <div className="flex-shrink-0">
-                  <FileCheck className="h-6 w-6 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2">
-                    Audit Defense Dossiers
-                  </h3>
-                  <p className="text-base text-muted-foreground italic leading-relaxed">
-                    Generate comprehensive defense dossiers that document your classification decisions with 
-                    legal precedents, binding rulings, and detailed reasoning. Every dossier is designed to 
-                    withstand customs authority scrutiny.
-                  </p>
-                </div>
+          <div className="stagger-fade-in group border-b border-border/30 pb-8 transition-all duration-500 ease-out hover:border-border/60 hover:pb-10 cursor-default" style={{ animationDelay: '300ms' }}>
+            <div className="flex items-start gap-6">
+              <div className="flex-shrink-0 transition-transform duration-500 ease-out group-hover:scale-110 group-hover:rotate-3">
+                <FileCheck className="h-6 w-6 text-primary transition-all duration-500 group-hover:text-foreground" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
+                  Audit Defense Dossiers
+                </h3>
+                <p className="text-base text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
+                  Generate comprehensive defense dossiers that document your classification decisions with 
+                  legal precedents, binding rulings, and detailed reasoning. Every dossier is designed to 
+                  withstand customs authority scrutiny.
+                </p>
               </div>
             </div>
-          </ScrollAnimation>
+          </div>
 
-          <ScrollAnimation delay={400}>
-            <div className="border-b border-border/30 pb-8">
-              <div className="flex items-start gap-6">
-                <div className="flex-shrink-0">
-                  <Scale className="h-6 w-6 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2">
-                    Product Labeling
-                  </h3>
-                  <p className="text-base text-muted-foreground italic leading-relaxed">
-                    Generate compliant bilingual (Finnish/Swedish) product labels with nutrition tables, 
-                    ingredient lists, allergen warnings, and all mandatory EU requirements. Labels can be 
-                    exported as PDF or SVG for printing.
-                  </p>
-                </div>
+          <div className="stagger-fade-in group border-b border-border/30 pb-8 transition-all duration-500 ease-out hover:border-border/60 hover:pb-10 cursor-default" style={{ animationDelay: '450ms' }}>
+            <div className="flex items-start gap-6">
+              <div className="flex-shrink-0 transition-transform duration-500 ease-out group-hover:scale-110 group-hover:rotate-3">
+                <Scale className="h-6 w-6 text-primary transition-all duration-500 group-hover:text-foreground" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
+                  Product Labeling
+                </h3>
+                <p className="text-base text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
+                  Generate compliant bilingual (Finnish/Swedish) product labels with nutrition tables, 
+                  ingredient lists, allergen warnings, and all mandatory EU requirements. Labels can be 
+                  exported as PDF or SVG for printing.
+                </p>
               </div>
             </div>
-          </ScrollAnimation>
+          </div>
         </div>
       </section>
 
@@ -252,49 +254,49 @@ export function LandingContent() {
 
         <div className="space-y-12">
           <ScrollAnimation delay={100}>
-            <div className="border-l-4 border-primary/20 pl-6">
-              <h3 className="text-xl font-serif font-semibold tracking-tight mb-2">
+            <div className="group border-l-4 border-primary/20 pl-6 transition-all duration-500 ease-out hover:border-primary/60 hover:pl-8 hover:bg-muted/30 -ml-2 py-2 rounded-r-md cursor-default">
+              <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
                 EU Combined Nomenclature
               </h3>
-              <p className="text-sm text-muted-foreground italic">
+              <p className="text-sm text-muted-foreground italic transition-colors duration-500 group-hover:text-foreground/80">
                 Official tariff classification system maintained by the European Commission
               </p>
             </div>
           </ScrollAnimation>
 
           <ScrollAnimation delay={200}>
-            <div className="border-l-4 border-primary/20 pl-6">
-              <h3 className="text-xl font-serif font-semibold tracking-tight mb-2">
+            <div className="group border-l-4 border-primary/20 pl-6 transition-all duration-500 ease-out hover:border-primary/60 hover:pl-8 hover:bg-muted/30 -ml-2 py-2 rounded-r-md cursor-default">
+              <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
                 Binding Tariff Information (BTI) Rulings
               </h3>
-              <p className="text-sm text-muted-foreground italic">
+              <p className="text-sm text-muted-foreground italic transition-colors duration-500 group-hover:text-foreground/80">
                 Legally binding classification decisions issued by EU customs authorities
               </p>
             </div>
           </ScrollAnimation>
 
           <ScrollAnimation delay={300}>
-            <div className="border-l-4 border-primary/20 pl-6">
-              <h3 className="text-xl font-serif font-semibold tracking-tight mb-2">
+            <div className="group border-l-4 border-primary/20 pl-6 transition-all duration-500 ease-out hover:border-primary/60 hover:pl-8 hover:bg-muted/30 -ml-2 py-2 rounded-r-md cursor-default">
+              <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
                 Court Decisions & Legal Precedents
               </h3>
-              <p className="text-sm text-muted-foreground italic">
+              <p className="text-sm text-muted-foreground italic transition-colors duration-500 group-hover:text-foreground/80">
                 Historical classification cases and judicial interpretations from EU courts
               </p>
             </div>
           </ScrollAnimation>
 
           <ScrollAnimation delay={400}>
-            <div className="border-l-4 border-primary/20 pl-6">
-              <h3 className="text-xl font-serif font-semibold tracking-tight mb-2">
+            <div className="group border-l-4 border-primary/20 pl-6 transition-all duration-500 ease-out hover:border-primary/60 hover:pl-8 hover:bg-muted/30 -ml-2 py-2 rounded-r-md cursor-default">
+              <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
                 Finnish Food Authority (Ruokavirasto)
               </h3>
-              <p className="text-sm text-muted-foreground italic">
+              <p className="text-sm text-muted-foreground italic transition-colors duration-500 group-hover:text-foreground/80">
                 <a 
                   href="https://www.ruokavirasto.fi/en/foodstuffs/food-sector/instructions-and-legislation/#labelling" 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="text-primary hover:underline"
+                  className="text-primary hover:underline transition-all duration-300"
                 >
                   Official food labeling regulations and requirements
                 </a>
@@ -321,16 +323,18 @@ export function LandingContent() {
           </div>
         </ScrollAnimation>
 
-        <div className="space-y-12">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           <ScrollAnimation delay={100}>
-            <div className="border-l-4 border-primary/20 pl-6">
-              <div className="flex items-start gap-4">
-                <Shield className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+            <div className="group border border-border/30 rounded-lg p-6 bg-background transition-all duration-500 ease-out hover:border-primary/60 hover:shadow-lg hover:shadow-primary/5 cursor-default">
+              <div className="flex flex-col items-start gap-4">
+                <div className="p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors duration-500">
+                  <Shield className="h-6 w-6 text-primary transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
+                </div>
                 <div>
-                  <h3 className="text-xl font-serif font-semibold tracking-tight mb-2">
+                  <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:text-primary">
                     Real-Time Updates
                   </h3>
-                  <p className="text-sm text-muted-foreground italic leading-relaxed">
+                  <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
                     Automatic monitoring of regulatory changes and new binding rulings that may affect 
                     your existing classifications.
                   </p>
@@ -340,14 +344,16 @@ export function LandingContent() {
           </ScrollAnimation>
 
           <ScrollAnimation delay={200}>
-            <div className="border-l-4 border-primary/20 pl-6">
-              <div className="flex items-start gap-4">
-                <CheckCircle2 className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+            <div className="group border border-border/30 rounded-lg p-6 bg-background transition-all duration-500 ease-out hover:border-primary/60 hover:shadow-lg hover:shadow-primary/5 cursor-default">
+              <div className="flex flex-col items-start gap-4">
+                <div className="p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors duration-500">
+                  <CheckCircle2 className="h-6 w-6 text-primary transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
+                </div>
                 <div>
-                  <h3 className="text-xl font-serif font-semibold tracking-tight mb-2">
+                  <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:text-primary">
                     Confidence Scoring
                   </h3>
-                  <p className="text-sm text-muted-foreground italic leading-relaxed">
+                  <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
                     Every classification includes a confidence score based on the strength of supporting 
                     legal precedents and regulatory alignment.
                   </p>
@@ -357,14 +363,16 @@ export function LandingContent() {
           </ScrollAnimation>
 
           <ScrollAnimation delay={300}>
-            <div className="border-l-4 border-primary/20 pl-6">
-              <div className="flex items-start gap-4">
-                <Database className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+            <div className="group border border-border/30 rounded-lg p-6 bg-background transition-all duration-500 ease-out hover:border-primary/60 hover:shadow-lg hover:shadow-primary/5 cursor-default md:col-span-2 lg:col-span-1">
+              <div className="flex flex-col items-start gap-4">
+                <div className="p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors duration-500">
+                  <Database className="h-6 w-6 text-primary transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
+                </div>
                 <div>
-                  <h3 className="text-xl font-serif font-semibold tracking-tight mb-2">
+                  <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:text-primary">
                     Audit Trail
                   </h3>
-                  <p className="text-sm text-muted-foreground italic leading-relaxed">
+                  <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
                     Complete documentation of every classification decision, including source materials, 
                     reasoning, and timestamp for full audit compliance.
                   </p>
@@ -386,10 +394,19 @@ export function LandingContent() {
             Join 1,000+ compliance officers who trust HarmonizeAI for their audit protection.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" asChild>
+            <Button 
+              size="lg" 
+              asChild
+              className="transition-all duration-300 ease-out hover:scale-105 hover:shadow-lg hover:shadow-foreground/10"
+            >
               <Link href="/login?redirectTo=/dashboard">Start Your Free Risk Scan</Link>
             </Button>
-            <Button size="lg" variant="outline" asChild>
+            <Button 
+              size="lg" 
+              variant="outline" 
+              asChild
+              className="transition-all duration-300 ease-out hover:scale-105 hover:bg-foreground hover:text-background hover:border-foreground hover:shadow-lg hover:shadow-foreground/10"
+            >
               <Link href="/login?redirectTo=/dashboard">Talk to an Expert</Link>
             </Button>
           </div>

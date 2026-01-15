@@ -293,8 +293,8 @@ export default function NewLabelPage() {
   const handleNextStep = async () => {
     if (currentStep === 1) {
       // Validate required fields
-      if (!form.productName || !form.originCountry || !form.destinationCountry) {
-        setError("Please fill in all required fields (product name, origin country, destination country)");
+      if (!form.productName || !form.destinationCountry) {
+        setError("Please fill in all required fields (product name, destination country)");
         return;
       }
       if (!form.bestBeforeDate || !form.netQuantity) {
@@ -611,6 +611,29 @@ export default function NewLabelPage() {
         handleNutritionChange(key, String(value));
       }
     }
+  };
+
+  const getMissingRequiredFields = (): string[] => {
+    const missing: string[] = [];
+    
+    if (!form.productName?.trim()) missing.push("Product name");
+    // Origin country is optional - removed from required fields
+    if (!form.destinationCountry?.trim()) missing.push("Destination country");
+    if (!form.bestBeforeDate?.trim()) missing.push("Best Before Date");
+    if (!form.netQuantity?.trim()) missing.push("Net Quantity");
+    if (!form.importerAddress.companyName?.trim()) missing.push("Importer Company Name");
+    if (!form.importerAddress.street?.trim()) missing.push("Importer Street Address");
+    if (!form.importerAddress.postalCode?.trim()) missing.push("Importer Postcode");
+    if (!form.importerAddress.city?.trim()) missing.push("Importer Post Office");
+    if (!form.importerAddress.country?.trim()) missing.push("Importer Country");
+    
+    return missing;
+  };
+
+  const isGenerateButtonDisabled = (): boolean => {
+    return isPending || 
+           isAnalyzing || 
+           getMissingRequiredFields().length > 0;
   };
 
   // Render component
@@ -1020,29 +1043,58 @@ export default function NewLabelPage() {
               </div>
             )}
 
-            <div className="flex justify-end pt-6 border-t mt-6">
-              <Button 
-                onClick={handleNextStep} 
-                disabled={
-                  isPending || 
-                  isAnalyzing || 
-                  !form.productName?.trim() || 
-                  !form.originCountry?.trim() ||
-                  !form.destinationCountry?.trim() ||
-                  !form.importerAddress.companyName?.trim() || 
-                  !form.importerAddress.street?.trim() || 
-                  !form.importerAddress.postalCode?.trim() || 
-                  !form.importerAddress.city?.trim() || 
-                  !form.importerAddress.country?.trim() ||
-                  !form.bestBeforeDate?.trim() ||
-                  !form.netQuantity?.trim()
+            <div className="pt-6 border-t mt-6 space-y-3">
+              {(() => {
+                const missingFields = getMissingRequiredFields();
+                const isDisabled = isGenerateButtonDisabled();
+                
+                if (isDisabled && missingFields.length > 0 && !isPending && !isAnalyzing) {
+                  return (
+                    <div className="rounded-md border border-yellow-500/50 bg-yellow-50 dark:bg-yellow-900/10 p-3 text-sm">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1">
+                          <p className="font-medium text-yellow-800 dark:text-yellow-200 mb-1">
+                            Please fill in the following required fields:
+                          </p>
+                          <ul className="list-disc list-inside text-yellow-700 dark:text-yellow-300 space-y-0.5">
+                            {missingFields.map((field, idx) => (
+                              <li key={idx}>{field}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  );
                 }
-                size="lg"
-              >
-                {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Generate Label
-                <ChevronRight className="ml-2 h-4 w-4" />
-              </Button>
+                
+                if (isPending || isAnalyzing) {
+                  return (
+                    <div className="rounded-md border border-blue-500/50 bg-blue-50 dark:bg-blue-900/10 p-3 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
+                        <span className="text-blue-800 dark:text-blue-200">
+                          {isAnalyzing ? "Analyzing label..." : "Generating label..."}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                }
+                
+                return null;
+              })()}
+              
+              <div className="flex justify-end">
+                <Button 
+                  onClick={handleNextStep} 
+                  disabled={isGenerateButtonDisabled()}
+                  size="lg"
+                >
+                  {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Generate Label
+                  <ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

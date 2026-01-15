@@ -9,8 +9,6 @@ type LandingPageProps = {
 };
 
 export default function LandingPage({ searchParams }: LandingPageProps) {
-  // Server-side redirect if we have an auth code
-  // This ensures we redirect before any rendering happens
   if (searchParams?.code) {
     const redirectTo = searchParams.redirectTo || "/dashboard";
     const callbackUrl = `/auth/callback?code=${encodeURIComponent(searchParams.code)}&redirectTo=${encodeURIComponent(redirectTo)}`;

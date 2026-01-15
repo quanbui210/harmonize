@@ -35,6 +35,13 @@ export default async function LabelDetailPage({ params }: LabelDetailPageProps) 
   const complianceResults = labelData?.complianceResults || [];
   const productCategory = labelData?.productCategory || "food";
 
+  // Helper function to extract product name string from object or string
+  const getProductName = (productName: string | { original: string; translations?: { fi?: string; sv?: string } } | undefined): string => {
+    if (!productName) return "Product Label";
+    if (typeof productName === "string") return productName;
+    return productName.original || productName.translations?.fi || productName.translations?.sv || "Product Label";
+  };
+
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
@@ -47,7 +54,7 @@ export default async function LabelDetailPage({ params }: LabelDetailPageProps) 
           </Button>
           <div>
             <h1 className="text-2xl font-semibold">
-              {labelData?.productName || "Product Label"}
+              {getProductName(labelData?.productName)}
             </h1>
             <p className="text-sm text-muted-foreground">
               Generated on {new Date(label.generatedAt).toLocaleDateString()}
@@ -91,7 +98,7 @@ export default async function LabelDetailPage({ params }: LabelDetailPageProps) 
           <LabelExportButtons
             labelData={labelData}
             productCategory={productCategory}
-            productName={labelData?.productName || "label"}
+            productName={getProductName(labelData?.productName)}
           />
         </CardContent>
       </Card>

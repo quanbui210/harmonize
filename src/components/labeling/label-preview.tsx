@@ -8,6 +8,35 @@ interface LabelPreviewProps {
   productCategory: string;
 }
 
+// Helper to safely extract product name string - handles all possible structures
+function getProductNameString(productName: any, language: "fi" | "sv" = "fi"): string {
+  if (!productName) return "Product";
+  if (typeof productName === "string") return productName;
+  if (typeof productName !== "object") return "Product";
+  
+  // Handle standard structure: {original: string, translations: {fi: string, sv: string}}
+  if (productName.translations && typeof productName.translations === "object") {
+    const trans = productName.translations;
+    if (language === "fi" && typeof trans.fi === "string") return trans.fi;
+    if (language === "sv" && typeof trans.sv === "string") return trans.sv;
+    // Fallback to other language or original
+    if (language === "fi" && typeof trans.sv === "string") return trans.sv;
+    if (language === "sv" && typeof trans.fi === "string") return trans.fi;
+    if (typeof productName.original === "string") return productName.original;
+  }
+  
+  // Handle edge case: direct {fi: string, sv: string} structure
+  if (language === "fi" && typeof productName.fi === "string") return productName.fi;
+  if (language === "sv" && typeof productName.sv === "string") return productName.sv;
+  if (language === "fi" && typeof productName.sv === "string") return productName.sv;
+  if (language === "sv" && typeof productName.fi === "string") return productName.fi;
+  
+  // Final fallback
+  if (typeof productName.original === "string") return productName.original;
+  
+  return "Product";
+}
+
 export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) {
   const width = labelData.labelDimensions?.width || 100;
   const height = labelData.labelDimensions?.height || 150;
@@ -28,10 +57,10 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
       {/* Product Name */}
       <div className="mb-3">
         <div className="text-2xl font-bold mb-1">
-          {labelData.productName?.translations?.fi || labelData.productName?.original || "Product"}
+          {getProductNameString(labelData.productName, "fi")}
         </div>
         <div className="text-lg text-gray-600">
-          {labelData.productName?.translations?.sv || labelData.productName?.original || "Product"}
+          {getProductNameString(labelData.productName, "sv")}
         </div>
       </div>
       <div className="border-t border-gray-300 my-3"></div>
@@ -41,21 +70,31 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
         <div className="mb-3">
           <div className="font-bold mb-2">Ainesosat / Ingredienser:</div>
           <div className="space-y-1 text-sm">
-            {labelData.ingredients.map((ing, idx) => (
-              <div key={idx} className="mb-1">
-                <span
-                  className={ing.isAllergen ? "font-bold text-red-700" : ""}
-                >
-                  {ing.translations?.fi || ing.name}
-                  {ing.percentage && ` (${ing.percentage}%)`}
-                </span>
-                {ing.translations?.sv && (
-                  <div className="text-xs text-gray-500 ml-2">
-                    {ing.translations.sv}
-                  </div>
-                )}
-              </div>
-            ))}
+            {labelData.ingredients.map((ing, idx) => {
+              // Safely extract ingredient name
+              const ingNameFI = (ing.translations && typeof ing.translations === "object" && typeof ing.translations.fi === "string")
+                ? ing.translations.fi
+                : (typeof ing.name === "string" ? ing.name : "Ingredient");
+              const ingNameSV = (ing.translations && typeof ing.translations === "object" && typeof ing.translations.sv === "string")
+                ? ing.translations.sv
+                : null;
+              
+              return (
+                <div key={idx} className="mb-1">
+                  <span
+                    className={ing.isAllergen ? "font-bold text-red-700" : ""}
+                  >
+                    {ingNameFI}
+                    {ing.percentage && ` (${ing.percentage}%)`}
+                  </span>
+                  {ingNameSV && ingNameSV !== ingNameFI && (
+                    <div className="text-xs text-gray-500 ml-2">
+                      {ingNameSV}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -127,7 +166,6 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
         </div>
       )}
 
-      {/* Best Before / Batch / Net Quantity */}
       <div className="mb-3 text-sm space-y-1">
         {labelData.bestBeforeDate && (
           <div>
