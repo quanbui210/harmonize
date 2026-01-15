@@ -159,35 +159,33 @@ IMPORTANT:
           if (!cq) return undefined;
           
           // Normalize options array
-          let options: Array<{ value: string; label: string; recommendedCode?: string }> = [];
-          if (cq.options && Array.isArray(cq.options)) {
-            options = cq.options.map((opt: any) => {
-              if (typeof opt === "string") {
-                return { value: opt, label: opt };
-              }
-              if (opt && typeof opt === "object") {
-                return {
-                  value: opt.value || opt.label || String(opt),
-                  label: opt.label || opt.value || String(opt),
-                  recommendedCode: opt.recommendedCode || opt.recommended_code,
-                };
-              }
-              return { value: String(opt), label: String(opt) };
-            }).filter((opt: any) => opt.value && opt.label);
-          }
-          
-          const result = {
-            question: cq.question || cq.question_text || "",
-            explanation: cq.explanation || cq.explanation_text || "",
-            options: options.length > 0 ? options : undefined,
-          };
+          const options: Array<{ value: string; label: string; recommendedCode?: string }> = 
+            (cq.options && Array.isArray(cq.options))
+              ? cq.options.map((opt: any) => {
+                  if (typeof opt === "string") {
+                    return { value: opt, label: opt };
+                  }
+                  if (opt && typeof opt === "object") {
+                    return {
+                      value: opt.value || opt.label || String(opt),
+                      label: opt.label || opt.value || String(opt),
+                      recommendedCode: opt.recommendedCode || opt.recommended_code,
+                    };
+                  }
+                  return { value: String(opt), label: String(opt) };
+                }).filter((opt: any) => opt.value && opt.label)
+              : [];
           
           // Debug: Log if options are empty
-          if (result.options && result.options.length === 0) {
+          if (options.length === 0) {
             console.log("[OpenAI] Clarifying question has empty options array. Raw options:", cq.options);
           }
           
-          return result.options ? result : undefined;
+          return {
+            question: String(cq.question || cq.question_text || ""),
+            explanation: String(cq.explanation || cq.explanation_text || ""),
+            options: options,
+          };
         })(),
       };
       

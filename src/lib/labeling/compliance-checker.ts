@@ -146,7 +146,7 @@ export function runComplianceChecks(label: LabelData, productType: RegulatoryPro
     ruleId: "finnish-swedish-languages",
     ruleName: "Finnish and Swedish Required",
     severity: "CRITICAL",
-    passed: hasFinnish && hasSwedish,
+    passed: Boolean(hasFinnish) && Boolean(hasSwedish),
     message: hasFinnish && hasSwedish
       ? "Both Finnish and Swedish translations present"
       : `Missing ${!hasFinnish ? "Finnish" : ""} ${!hasSwedish ? "Swedish" : ""} translation. Required by Finnish Product Safety Act 184/2025`,
@@ -166,7 +166,6 @@ export function runComplianceChecks(label: LabelData, productType: RegulatoryPro
     source: "Ruokavirasto Guide 17068/2, Section 2.1",
   });
 
-  // Allergen highlighting
   const allergens = label.ingredients.filter(ing => ing.isAllergen);
   if (allergens.length > 0) {
     const allHighlighted = allergens.every(ing => ing.isHighlighted);
@@ -182,7 +181,6 @@ export function runComplianceChecks(label: LabelData, productType: RegulatoryPro
     });
   }
 
-  // EU importer address
   results.push({
     ruleId: "eu-importer-address",
     ruleName: "EU Importer Address Required",

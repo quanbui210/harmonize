@@ -147,14 +147,14 @@ export default async function DashboardPage() {
           variant="warning"
         />
         <MetricCard
-          title="CBP Rulings Matched"
-          value={data.rulingsMatched}
-          helper="Updated weekly"
+          title="Labels Generated"
+          value={data.totalLabels}
+          helper="Ready for use"
         />
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-3">
-        <Card className="xl:col-span-2">
+      <section className="grid gap-6 xl:grid-cols-3 xl:items-stretch">
+        <Card className="xl:col-span-2 flex flex-col">
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <div>
               <CardTitle>Recent Classifications</CardTitle>
@@ -166,7 +166,7 @@ export default async function DashboardPage() {
               <Link href="/classify">View all</Link>
             </Button>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-1">
             {/* Mobile/Tablet: Card Layout */}
             <div className="space-y-4 md:hidden">
               {data.actionItems.length === 0 && (
@@ -337,13 +337,13 @@ export default async function DashboardPage() {
             </div>
           </CardContent>
         </Card>
-        <div className="space-y-6">
-          <Card>
+        <div className="flex flex-col space-y-6 h-full">
+          <Card className="flex-1 flex flex-col">
             <CardHeader>
               <CardTitle>Recent Shipments</CardTitle>
               <CardDescription>Latest active shipments.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 flex-1">
               {data.recentShipments?.length === 0 && (
                 <p className="text-sm text-muted-foreground">
                   No active shipments yet. Create a shipment to get started.
@@ -370,12 +370,12 @@ export default async function DashboardPage() {
               ))}
             </CardContent>
           </Card>
-          <Card>
+          <Card className="flex-1 flex flex-col">
             <CardHeader>
               <CardTitle>Active Imports Summary</CardTitle>
               <CardDescription>Top shipments needing attention.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 flex-1">
               {data.activeImports.length === 0 && (
                 <p className="text-sm text-muted-foreground">
                   Classify a product to see shipment readiness here.

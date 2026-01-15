@@ -9,6 +9,7 @@ type TopbarProps = {
   organizationId: string
   userName?: string | null
   userEmail?: string | null
+  avatarUrl?: string | null
   memberships: Array<{
     id: string
     role: MembershipRole
@@ -19,7 +20,7 @@ type TopbarProps = {
   }>
 }
 
-export function Topbar({ organizationName, organizationId, userName, userEmail, memberships }: TopbarProps) {
+export function Topbar({ organizationName, organizationId, userName, userEmail, avatarUrl, memberships }: TopbarProps) {
   return (
     <header className="flex items-center justify-between border-b bg-white px-6 py-4">
       <div className="flex flex-1 items-center gap-3">
@@ -40,6 +41,7 @@ export function Topbar({ organizationName, organizationId, userName, userEmail, 
           userName={userName}
           userEmail={userEmail}
           organizationName={organizationName}
+          avatarUrl={avatarUrl}
         />
       </div>
     </header>

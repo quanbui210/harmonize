@@ -36,6 +36,7 @@ export function AppShell({ user, organization, memberships, children }: AppShell
             user.email
           }
           userEmail={user.email}
+          avatarUrl={(user.user_metadata?.avatar_url as string | undefined) ?? null}
           memberships={memberships}
         />
         <main className="flex-1 overflow-y-auto bg-slate-50 p-6 lg:p-10">

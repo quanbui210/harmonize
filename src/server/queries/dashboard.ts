@@ -33,12 +33,11 @@ export async function getDashboardOverview(organizationId: string) {
   const approvedCount = totalWithDossiers // Classifications with dossiers are "approved"
   const pendingCount = totalClassifications - totalWithDossiers // Classifications without dossiers are "pending"
 
-  const rulingsMatched = await prisma.classificationSource.count({
+  // Count labels (non-draft labels)
+  const totalLabels = await prisma.label.count({
     where: {
-      sourceType: "BINDING_RULING",
-      classification: {
-        organizationId,
-      },
+      organizationId,
+      isDraft: false,
     },
   })
 
@@ -72,7 +71,7 @@ export async function getDashboardOverview(organizationId: string) {
       orderBy: {
         updatedAt: "desc",
       },
-      take: 12,
+      take: 11,
     });
     
     actionItems = allActionItems;
@@ -132,7 +131,7 @@ export async function getDashboardOverview(organizationId: string) {
     pendingCount,
     missingReasonings,
     autoClassified,
-    rulingsMatched,
+    totalLabels,
     actionItems,
     activeImports,
     recentShipments,

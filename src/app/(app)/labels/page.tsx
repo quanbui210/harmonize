@@ -86,7 +86,7 @@ export default async function LabelsPage() {
               productCategory?: string;
             };
             const productName = getProductName(labelData);
-            const status = getComplianceStatus(label.complianceScore);
+            const status = getComplianceStatus(Number(label.complianceScore));
             const StatusIcon = status.icon;
 
             return (
@@ -114,7 +114,7 @@ export default async function LabelsPage() {
                       <div className="flex items-center gap-2 text-sm">
                         <StatusIcon className={`h-4 w-4 ${status.color}`} />
                         <span className={status.color}>
-                          {status.text} ({label.complianceScore}%)
+                          {status.text} ({Number(label.complianceScore)}%)
                         </span>
                       </div>
                     )}

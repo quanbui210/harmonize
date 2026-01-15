@@ -1,11 +1,14 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollAnimation } from "@/components/landing/scroll-animation";
 import { ResultPreview } from "@/components/landing/result-preview";
+import { LoadingScreen } from "@/components/ui/loading-screen";
 import { 
   FileText, 
   Shield, 
@@ -22,7 +25,46 @@ import {
   Waypoints
 } from "lucide-react";
 
-export function LandingContent() {
+type UserData = {
+  id: string;
+  email: string | null;
+  name: string;
+  avatar: string | null;
+} | null;
+
+type LandingContentProps = {
+  user?: UserData;
+};
+
+export function LandingContent({ user }: LandingContentProps) {
+  const [isNavigating, setIsNavigating] = useState(false);
+  const router = useRouter();
+
+  const handleLoginClick = (e: React.MouseEvent<HTMLElement>) => {
+    e.preventDefault();
+    setIsNavigating(true);
+    router.push("/login?redirectTo=/dashboard");
+  };
+
+  const handleGoToApp = (e: React.MouseEvent<HTMLElement>) => {
+    e.preventDefault();
+    setIsNavigating(true);
+    router.push("/dashboard");
+  };
+
+  if (isNavigating) {
+    return <LoadingScreen />;
+  }
+
+  const userInitials = user?.name
+    ?.split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || 
+    user?.email?.slice(0, 2).toUpperCase() || 
+    "U";
+
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
@@ -71,20 +113,63 @@ export function LandingContent() {
                 Reliability
                 <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-foreground transition-all duration-300 group-hover:w-full"></span>
               </a>
-              <Link 
-                href="/login?redirectTo=/dashboard" 
-                className="text-sm text-muted-foreground hover:text-foreground transition-all duration-300 relative group"
-              >
-                Login
-                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-foreground transition-all duration-300 group-hover:w-full"></span>
-              </Link>
+              {!user && (
+                <a 
+                  href="/login?redirectTo=/dashboard" 
+                  onClick={handleLoginClick}
+                  className="text-sm text-muted-foreground hover:text-foreground transition-all duration-300 relative group"
+                >
+                  Login
+                  <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-foreground transition-all duration-300 group-hover:w-full"></span>
+                </a>
+              )}
             </div>
-            <Button 
-              asChild
-              className="transition-all duration-300 ease-out hover:scale-105 hover:shadow-lg hover:shadow-foreground/10"
-            >
-              <Link href="/login?redirectTo=/dashboard">Get Started</Link>
-            </Button>
+            {user ? (
+              <>
+                <button
+                  onClick={handleGoToApp}
+                  className="hidden md:flex items-center gap-3 px-4 py-2 rounded-lg border border-border/50 bg-background hover:bg-muted/30 hover:border-primary/30 transition-all duration-300 group"
+                >
+                  {user.avatar ? (
+                    <img 
+                      src={user.avatar} 
+                      alt={user.name}
+                      className="h-8 w-8 rounded-full ring-1 ring-border/30 group-hover:ring-primary/40 transition-all duration-300"
+                    />
+                  ) : (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-primary/15 to-primary/5 text-xs font-semibold text-primary ring-1 ring-border/30 group-hover:ring-primary/40 transition-all duration-300">
+                      {userInitials}
+                    </div>
+                  )}
+                  <div className="flex flex-col items-start">
+                    <span className="text-sm font-medium leading-tight group-hover:text-primary transition-colors duration-300">{user.name}</span>
+                    <span className="text-xs text-muted-foreground italic leading-tight">Dashboard</span>
+                  </div>
+                  <svg 
+                    className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all duration-300" 
+                    fill="none" 
+                    viewBox="0 0 24 24" 
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+                <Button 
+                  onClick={handleGoToApp}
+                  size="sm"
+                  className="md:hidden transition-all duration-300 ease-out hover:scale-105 hover:shadow-lg hover:shadow-foreground/10"
+                >
+                  Go to App
+                </Button>
+              </>
+            ) : (
+              <Button 
+                onClick={handleLoginClick}
+                className="transition-all duration-300 ease-out hover:scale-105 hover:shadow-lg hover:shadow-foreground/10"
+              >
+                Get Started
+              </Button>
+            )}
           </div>
         </div>
       </nav>
@@ -106,10 +191,10 @@ export function LandingContent() {
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button 
                   size="lg" 
-                  asChild
+                  onClick={handleLoginClick}
                   className="transition-all duration-300 ease-out hover:scale-105 hover:shadow-lg hover:shadow-foreground/10"
                 >
-                  <Link href="/login?redirectTo=/dashboard">Start Risk Scan</Link>
+                  Start Risk Scan
                 </Button>
                 <Button 
                   size="lg" 
@@ -391,18 +476,18 @@ export function LandingContent() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button 
               size="lg" 
-              asChild
+              onClick={handleLoginClick}
               className="transition-all duration-300 ease-out hover:scale-105 hover:shadow-lg hover:shadow-foreground/10"
             >
-              <Link href="/login?redirectTo=/dashboard">Start Your Free Risk Scan</Link>
+              Start Your Free Risk Scan
             </Button>
             <Button 
               size="lg" 
               variant="outline" 
-              asChild
+              onClick={handleLoginClick}
               className="transition-all duration-300 ease-out hover:scale-105 hover:bg-foreground hover:text-background hover:border-foreground hover:shadow-lg hover:shadow-foreground/10"
             >
-              <Link href="/login?redirectTo=/dashboard">Talk to an Expert</Link>
+              Talk to an Expert
             </Button>
           </div>
           </ScrollAnimation>

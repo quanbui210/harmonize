@@ -9,9 +9,10 @@ type UserMenuProps = {
   userName?: string | null;
   userEmail?: string | null;
   organizationName: string;
+  avatarUrl?: string | null;
 };
 
-export function UserMenu({ userName, userEmail, organizationName }: UserMenuProps) {
+export function UserMenu({ userName, userEmail, organizationName, avatarUrl }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const initials =
     userName
@@ -34,9 +35,17 @@ export function UserMenu({ userName, userEmail, organizationName }: UserMenuProp
           <p className="text-sm font-medium">{userName ?? "Analyst"}</p>
           <p className="text-xs text-muted-foreground">{organizationName}</p>
         </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold">
-          {initials}
-        </div>
+        {avatarUrl ? (
+          <img
+            src={avatarUrl}
+            alt={userName ?? "User"}
+            className="h-10 w-10 rounded-full object-cover ring-1 ring-slate-200"
+          />
+        ) : (
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold">
+            {initials}
+          </div>
+        )}
         <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
       </button>
       {isOpen && (

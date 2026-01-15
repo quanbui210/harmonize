@@ -270,7 +270,7 @@ export async function getMembersAction(organizationId: string) {
     throw new Error("Unauthorized");
   }
 
-  return prisma.membership.findMany({
+  const members = await prisma.membership.findMany({
     where: { organizationId },
     include: {
       user: {
@@ -283,5 +283,37 @@ export async function getMembersAction(organizationId: string) {
     },
     orderBy: { createdAt: "asc" },
   });
+
+  // Fetch avatar URLs from Supabase for each member
+  const supabase = getSupabaseAdminClient();
+  
+  const membersWithAvatars = await Promise.all(
+    members.map(async (member) => {
+      try {
+        // Get user from Supabase auth by ID
+        const { data: authUser } = await supabase.auth.admin.getUserById(member.user.id);
+        const avatarUrl = authUser?.user?.user_metadata?.avatar_url as string | undefined;
+        
+        return {
+          ...member,
+          user: {
+            ...member.user,
+            avatarUrl: avatarUrl ?? null,
+          },
+        };
+      } catch (error) {
+        // If we can't fetch avatar, just return without it
+        return {
+          ...member,
+          user: {
+            ...member.user,
+            avatarUrl: null,
+          },
+        };
+      }
+    })
+  );
+
+  return membersWithAvatars;
 }
 

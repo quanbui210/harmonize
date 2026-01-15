@@ -14,6 +14,11 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+
+function escapeSqlString(str: string): string {
+  return str.replace(/'/g, "''").replace(/\\/g, "\\\\");
+}
+
 interface DocumentConfig {
   source: string;
   documentType: string;
@@ -111,8 +116,9 @@ async function extractTextFromPDF(pdfPath: string): Promise<string> {
   try {
     // pdf-parse v2.4.5 - use dynamic import for ES module
     const pdfModule = await import("pdf-parse");
-    // The default export should be the function
-    const pdfParse = pdfModule.default || pdfModule;
+    // Handle both default export and named export cases
+    // pdf-parse exports the function directly, not as default
+    const pdfParse = pdfModule as unknown as (buffer: Buffer) => Promise<{ text: string }>;
     
     if (typeof pdfParse !== "function") {
       throw new Error(`pdf-parse did not export a function. Got: ${typeof pdfParse}`);
@@ -260,13 +266,13 @@ async function ingestDocument(config: DocumentConfig, text: string): Promise<voi
           id, "documentId", "chunkIndex", "sectionPath", content, "pageNumber", embedding, metadata
         ) VALUES (
           gen_random_uuid(),
-          '${chunk.documentId}',
+          '${escapeSqlString(chunk.documentId)}',
           ${chunk.chunkIndex},
-          ${prisma.$escape(chunk.sectionPath)},
-          ${prisma.$escape(chunk.content)},
+          '${escapeSqlString(chunk.sectionPath)}',
+          '${escapeSqlString(chunk.content)}',
           ${chunk.pageNumber || "NULL"},
           '${chunk.embedding}'::vector,
-          '${JSON.stringify(chunk.metadata)}'::jsonb
+          '${escapeSqlString(JSON.stringify(chunk.metadata))}'::jsonb
         )
       `);
     }

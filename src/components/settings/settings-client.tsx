@@ -23,6 +23,7 @@ type Membership = {
     id: string;
     email: string;
     fullName: string | null;
+    avatarUrl?: string | null;
   };
 };
 
@@ -323,17 +324,25 @@ export function SettingsClient({ organization, currentMembership, members, invit
                         className="flex items-center justify-between rounded-lg border p-4"
                       >
                         <div className="flex items-center gap-4">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100">
-                            <span className="text-sm font-semibold">
-                              {member.user.fullName
-                                ?.split(" ")
-                                .map((n) => n[0])
-                                .join("")
-                                .slice(0, 2)
-                                .toUpperCase() ||
-                                member.user.email.slice(0, 2).toUpperCase()}
-                            </span>
-                          </div>
+                          {member.user.avatarUrl ? (
+                            <img
+                              src={member.user.avatarUrl}
+                              alt={member.user.fullName || member.user.email}
+                              className="h-10 w-10 rounded-full object-cover ring-1 ring-slate-200"
+                            />
+                          ) : (
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100">
+                              <span className="text-sm font-semibold">
+                                {member.user.fullName
+                                  ?.split(" ")
+                                  .map((n) => n[0])
+                                  .join("")
+                                  .slice(0, 2)
+                                  .toUpperCase() ||
+                                  member.user.email.slice(0, 2).toUpperCase()}
+                              </span>
+                            </div>
+                          )}
                           <div>
                             <p className="font-medium">
                               {member.user.fullName || member.user.email}

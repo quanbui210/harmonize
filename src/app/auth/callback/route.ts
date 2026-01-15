@@ -57,34 +57,18 @@ export async function GET(request: Request) {
     const { data: userResponse } = await supabase.auth.getUser()
     if (userResponse.user) {
       await ensureUserWorkspace(userResponse.user)
-      // Ensure authenticated users are redirected to dashboard, not landing page
       if (redirectTo === "/") {
         redirectTo = "/dashboard"
       }
     }
   }
 
-  // Final check: never redirect authenticated users to landing page
   const { data: { session } } = await supabase.auth.getSession()
   if (session && redirectTo === "/") {
     redirectTo = "/dashboard"
   }
 
   const response = NextResponse.redirect(new URL(redirectTo, requestUrl.origin))
-  
-  // Set cookies from supabase
-  const allCookies = cookieStore.getAll()
-  allCookies.forEach((cookie) => {
-    response.cookies.set(cookie.name, cookie.value, {
-      path: cookie.path,
-      domain: cookie.domain,
-      sameSite: cookie.sameSite as "lax" | "strict" | "none" | undefined,
-      secure: cookie.secure,
-      httpOnly: cookie.httpOnly,
-      maxAge: cookie.maxAge,
-      expires: cookie.expires,
-    })
-  })
 
   return response
 }

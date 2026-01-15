@@ -296,6 +296,7 @@ export async function searchAndClassifyAction(input: {
   materials?: Array<{ material: string; percentage: number }>;
   compositionText?: string;
   originCountry?: string;
+  destinationCountry?: string;
   market: MarketCode;
 }) {
   const user = await requireAuthenticatedUser();
@@ -562,8 +563,7 @@ export async function searchAndClassifyAction(input: {
     ),
   ]);
 
-  // Calculate destination-specific VAT rate
-  let finalVatRate = 20; // Default EU standard
+  let finalVatRate = 20; 
   if (input.destinationCountry) {
     const { getVATRate, detectProductTypeForVAT } = await import("@/lib/eu/vat-rates");
     const productType = detectProductTypeForVAT(input.productName, input.description);
@@ -573,13 +573,11 @@ export async function searchAndClassifyAction(input: {
     finalVatRate = legalInfo.vatRate !== undefined ? legalInfo.vatRate : (classificationResult.dutySummary?.vatRate || 20);
   }
 
-  // Build primary candidate
   const primaryCandidate: ClassificationCandidate = {
       htsCode,
       cnCode: normalizedCnCode,
       confidence: classificationResult.confidence || 0,
       description,
-    // Priority: AI initial analysis > Legal rationale > Classification result > 0
     dutyRate: aiDutyRate !== undefined 
       ? aiDutyRate 
       : (legalInfo.dutyRate !== undefined 
@@ -601,7 +599,6 @@ export async function searchAndClassifyAction(input: {
     isPrimary: true,
   };
 
-  // Build alternative candidates from AI analysis
   const alternativeCandidates: ClassificationCandidate[] = [];
   if (aiAnalysis.alternativeClassifications && aiAnalysis.alternativeClassifications.length > 0) {
     for (const alt of aiAnalysis.alternativeClassifications) {
@@ -614,7 +611,7 @@ export async function searchAndClassifyAction(input: {
         confidence: alt.confidence,
         description: `Alternative classification: ${altCnCode}`,
         dutyRate: alt.dutyRate || 0,
-        vatRate: finalVatRate, // Use same VAT rate
+        vatRate: finalVatRate, 
         reasoning: alt.reason,
         notes: alt.tradeOffs,
         isPrimary: false,
@@ -704,11 +701,8 @@ export async function searchAndClassifyAction(input: {
     })),
   });
 
-  // Create or update duty summary with rates
-  // Priority: AI initial analysis > Legal rationale > Classification result > 0
-  // Note: dutyRate can be 0 (free), so we check for !== undefined, not truthy
+
   const finalDutyRate = primaryCandidate.dutyRate;
-  // finalVatRate is already calculated above and used in primaryCandidate.vatRate
   
   console.log(`[Classification] Final duty rate: ${finalDutyRate}% (AI initial: ${aiDutyRate}, Legal rationale: ${legalInfo.dutyRate}, Classification: ${classificationResult.dutySummary?.baseDutyRate})`);
   console.log(`[Classification] Final VAT rate: ${primaryCandidate.vatRate}% (destination: ${input.destinationCountry || "default"})`);

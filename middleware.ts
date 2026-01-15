@@ -79,12 +79,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(redirectUrl)
   }
 
-  if (session && pathname === "/login") {
-    const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = "/dashboard"
-    redirectUrl.search = ""
-    return NextResponse.redirect(redirectUrl)
-  }
+  // Don't redirect /login here - let the client component handle it
+  // This allows the loading screen to show immediately instead of a white screen
+  // if (session && pathname === "/login") {
+  //   const redirectUrl = request.nextUrl.clone()
+  //   redirectUrl.pathname = "/dashboard"
+  //   redirectUrl.search = ""
+  //   return NextResponse.redirect(redirectUrl)
+  // }
 
   if (session && pathname === "/") {
     const redirectUrl = request.nextUrl.clone()
