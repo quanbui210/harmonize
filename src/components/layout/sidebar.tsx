@@ -89,7 +89,9 @@ export function Sidebar({ organizationName, organizationLogoUrl }: SidebarProps)
           <Home className="h-5 w-5" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold">HarmonizeAI</p>
+          <p className="text-sm font-serif font-bold tracking-tight">
+            Harmonize<span className="text-primary">AI</span>
+          </p>
           <div className="flex items-center gap-2">
             {organizationLogoUrl ? (
               <>

@@ -70,15 +70,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto max-w-7xl px-6 py-4">
           <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2">
-              <Image 
-                src="/appicon.svg" 
-                alt="HarmonizeAI" 
-                width={32} 
-                height={32}
-                className="h-8 w-8"
-              />
-              <span className="text-xl font-semibold tracking-tight">HarmonizeAI</span>
+            <Link href="/" className="group transition-all duration-300 hover:opacity-80">
+              <span className="text-2xl font-serif font-bold tracking-tight">
+                Harmonize<span className="text-primary">AI</span>
+              </span>
             </Link>
             <div className="hidden md:flex items-center gap-6">
               <Link 

@@ -29,15 +29,10 @@ export function LandingContent() {
       <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto max-w-7xl px-6 py-4">
           <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2 group transition-all duration-300 hover:opacity-80">
-              <Image 
-                src="/appicon.svg" 
-                alt="HarmonizeAI" 
-                width={32} 
-                height={32}
-                className="h-8 w-8 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6"
-              />
-              <span className="text-xl font-semibold tracking-tight transition-all duration-300 group-hover:translate-x-0.5">HarmonizeAI</span>
+            <Link href="/" className="group transition-all duration-300 hover:opacity-80">
+              <span className="text-2xl font-serif font-bold tracking-tight">
+                Harmonize<span className="text-primary">AI</span>
+              </span>
             </Link>
             <div className="hidden md:flex items-center gap-6">
               <a 
@@ -419,15 +414,10 @@ export function LandingContent() {
         <div className="container mx-auto max-w-7xl px-6 py-12">
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
-              <Link href="/" className="flex items-center gap-2 mb-4">
-                <Image 
-                  src="/appicon.svg" 
-                  alt="HarmonizeAI" 
-                  width={24} 
-                  height={24}
-                  className="h-6 w-6"
-                />
-                <span className="font-semibold">HarmonizeAI</span>
+              <Link href="/" className="group mb-4 inline-block">
+                <span className="text-lg font-serif font-bold tracking-tight">
+                  Harmonize<span className="text-primary">AI</span>
+                </span>
               </Link>
               <p className="text-sm text-muted-foreground italic">
                 Legal certainty for the modern importer. Automated, defensible, and precise.
