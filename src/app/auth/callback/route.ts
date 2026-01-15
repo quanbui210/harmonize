@@ -31,6 +31,9 @@ export async function GET(request: Request) {
   
   const cookieStore = cookies()
   
+  // Create response first so cookies can be set on it
+  let response = NextResponse.redirect(new URL(redirectTo, requestUrl.origin))
+  
   const supabase = createServerClient(getSupabaseUrl(), getSupabaseAnonKey(), {
     cookies: {
       getAll() {
@@ -41,7 +44,7 @@ export async function GET(request: Request) {
       },
       setAll(cookiesToSet) {
         cookiesToSet.forEach(({ name, value, options }) => {
-          cookieStore.set(name, value, options)
+          response.cookies.set(name, value, options)
         })
       },
     },
@@ -56,7 +59,13 @@ export async function GET(request: Request) {
     
     const { data: userResponse } = await supabase.auth.getUser()
     if (userResponse.user) {
-      await ensureUserWorkspace(userResponse.user)
+      try {
+        await ensureUserWorkspace(userResponse.user)
+      } catch (error) {
+        // Log database error but don't block auth flow
+        // User is authenticated, workspace creation can be retried later
+        console.error("Failed to ensure user workspace (database may be unavailable):", error)
+      }
       if (redirectTo === "/") {
         redirectTo = "/dashboard"
       }
@@ -68,7 +77,11 @@ export async function GET(request: Request) {
     redirectTo = "/dashboard"
   }
 
-  const response = NextResponse.redirect(new URL(redirectTo, requestUrl.origin))
+  // Update redirect URL if it changed (preserving cookies already set)
+  const finalRedirectUrl = new URL(redirectTo, requestUrl.origin).toString()
+  if (response.headers.get("location") !== finalRedirectUrl) {
+    response.headers.set("location", finalRedirectUrl)
+  }
 
   return response
 }

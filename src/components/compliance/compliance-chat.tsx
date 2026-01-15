@@ -131,8 +131,12 @@ export function ComplianceChat({ organizationId, userId, sessionId: initialSessi
             <Button
               variant="ghost"
               size="icon"
-              onClick={onMenuClick}
-              className="hidden lg:flex"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onMenuClick();
+              }}
+              className="hidden lg:flex z-10"
             >
               <Menu className="h-5 w-5" />
             </Button>

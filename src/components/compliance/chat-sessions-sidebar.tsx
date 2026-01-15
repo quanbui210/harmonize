@@ -19,6 +19,36 @@ import { Plus, MessageSquare, X, Trash2, Loader2 } from "lucide-react";
 import { listChatSessionsAction, deleteChatSessionAction } from "@/server/actions/compliance-chat";
 import { cn } from "@/lib/utils";
 
+/**
+ * Strip markdown syntax from text for preview
+ */
+function stripMarkdown(text: string): string {
+  return text
+    // Remove bold/italic markdown (**text**, *text*, __text__, _text_)
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/_([^_]+)_/g, "$1")
+    // Remove headers (# Header, ## Header, etc.)
+    .replace(/^#{1,6}\s+/gm, "")
+    // Remove code blocks (```code```)
+    .replace(/```[\s\S]*?```/g, "")
+    // Remove inline code (`code`)
+    .replace(/`([^`]+)`/g, "$1")
+    // Remove links [text](url)
+    .replace(/\[([^\]]+)\]\([^\)]+\)/g, "$1")
+    // Remove images ![alt](url)
+    .replace(/!\[([^\]]*)\]\([^\)]+\)/g, "$1")
+    // Remove horizontal rules (---, ***)
+    .replace(/^[-*]{3,}$/gm, "")
+    // Remove list markers (-, *, +, 1.)
+    .replace(/^[\s]*[-*+]\s+/gm, "")
+    .replace(/^[\s]*\d+\.\s+/gm, "")
+    // Clean up extra whitespace
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 type ChatSession = {
   id: string;
   title: string | null;
@@ -205,7 +235,7 @@ export function ChatSessionsSidebar({ organizationId, userId, isOpen, onClose }:
                       <p className="truncate font-medium">{title}</p>
                       {session.lastMessage && (
                         <p className="truncate text-xs text-muted-foreground">
-                          {session.lastMessage.slice(0, 60)}
+                          {stripMarkdown(session.lastMessage).slice(0, 60)}
                         </p>
                       )}
                     </div>

@@ -176,7 +176,6 @@ IMPORTANT:
                 }).filter((opt: any) => opt.value && opt.label)
               : [];
           
-          // Debug: Log if options are empty
           if (options.length === 0) {
             console.log("[OpenAI] Clarifying question has empty options array. Raw options:", cq.options);
           }
