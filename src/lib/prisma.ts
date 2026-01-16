@@ -14,9 +14,7 @@ const createPrismaClient = () => {
   });
 };
 
-// CRITICAL: Use singleton pattern in ALL environments (including production)
-// In serverless (Vercel), each function invocation can create a new Prisma client
-// if we don't reuse it, which exhausts the connection pool
+
 export const prisma =
   globalForPrisma.prisma ?? createPrismaClient();
 

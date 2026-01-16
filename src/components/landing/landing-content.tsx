@@ -22,7 +22,9 @@ import {
   TrendingUp,
   FileCheck,
   AlertCircle,
-  Waypoints
+  AlertTriangle,
+  Waypoints,
+  XCircle
 } from "lucide-react";
 
 type UserData = {
@@ -218,6 +220,174 @@ export function LandingContent({ user }: LandingContentProps) {
           <ScrollAnimation delay={200}>
             <div className="flex justify-center lg:justify-start">
               <ResultPreview />
+            </div>
+          </ScrollAnimation>
+        </div>
+      </section>
+
+      {/* Problems & Solutions Section */}
+      <section className="bg-muted/30 py-20">
+        <div className="container mx-auto max-w-7xl px-6">
+          <ScrollAnimation>
+            <div className="mb-16 text-center">
+              <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
+                THE CHALLENGE
+              </p>
+              <h2 className="text-4xl md:text-5xl font-serif font-bold tracking-tight mb-4">
+                What Importers Get Wrong
+              </h2>
+              <p className="text-base text-muted-foreground italic max-w-2xl mx-auto">
+                Every year, thousands of shipments face delays, fines, and rejections due to common classification and compliance mistakes.
+              </p>
+            </div>
+          </ScrollAnimation>
+
+          <div className="grid md:grid-cols-2 gap-8 mb-16">
+            <ScrollAnimation delay={100}>
+              <div className="group border-l-4 border-destructive/30 pl-6 py-4 transition-all duration-500 ease-out hover:border-destructive/60 hover:pl-8 hover:bg-background/50 rounded-r-md cursor-default">
+                <div className="flex items-start gap-4">
+                  <AlertTriangle className="h-6 w-6 text-destructive flex-shrink-0 mt-1 transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
+                  <div>
+                    <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
+                      Wrong HTS Classifications
+                    </h3>
+                    <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
+                      Manual classification leads to errors. A single wrong digit in your CN code can result in incorrect duty rates, customs holds, and costly penalties. Many importers rely on guesswork or outdated databases.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </ScrollAnimation>
+
+            <ScrollAnimation delay={200}>
+              <div className="group border-l-4 border-destructive/30 pl-6 py-4 transition-all duration-500 ease-out hover:border-destructive/60 hover:pl-8 hover:bg-background/50 rounded-r-md cursor-default">
+                <div className="flex items-start gap-4">
+                  <XCircle className="h-6 w-6 text-destructive flex-shrink-0 mt-1 transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
+                  <div>
+                    <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
+                      Missing Documentation
+                    </h3>
+                    <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
+                      When customs challenges your classification, you need proof. Most importers lack defensible documentation, leaving them vulnerable to audits, reclassification, and retroactive duty payments.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </ScrollAnimation>
+
+            <ScrollAnimation delay={300}>
+              <div className="group border-l-4 border-destructive/30 pl-6 py-4 transition-all duration-500 ease-out hover:border-destructive/60 hover:pl-8 hover:bg-background/50 rounded-r-md cursor-default">
+                <div className="flex items-start gap-4">
+                  <FileText className="h-6 w-6 text-destructive flex-shrink-0 mt-1 transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
+                  <div>
+                    <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
+                      Non-Compliant Labels
+                    </h3>
+                    <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
+                      EU food labeling requirements are complex. Missing allergen declarations, incorrect nutrition tables, or wrong language translations can result in product recalls, fines, and shipment rejections at the border.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </ScrollAnimation>
+
+            <ScrollAnimation delay={400}>
+              <div className="group border-l-4 border-destructive/30 pl-6 py-4 transition-all duration-500 ease-out hover:border-destructive/60 hover:pl-8 hover:bg-background/50 rounded-r-md cursor-default">
+                <div className="flex items-start gap-4">
+                  <TrendingUp className="h-6 w-6 text-destructive flex-shrink-0 mt-1 transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
+                  <div>
+                    <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
+                      Regulatory Changes
+                    </h3>
+                    <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
+                      Tariff codes and regulations change constantly. Without monitoring, your once-correct classifications become outdated, exposing you to compliance risks and unexpected duty adjustments.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </ScrollAnimation>
+          </div>
+
+          {/* Solutions Section */}
+          <ScrollAnimation delay={500}>
+            <div className="border-t border-border/30 pt-16">
+              <div className="mb-12 text-center">
+                <p className="text-sm font-medium text-primary uppercase tracking-wider mb-3">
+                  THE SOLUTION
+                </p>
+                <h2 className="text-4xl md:text-5xl font-serif font-bold tracking-tight mb-4">
+                  How HarmonizeAI Fixes This
+                </h2>
+                <p className="text-base text-muted-foreground italic max-w-2xl mx-auto">
+                  AI-powered classification backed by official regulations, automated compliance checks, and audit-ready documentation.
+                </p>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-8">
+                <div className="group border border-primary/20 rounded-lg p-6 bg-background transition-all duration-500 ease-out hover:border-primary/60 hover:shadow-lg hover:shadow-primary/5 cursor-default">
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors duration-500">
+                        <CheckCircle2 className="h-5 w-5 text-primary transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
+                      </div>
+                      <h3 className="text-xl font-serif font-semibold tracking-tight transition-all duration-500 group-hover:text-primary">
+                        AI-Powered Accuracy
+                      </h3>
+                    </div>
+                    <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
+                      Our system analyzes your product against official EU regulations, binding rulings, and legal precedents. Every classification includes detailed reasoning and confidence scores, eliminating guesswork.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="group border border-primary/20 rounded-lg p-6 bg-background transition-all duration-500 ease-out hover:border-primary/60 hover:shadow-lg hover:shadow-primary/5 cursor-default">
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors duration-500">
+                        <Shield className="h-5 w-5 text-primary transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
+                      </div>
+                      <h3 className="text-xl font-serif font-semibold tracking-tight transition-all duration-500 group-hover:text-primary">
+                        Audit Defense Dossiers
+                      </h3>
+                    </div>
+                    <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
+                      Generate comprehensive defense documents with legal citations, binding rulings, and step-by-step reasoning. Every dossier is designed to withstand customs authority scrutiny and protect you during audits.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="group border border-primary/20 rounded-lg p-6 bg-background transition-all duration-500 ease-out hover:border-primary/60 hover:shadow-lg hover:shadow-primary/5 cursor-default">
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors duration-500">
+                        <Waypoints className="h-5 w-5 text-primary transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
+                      </div>
+                      <h3 className="text-xl font-serif font-semibold tracking-tight transition-all duration-500 group-hover:text-primary">
+                        Compliant Label Generation
+                      </h3>
+                    </div>
+                    <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
+                      Automatically generate bilingual (Finnish/Swedish) product labels with all mandatory EU requirements. Our compliance checker ensures allergen declarations, nutrition tables, and QUID percentages are correct before export.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="group border border-primary/20 rounded-lg p-6 bg-background transition-all duration-500 ease-out hover:border-primary/60 hover:shadow-lg hover:shadow-primary/5 cursor-default">
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors duration-500">
+                        <Database className="h-5 w-5 text-primary transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
+                      </div>
+                      <h3 className="text-xl font-serif font-semibold tracking-tight transition-all duration-500 group-hover:text-primary">
+                        Continuous Monitoring
+                      </h3>
+                    </div>
+                    <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
+                      We monitor regulatory changes, new binding rulings, and enforcement actions. You receive proactive alerts when your classifications may be at risk, ensuring ongoing compliance without manual tracking.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </ScrollAnimation>
         </div>
