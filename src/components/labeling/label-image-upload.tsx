@@ -125,7 +125,7 @@ export function LabelImageUpload({ onTextExtracted, disabled }: LabelImageUpload
               <p className="text-sm font-medium">Upload Label Image</p>
             </div>
             <p className="text-xs text-muted-foreground">
-              Upload a photo of your existing product label. We'll extract the text automatically.
+              Upload a photo of your existing product label. We&apos;ll extract the text automatically.
             </p>
           </div>
           <Button

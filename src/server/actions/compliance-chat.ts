@@ -3,6 +3,8 @@
 import { prisma } from "@/lib/prisma";
 import { openaiService } from "@/lib/eu/openai-service";
 import OpenAI from "openai";
+import { searchRegulatoryDocuments } from "@/lib/rag/regulatory-search";
+import type { RegulatoryProductType } from "@/lib/regulatory/product-type";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -16,14 +18,96 @@ interface ChatMessage {
     excerpt: string;
     pageStart?: number;
     pageEnd?: number;
+    source?: string;
   }>;
 }
 
 /**
- * Search LegalSourceChunk for relevant content using keyword matching
- * (Future: upgrade to vector similarity search when embeddings are populated)
+ * Detect product type from query to route to appropriate regulatory documents
  */
-async function searchLegalChunks(query: string, limit: number = 5) {
+function detectProductTypeFromQuery(query: string): RegulatoryProductType {
+  const lowerQuery = query.toLowerCase();
+  
+  // Food-related keywords
+  if (lowerQuery.match(/\b(food|ingredient|label|nutrition|allergen|quid|ruokavirasto|bilingual|finnish|swedish)\b/)) {
+    return "FOOD";
+  }
+  
+  // Electronics/safety keywords
+  if (lowerQuery.match(/\b(electronic|ce marking|safety|tukes|toy|toys)\b/)) {
+    if (lowerQuery.includes("toy")) return "TOYS";
+    return "ELECTRONICS";
+  }
+  
+  // Customs/procedures
+  if (lowerQuery.match(/\b(customs|import|export|procedure|document|tulli)\b/)) {
+    return "GENERAL";
+  }
+  
+  return "GENERAL";
+}
+
+/**
+ * Search LegalSourceChunk for relevant content using vector similarity search
+ */
+async function searchLegalChunksVector(query: string, limit: number = 5) {
+  try {
+    // Generate embedding for the query
+    const embeddingResponse = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: query,
+    });
+
+    const queryEmbedding = embeddingResponse.data[0].embedding;
+    const embeddingVectorStr = `[${queryEmbedding.join(",")}]`;
+
+    // Use vector similarity search with pgvector
+    const sql = `
+      SELECT 
+        id,
+        "sectionPath",
+        content,
+        "pageStart",
+        "pageEnd",
+        1 - (embedding <=> '${embeddingVectorStr}'::vector) as similarity
+      FROM "LegalSourceChunk"
+      WHERE 
+        source = 'EUR_LEX'
+        AND regulation = 'EU_2021_1832'
+        AND language = 'EN'
+        AND embedding IS NOT NULL
+      ORDER BY embedding <=> '${embeddingVectorStr}'::vector
+      LIMIT ${limit}
+    `;
+
+    const chunks = await prisma.$queryRawUnsafe<Array<{
+      id: string;
+      sectionPath: string;
+      content: string;
+      pageStart: number | null;
+      pageEnd: number | null;
+      similarity: number;
+    }>>(sql);
+
+    return chunks.map((chunk) => ({
+      sectionPath: chunk.sectionPath,
+      excerpt: chunk.content.slice(0, 500) + (chunk.content.length > 500 ? "..." : ""),
+      pageStart: chunk.pageStart || undefined,
+      pageEnd: chunk.pageEnd || undefined,
+      source: "EUR_LEX",
+      similarity: chunk.similarity,
+    }));
+  } catch (error) {
+    console.error("[ComplianceChat] Vector search failed, falling back to keyword search:", error);
+    // Fallback to keyword search
+    return searchLegalChunksKeyword(query, limit);
+  }
+}
+
+/**
+ * Search LegalSourceChunk for relevant content using keyword matching (fallback)
+ */
+async function searchLegalChunksKeyword(query: string, limit: number = 5) {
   const searchTerms = query
     .toLowerCase()
     .split(/\s+/)
@@ -184,7 +268,58 @@ async function searchLegalChunks(query: string, limit: number = 5) {
     excerpt: chunk.content.slice(0, 500) + (chunk.content.length > 500 ? "..." : ""),
     pageStart: chunk.pageStart || undefined,
     pageEnd: chunk.pageEnd || undefined,
+    source: "EUR_LEX",
+    similarity: 0.5, // Default for keyword search
   }));
+}
+
+/**
+ * Search both LegalSourceChunk and RegulatoryDocumentChunk
+ * Combines results from customs classification and regulatory documents
+ */
+async function searchComplianceDocuments(query: string, limit: number = 10) {
+  // Search legal sources (customs classification) - 50% of results
+  const legalChunks = await searchLegalChunksVector(query, Math.ceil(limit / 2));
+  
+  // Detect product type to route to appropriate regulatory documents
+  const productType = detectProductTypeFromQuery(query);
+  
+  // Search regulatory documents (labeling, safety, customs) - 50% of results
+  let regulatoryChunks: Array<{
+    sectionPath: string;
+    excerpt: string;
+    pageStart?: number;
+    pageEnd?: number;
+    source: string;
+    similarity: number;
+  }> = [];
+  
+  try {
+    const regulatoryResults = await searchRegulatoryDocuments({
+      productType,
+      query,
+      maxResults: Math.ceil(limit / 2),
+    });
+    
+    regulatoryChunks = regulatoryResults.map((chunk) => ({
+      sectionPath: `${chunk.source} - ${chunk.sectionPath}`,
+      excerpt: chunk.content.slice(0, 500) + (chunk.content.length > 500 ? "..." : ""),
+      pageStart: chunk.pageNumber || undefined,
+      pageEnd: chunk.pageNumber || undefined,
+      source: chunk.source,
+      similarity: chunk.similarity,
+    }));
+  } catch (error) {
+    console.error("[ComplianceChat] Regulatory document search failed:", error);
+    // Continue with just legal chunks if regulatory search fails
+  }
+  
+  // Combine and sort by similarity (relevance)
+  const allChunks = [...legalChunks, ...regulatoryChunks]
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, limit);
+  
+  return allChunks;
 }
 
 /**
@@ -192,7 +327,7 @@ async function searchLegalChunks(query: string, limit: number = 5) {
  */
 async function generateAnswer(
   query: string,
-  chunks: Array<{ sectionPath: string; excerpt: string }>,
+  chunks: Array<{ sectionPath: string; excerpt: string; source?: string }>,
 ): Promise<string> {
   const context = chunks
     .map(
@@ -203,14 +338,29 @@ async function generateAnswer(
 
   const hasSources = chunks.length > 0;
   
-  const systemPrompt = `You are an expert EU customs classification assistant. Provide SPECIFIC, ACTIONABLE answers. Users want direct answers, not educational explanations.
+  // Group sources by type for better context
+  const legalSources = chunks.filter(c => c.source === "EUR_LEX");
+  const regulatorySources = chunks.filter(c => c.source !== "EUR_LEX");
+  
+  const systemPrompt = `You are an expert EU compliance assistant with access to multiple regulatory sources. Provide SPECIFIC, ACTIONABLE answers. Users want direct answers, not educational explanations.
+
+AVAILABLE SOURCES:
+${hasSources 
+  ? `- EU Customs Classification: COMMISSION IMPLEMENTING REGULATION (EU) 2021/1832 (for CN codes, GRI rules, classification guidance)
+${regulatorySources.length > 0 ? `- Regulatory Documents: ${[...new Set(regulatorySources.map(s => s.source))].join(", ")} (for food labeling, product safety, customs procedures)` : ""}
+- Use the appropriate source(s) based on the question type`
+  : `- No specific sources found, but you have knowledge of EU regulations`}
 
 CRITICAL RULES:
 ${hasSources 
-  ? `- ALWAYS prioritize the provided legal source chunks from COMMISSION IMPLEMENTING REGULATION (EU) 2021/1832
-- Cite specific sections when using sources (e.g., "According to PART ONE > SECTION I > A > GRI 1...")
-- Extract and provide ACTUAL CN codes from sources when available`
-  : `- The user's question is not directly covered in the provided legal sources`}
+  ? `- ALWAYS prioritize the provided source chunks
+- For classification questions: Use EUR_LEX Regulation (EU) 2021/1832
+- For labeling questions: Use Ruokavirasto/EU food labeling documents
+- For safety questions: Use Tukes/EU safety regulations
+- For customs procedures: Use Tulli/EU customs guides
+- Cite specific sources when using them (e.g., "According to [Source] - [Section]...")
+- Extract and provide ACTUAL codes, requirements, or procedures from sources when available`
+  : `- The user's question is not directly covered in the provided sources, but you can use your knowledge`}
 
 MULTI-PART QUESTIONS:
 - If the user asks multiple questions (e.g., "what is the CN code AND what permissions do I need?"), answer ALL parts
@@ -219,6 +369,8 @@ MULTI-PART QUESTIONS:
 
 ANSWER STYLE:
 - For classification questions: Provide the SPECIFIC CN CODE (e.g., "8806 00 00") and brief reasoning. Don't just explain the process.
+- For labeling questions: Provide SPECIFIC requirements (e.g., "QUID percentage required for ingredients in product name", "Bilingual labeling required: Finnish and Swedish")
+- For safety questions: Provide SPECIFIC requirements (e.g., "CE marking required", "Age warning: 0-3 years")
 - For import/export questions: Give SPECIFIC steps, requirements, and procedures. Be actionable.
 - For permit/license questions: State clearly if permits are needed, what type, and from which authority. If not needed, state that explicitly.
 - For GRI questions: Explain briefly, then show HOW to apply it with examples.
@@ -236,14 +388,20 @@ If you must use general knowledge (not in sources), clearly state this but still
 
   const userPrompt = `User Question: ${query}
 
-IMPORTANT: If the user asked multiple questions (e.g., classification AND permissions, OR classification AND import requirements), you MUST answer ALL parts. Do not skip any question.
+IMPORTANT: If the user asked multiple questions (e.g., classification AND permissions, OR classification AND import requirements, OR labeling AND safety requirements), you MUST answer ALL parts. Do not skip any question.
 Also, user may ask questions that may need your own knowledge that does not contain in the sources. You can answer these questions using your own knowledge.
 ${hasSources 
-  ? `Relevant Legal Sources from Regulation (EU) 2021/1832:
+  ? `Relevant Sources:
 ${context}
 
-Please provide a clear, accurate answer addressing ALL parts of the question. If the question is about general customs procedures, import/export rules, permits/licenses, or tax matters not covered in these sources, you may use your knowledge of EU customs law to provide helpful guidance.`
-  : `No specific legal sources were found in Regulation (EU) 2021/1832 for this question. Please provide helpful guidance using your knowledge of EU customs regulations, classification principles, import/export procedures, permits/licenses, or tax matters as appropriate. Address ALL parts of the user's question.`}`;
+Please provide a clear, accurate answer addressing ALL parts of the question. Use the appropriate source(s) based on the question type:
+- Classification/CN codes/GRI rules → Use EUR_LEX Regulation (EU) 2021/1832 sources
+- Food labeling/ingredients/allergens → Use Ruokavirasto/EU food labeling sources
+- Product safety/CE marking → Use Tukes/EU safety sources
+- Customs procedures/documents → Use Tulli/EU customs sources
+
+If the question covers multiple areas, use sources from all relevant categories. If sources don't cover everything, you may use your knowledge of EU regulations to provide helpful guidance.`
+  : `No specific sources were found for this question. Please provide helpful guidance using your knowledge of EU regulations (customs classification, food labeling, product safety, customs procedures, permits/licenses, or tax matters) as appropriate. Address ALL parts of the user's question.`}`;
 
   try {
     const response = await openai.chat.completions.create({
@@ -278,6 +436,7 @@ export async function askComplianceQuestionAction(input: {
     excerpt: string;
     pageStart?: number;
     pageEnd?: number;
+    source?: string;
   }>;
   sessionId: string;
   messageId: string;
@@ -320,8 +479,8 @@ export async function askComplianceQuestionAction(input: {
     },
   });
 
-  // Search for relevant legal chunks
-  const chunks = await searchLegalChunks(query, 5);
+  // Search for relevant chunks from both legal sources and regulatory documents
+  const chunks = await searchComplianceDocuments(query, 10);
 
   // Always generate answer - LLM can use its knowledge if sources don't contain the answer
   const answer = await generateAnswer(query, chunks);

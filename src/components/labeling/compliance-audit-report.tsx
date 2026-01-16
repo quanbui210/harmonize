@@ -80,7 +80,7 @@ export function ComplianceAuditReport({
                     <div>Please enter the % of {productName.split(" ")[0]} from the front of the original pack. (e.g., 95%)</div>
                   )}
                   {result.message.includes("salt") && (
-                    <div>Added mandatory warning: "Voimakassuolainen / Kraftigt saltad".</div>
+                    <div>Added mandatory warning: &quot;Voimakassuolainen / Kraftigt saltad&quot;.</div>
                   )}
                   {result.message.includes("importer") && (
                     <div>Must include EU-based importer address. Original {originCountry} address is not sufficient.</div>

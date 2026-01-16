@@ -45,7 +45,10 @@ export function CodeDisplay({ cnCode, hsCode, htsCode }: Props) {
   };
 
   return (
-    <div className="flex items-center gap-2 w-[240px]">
+    <div 
+      className="flex items-center gap-2 w-[240px]"
+      onClick={(e) => e.stopPropagation()}
+    >
       <p className="font-mono text-sm font-semibold whitespace-nowrap min-w-[160px] text-left">{getDisplayCode()}</p>
       <Select value={viewMode} onValueChange={(value) => setViewMode(value as "CN" | "HS" | "HTS")}>
         <SelectTrigger className="h-7 w-[60px] text-xs px-1.5 shrink-0">

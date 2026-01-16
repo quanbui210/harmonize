@@ -27,6 +27,30 @@ type Props = {
   userId: string;
 };
 
+// Helper to safely extract product name string - handles all possible structures
+function getProductNameString(productName: any): string {
+  if (!productName) return "Product";
+  if (typeof productName === "string") return productName;
+  if (typeof productName !== "object") return "Product";
+  
+  // Handle standard structure: {original: string, translations: {fi: string, sv: string}}
+  if (productName.translations && typeof productName.translations === "object") {
+    const trans = productName.translations;
+    if (typeof trans.fi === "string") return trans.fi;
+    if (typeof trans.sv === "string") return trans.sv;
+    if (typeof productName.original === "string") return productName.original;
+  }
+  
+  // Handle edge case: direct {fi: string, sv: string} structure
+  if (typeof productName.fi === "string") return productName.fi;
+  if (typeof productName.sv === "string") return productName.sv;
+  
+  // Final fallback
+  if (typeof productName.original === "string") return productName.original;
+  
+  return "Product";
+}
+
 export function DossierGenerator({ classification, organizationId, userId }: Props) {
   const [isPending, startTransition] = useTransition();
   const [dossierUrl, setDossierUrl] = useState<string | null>(
@@ -62,7 +86,7 @@ export function DossierGenerator({ classification, organizationId, userId }: Pro
         <CardContent className="space-y-4">
           <div>
             <p className="text-sm font-medium text-muted-foreground">Product Name</p>
-            <p className="text-lg font-semibold">{classification.product.name}</p>
+            <p className="text-lg font-semibold">{getProductNameString(classification.product.name)}</p>
           </div>
           <div>
             <p className="text-sm font-medium text-muted-foreground">Description</p>

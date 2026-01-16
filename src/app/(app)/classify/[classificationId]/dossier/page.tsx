@@ -8,6 +8,30 @@ type Props = {
   params: { classificationId: string };
 };
 
+// Helper to safely extract product name string - handles all possible structures
+function getProductNameString(productName: any): string {
+  if (!productName) return "Product";
+  if (typeof productName === "string") return productName;
+  if (typeof productName !== "object") return "Product";
+  
+  // Handle standard structure: {original: string, translations: {fi: string, sv: string}}
+  if (productName.translations && typeof productName.translations === "object") {
+    const trans = productName.translations;
+    if (typeof trans.fi === "string") return trans.fi;
+    if (typeof trans.sv === "string") return trans.sv;
+    if (typeof productName.original === "string") return productName.original;
+  }
+  
+  // Handle edge case: direct {fi: string, sv: string} structure
+  if (typeof productName.fi === "string") return productName.fi;
+  if (typeof productName.sv === "string") return productName.sv;
+  
+  // Final fallback
+  if (typeof productName.original === "string") return productName.original;
+  
+  return "Product";
+}
+
 export default async function DossierPage({ params }: Props) {
   const user = await getOptionalUser();
   if (!user) {
@@ -49,7 +73,7 @@ export default async function DossierPage({ params }: Props) {
           Generate Defense Dossier
         </h1>
         <p className="text-sm text-muted-foreground">
-          Create an audit-ready reasoning document for {classification.product.name}
+          Create an audit-ready reasoning document for {getProductNameString(classification.product.name)}
         </p>
       </div>
 

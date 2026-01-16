@@ -33,6 +33,30 @@ function formatHTSCode(htsCode: string): string {
   return `${htsCode.substring(0, 4)}.${htsCode.substring(4, 6)}.${htsCode.substring(6, 8)}.${htsCode.substring(8, 10)}`;
 }
 
+// Helper to safely extract product name string - handles all possible structures
+function getProductNameString(productName: any): string {
+  if (!productName) return "Product";
+  if (typeof productName === "string") return productName;
+  if (typeof productName !== "object") return "Product";
+  
+  // Handle standard structure: {original: string, translations: {fi: string, sv: string}}
+  if (productName.translations && typeof productName.translations === "object") {
+    const trans = productName.translations;
+    if (typeof trans.fi === "string") return trans.fi;
+    if (typeof trans.sv === "string") return trans.sv;
+    if (typeof productName.original === "string") return productName.original;
+  }
+  
+  // Handle edge case: direct {fi: string, sv: string} structure
+  if (typeof productName.fi === "string") return productName.fi;
+  if (typeof productName.sv === "string") return productName.sv;
+  
+  // Final fallback
+  if (typeof productName.original === "string") return productName.original;
+  
+  return "Product";
+}
+
 export default async function ClassificationDetailPage({ params }: Props) {
   const user = await requireAuthenticatedUser();
   const membership = await getPrimaryMembership(user.id);
@@ -137,7 +161,7 @@ export default async function ClassificationDetailPage({ params }: Props) {
       <div className="flex items-start justify-between">
         <div className="space-y-2 flex-1 min-w-0">
           <h1 className="text-3xl font-semibold tracking-tight break-words">
-            {classification.product.name}
+            {getProductNameString(classification.product.name)}
           </h1>
           <p className="text-sm text-muted-foreground">
             Classification Snapshot
