@@ -1,17 +1,41 @@
 import { redirect } from "next/navigation"
+import { headers } from "next/headers"
 import { getSupabaseServerClient } from "@/lib/supabase/server"
 import { LoginPageClient } from "@/components/login/login-page-client"
+
+function getAppUrl(): string {
+  // First try environment variable
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL
+  }
+  
+  // Fallback to request origin from headers
+  const headersList = headers()
+  const host = headersList.get("host")
+  const protocol = headersList.get("x-forwarded-proto") || 
+                   (headersList.get("x-forwarded-ssl") === "on" ? "https" : "http")
+  
+  if (host) {
+    return `${protocol}://${host}`
+  }
+  
+  // Last resort fallback (should not happen in production)
+  return "http://localhost:3000"
+}
 
 async function signInWithGoogle(formData: FormData) {
   "use server"
 
   const redirectTo =
     (formData.get("redirectTo") as string | null) ?? "/dashboard"
+  
+  const appUrl = getAppUrl()
+  
   const supabase = getSupabaseServerClient()
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback?redirectTo=${encodeURIComponent(
+      redirectTo: `${appUrl}/auth/callback?redirectTo=${encodeURIComponent(
         redirectTo,
       )}`,
       queryParams: {
@@ -22,8 +46,9 @@ async function signInWithGoogle(formData: FormData) {
   })
 
   if (error) {
-    console.error(error)
-    return redirect("/login?error=auth")
+    console.error("OAuth error:", error)
+    // Use absolute URL for redirect
+    redirect(`${appUrl}/login?error=auth`)
   }
 
   if (data?.url) {
@@ -39,9 +64,10 @@ type LoginPageProps = {
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const appUrl = getAppUrl()
 
   if (searchParams?.code) {
-    const callbackUrl = new URL("/auth/callback", process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000")
+    const callbackUrl = new URL("/auth/callback", appUrl)
     if (searchParams.redirectTo) {
       callbackUrl.searchParams.set("redirectTo", searchParams.redirectTo)
     }
