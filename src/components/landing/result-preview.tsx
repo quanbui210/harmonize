@@ -327,6 +327,13 @@ export function ResultPreview() {
           </div>
         </div>
       </div>
+      
+      {/* Footer Disclaimer */}
+      <div className="mt-4 pt-4 border-t border-border/30">
+        <p className="text-xs text-muted-foreground italic text-center leading-relaxed">
+          Results are informational and non-binding. Final decisions rest with EU customs authorities.
+        </p>
+      </div>
     </div>
   );
 }

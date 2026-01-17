@@ -9,6 +9,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ScrollAnimation } from "@/components/landing/scroll-animation";
 import { ResultPreview } from "@/components/landing/result-preview";
 import { LoadingScreen } from "@/components/ui/loading-screen";
+import { CookiePolicyDialog } from "@/components/legal/cookie-policy-dialog";
+import { PrivacyPolicyDialog } from "@/components/legal/privacy-policy-dialog";
+import { TermsOfServiceDialog } from "@/components/legal/terms-of-service-dialog";
 import { 
   FileText, 
   Shield, 
@@ -40,6 +43,9 @@ type LandingContentProps = {
 
 export function LandingContent({ user }: LandingContentProps) {
   const [isNavigating, setIsNavigating] = useState(false);
+  const [cookiePolicyOpen, setCookiePolicyOpen] = useState(false);
+  const [privacyPolicyOpen, setPrivacyPolicyOpen] = useState(false);
+  const [termsOfServiceOpen, setTermsOfServiceOpen] = useState(false);
   const router = useRouter();
 
   const handleLoginClick = (e: React.MouseEvent<HTMLElement>) => {
@@ -441,6 +447,22 @@ export function LandingContent({ user }: LandingContentProps) {
               </div>
             </div>
           </div>
+
+          <div className="stagger-fade-in group border-b border-border/30 pb-8 transition-all duration-500 ease-out hover:border-border/60 hover:pb-10 cursor-default" style={{ animationDelay: '600ms' }}>
+            <div className="flex items-start gap-6">
+              <div className="flex-shrink-0 transition-transform duration-500 ease-out group-hover:scale-110 group-hover:rotate-3">
+                <Lock className="h-6 w-6 text-primary transition-all duration-500 group-hover:text-foreground" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
+                  Compliance Vault
+                </h3>
+                <p className="text-base text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
+                  Request required compliance documents from suppliers with a simple, secure link. All documents are stored in an encrypted vault, ensuring your import documentation is organized, accessible, and protected for EU customs requirements.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -671,13 +693,32 @@ export function LandingContent({ user }: LandingContentProps) {
           <div className="border-t pt-8 flex flex-col sm:flex-row justify-between items-center text-sm text-muted-foreground">
             <p>© 2024 HarmonizeAI Technologies Inc. All rights reserved.</p>
             <div className="flex gap-6 mt-4 sm:mt-0">
-              <Link href="/login?redirectTo=/dashboard" className="hover:text-foreground transition-colors">Privacy Policy</Link>
-              <Link href="/login?redirectTo=/dashboard" className="hover:text-foreground transition-colors">Terms of Service</Link>
-              <Link href="/login?redirectTo=/dashboard" className="hover:text-foreground transition-colors">Cookie Policy</Link>
+              <button 
+                onClick={() => setPrivacyPolicyOpen(true)}
+                className="hover:text-foreground transition-colors text-left"
+              >
+                Privacy Policy
+              </button>
+              <button 
+                onClick={() => setTermsOfServiceOpen(true)}
+                className="hover:text-foreground transition-colors text-left"
+              >
+                Terms of Service
+              </button>
+              <button 
+                onClick={() => setCookiePolicyOpen(true)}
+                className="hover:text-foreground transition-colors text-left"
+              >
+                Cookie Policy
+              </button>
             </div>
           </div>
         </div>
       </footer>
+
+      <CookiePolicyDialog open={cookiePolicyOpen} onOpenChange={setCookiePolicyOpen} />
+      <PrivacyPolicyDialog open={privacyPolicyOpen} onOpenChange={setPrivacyPolicyOpen} />
+      <TermsOfServiceDialog open={termsOfServiceOpen} onOpenChange={setTermsOfServiceOpen} />
     </div>
   );
 }

@@ -517,6 +517,13 @@ export default async function ClassificationDetailPage({ params }: Props) {
           </CardContent>
         </Card>
       )}
+
+      {/* Footer Disclaimer */}
+      <div className="mt-8 pt-6 border-t border-border/30">
+        <p className="text-xs text-muted-foreground italic text-center leading-relaxed">
+          Results are informational and non-binding. Final decisions rest with EU customs authorities.
+        </p>
+      </div>
     </div>
   );
 }
