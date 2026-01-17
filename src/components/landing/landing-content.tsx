@@ -182,13 +182,16 @@ export function LandingContent({ user }: LandingContentProps) {
           <ScrollAnimation>
             <div>
               <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
-                B2B HTS VERIFICATION
+                EU IMPORT COMPLIANCE
               </p>
-              <h1 className="text-5xl md:text-6xl font-serif font-bold tracking-tight mb-4 leading-tight">
-                Import with <span className="text-primary">Total Legal Certainty</span>
+              <h1 className="text-4xl md:text-5xl font-serif font-bold tracking-tight mb-4 leading-tight">
+                Import with <span className="text-primary">EU Regulatory Confidence</span>
               </h1>
-              <p className="text-base text-muted-foreground italic mb-8 leading-relaxed max-w-2xl">
-                HarmonizeAI helps you check whether your product can be imported into the EU and what is required to do it legally. We analyze your product against official EU regulations and customs guidance so you can avoid delays, fines, and rejected shipments.
+              <p className="text-base text-muted-foreground italic mb-4 leading-relaxed max-w-2xl">
+                HarmonizeAI helps you understand whether your product can be imported into the EU, how it should be classified, and what is required to do it correctly.
+              </p>
+              <p className="text-base text-muted-foreground mb-8 leading-relaxed max-w-2xl">
+                We analyze your product against official EU customs data, tariff classifications, and regulatory guidance so you can avoid delays, fines, and rejected shipments before you ship.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button 
@@ -225,171 +228,136 @@ export function LandingContent({ user }: LandingContentProps) {
         </div>
       </section>
 
-      {/* Problems & Solutions Section */}
-      <section className="bg-muted/30 py-20">
-        <div className="container mx-auto max-w-7xl px-6">
+      {/* Problems & Solutions Section - Structured Document Style */}
+      <section className="relative py-24 overflow-hidden bg-background">
+        <div className="container mx-auto max-w-7xl px-6 relative z-10">
           <ScrollAnimation>
             <div className="mb-16 text-center">
-              <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
-                THE CHALLENGE
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-[0.2em] mb-3">
+                THE EVOLUTION OF COMPLIANCE
               </p>
-              <h2 className="text-4xl md:text-5xl font-serif font-bold tracking-tight mb-4">
-                What Importers Get Wrong
+              <h2 className="text-4xl md:text-5xl font-serif font-bold tracking-tight mb-2">
+                From Import Risk to Import Clarity
               </h2>
-              <p className="text-base text-muted-foreground italic max-w-2xl mx-auto">
-                Every year, thousands of shipments face delays, fines, and rejections due to common classification and compliance mistakes.
-              </p>
             </div>
           </ScrollAnimation>
 
-          <div className="grid md:grid-cols-2 gap-8 mb-16">
+          {/* Column Headers */}
+          <div className="grid lg:grid-cols-2 gap-0 mb-8 border-b-2 border-border">
+            <div className="pb-4">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-[0.15em]">
+                THE RISK
+              </p>
+            </div>
+            <div className="pb-4 border-l-2 border-border pl-8 lg:pl-8">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-[0.15em]">
+                HARMONIZEAI ADVANTAGE
+              </p>
+            </div>
+          </div>
+
+          {/* Structured Content Grid */}
+          <div className="space-y-0">
+            {/* Risk 1 → Advantage 1 */}
             <ScrollAnimation delay={100}>
-              <div className="group border-l-4 border-destructive/30 pl-6 py-4 transition-all duration-500 ease-out hover:border-destructive/60 hover:pl-8 hover:bg-background/50 rounded-r-md cursor-default">
-                <div className="flex items-start gap-4">
-                  <AlertTriangle className="h-6 w-6 text-destructive flex-shrink-0 mt-1 transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
-                  <div>
-                    <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                      Wrong HTS Classifications
-                    </h3>
-                    <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                      Manual classification leads to errors. A single wrong digit in your CN code can result in incorrect duty rates, customs holds, and costly penalties. Many importers rely on guesswork or outdated databases.
-                    </p>
-                  </div>
+              <div className="grid lg:grid-cols-2 gap-0 border-b border-border/50 py-8 group/item hover:bg-muted/20 transition-colors duration-300">
+                {/* Risk Side */}
+                <div className="pr-8">
+                  <h3 className="text-lg font-serif font-semibold tracking-tight text-foreground/60 mb-2 group-hover/item:text-foreground/70 transition-colors">
+                    Wrong CN / TARIC Classifications
+                  </h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Manual classification is error-prone. A single incorrect digit in your CN code can lead to wrong duty rates, customs holds, or rejected entries.
+                  </p>
+                </div>
+
+                {/* Advantage Side */}
+                <div className="border-l-2 border-border pl-8 lg:pl-8">
+                  <h3 className="text-lg font-serif font-semibold tracking-tight text-primary mb-2 group-hover/item:text-primary/90 transition-colors">
+                    AI-Assisted Classification
+                  </h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    HarmonizeAI analyzes your product against EU Combined Nomenclature (CN), TARIC data, and official classification guidance. Each result includes clear reasoning and confidence indicators to reduce misclassification risk.
+                  </p>
                 </div>
               </div>
             </ScrollAnimation>
 
+            {/* Risk 2 → Advantage 2 */}
             <ScrollAnimation delay={200}>
-              <div className="group border-l-4 border-destructive/30 pl-6 py-4 transition-all duration-500 ease-out hover:border-destructive/60 hover:pl-8 hover:bg-background/50 rounded-r-md cursor-default">
-                <div className="flex items-start gap-4">
-                  <XCircle className="h-6 w-6 text-destructive flex-shrink-0 mt-1 transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
-                  <div>
-                    <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                      Missing Documentation
-                    </h3>
-                    <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                      When customs challenges your classification, you need proof. Most importers lack defensible documentation, leaving them vulnerable to audits, reclassification, and retroactive duty payments.
-                    </p>
-                  </div>
+              <div className="grid lg:grid-cols-2 gap-0 border-b border-border/50 py-8 group/item hover:bg-muted/20 transition-colors duration-300">
+                {/* Risk Side */}
+                <div className="pr-8">
+                  <h3 className="text-lg font-serif font-semibold tracking-tight text-foreground/60 mb-2 group-hover/item:text-foreground/70 transition-colors">
+                    Missing or Incomplete Documentation
+                  </h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Incomplete invoices, certificates, or declarations can trigger inspections, delays, or refusal at EU customs.
+                  </p>
+                </div>
+
+                {/* Advantage Side */}
+                <div className="border-l-2 border-border pl-8 lg:pl-8">
+                  <h3 className="text-lg font-serif font-semibold tracking-tight text-primary mb-2 group-hover/item:text-primary/90 transition-colors">
+                    Document Requirement Guidance
+                  </h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Automatically identify which documents may be required based on your product, origin, and EU regulations, including commercial invoices, certificates, and declarations.
+                  </p>
                 </div>
               </div>
             </ScrollAnimation>
 
+            {/* Risk 3 → Advantage 3 */}
             <ScrollAnimation delay={300}>
-              <div className="group border-l-4 border-destructive/30 pl-6 py-4 transition-all duration-500 ease-out hover:border-destructive/60 hover:pl-8 hover:bg-background/50 rounded-r-md cursor-default">
-                <div className="flex items-start gap-4">
-                  <FileText className="h-6 w-6 text-destructive flex-shrink-0 mt-1 transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
-                  <div>
-                    <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                      Non-Compliant Labels
-                    </h3>
-                    <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                      EU food labeling requirements are complex. Missing allergen declarations, incorrect nutrition tables, or wrong language translations can result in product recalls, fines, and shipment rejections at the border.
-                    </p>
-                  </div>
+              <div className="grid lg:grid-cols-2 gap-0 border-b border-border/50 py-8 group/item hover:bg-muted/20 transition-colors duration-300">
+                {/* Risk Side */}
+                <div className="pr-8">
+                  <h3 className="text-lg font-serif font-semibold tracking-tight text-foreground/60 mb-2 group-hover/item:text-foreground/70 transition-colors">
+                    Non-Compliant Product Labels
+                  </h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Incorrect language, missing allergens, or improper formatting can cause your goods to be blocked at the border.
+                  </p>
+                </div>
+
+                {/* Advantage Side */}
+                <div className="border-l-2 border-border pl-8 lg:pl-8">
+                  <h3 className="text-lg font-serif font-semibold tracking-tight text-primary mb-2 group-hover/item:text-primary/90 transition-colors">
+                    EU-Compliant Label Generation
+                  </h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Generate compliant bilingual (Finnish/Swedish) labels with ingredient lists, allergen disclosures, nutrition tables, and mandatory EU food labeling elements.
+                  </p>
                 </div>
               </div>
             </ScrollAnimation>
 
+            {/* Risk 4 → Advantage 4 */}
             <ScrollAnimation delay={400}>
-              <div className="group border-l-4 border-destructive/30 pl-6 py-4 transition-all duration-500 ease-out hover:border-destructive/60 hover:pl-8 hover:bg-background/50 rounded-r-md cursor-default">
-                <div className="flex items-start gap-4">
-                  <TrendingUp className="h-6 w-6 text-destructive flex-shrink-0 mt-1 transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
-                  <div>
-                    <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                      Regulatory Changes
-                    </h3>
-                    <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                      Tariff codes and regulations change constantly. Without monitoring, your once-correct classifications become outdated, exposing you to compliance risks and unexpected duty adjustments.
-                    </p>
-                  </div>
+              <div className="grid lg:grid-cols-2 gap-0 border-b border-border/50 py-8 group/item hover:bg-muted/20 transition-colors duration-300">
+                {/* Risk Side */}
+                <div className="pr-8">
+                  <h3 className="text-lg font-serif font-semibold tracking-tight text-foreground/60 mb-2 group-hover/item:text-foreground/70 transition-colors">
+                    Regulatory Changes
+                  </h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Updates to CN codes, tariffs, or EU food regulations can make existing classifications or labels outdated without warning.
+                  </p>
+                </div>
+
+                {/* Advantage Side */}
+                <div className="border-l-2 border-border pl-8 lg:pl-8">
+                  <h3 className="text-lg font-serif font-semibold tracking-tight text-primary mb-2 group-hover/item:text-primary/90 transition-colors">
+                    Continuous Monitoring
+                  </h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Stay informed with alerts when EU tariff classifications or regulatory requirements change and may affect your products.
+                  </p>
                 </div>
               </div>
             </ScrollAnimation>
           </div>
-
-          {/* Solutions Section */}
-          <ScrollAnimation delay={500}>
-            <div className="border-t border-border/30 pt-16">
-              <div className="mb-12 text-center">
-                <p className="text-sm font-medium text-primary uppercase tracking-wider mb-3">
-                  THE SOLUTION
-                </p>
-                <h2 className="text-4xl md:text-5xl font-serif font-bold tracking-tight mb-4">
-                  How HarmonizeAI Fixes This
-                </h2>
-                <p className="text-base text-muted-foreground italic max-w-2xl mx-auto">
-                  AI-powered classification backed by official regulations, automated compliance checks, and audit-ready documentation.
-                </p>
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-8">
-                <div className="group border border-primary/20 rounded-lg p-6 bg-background transition-all duration-500 ease-out hover:border-primary/60 hover:shadow-lg hover:shadow-primary/5 cursor-default">
-                  <div className="flex flex-col gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors duration-500">
-                        <CheckCircle2 className="h-5 w-5 text-primary transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
-                      </div>
-                      <h3 className="text-xl font-serif font-semibold tracking-tight transition-all duration-500 group-hover:text-primary">
-                        AI-Powered Accuracy
-                      </h3>
-                    </div>
-                    <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                      Our system analyzes your product against official EU regulations, binding rulings, and legal precedents. Every classification includes detailed reasoning and confidence scores, eliminating guesswork.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="group border border-primary/20 rounded-lg p-6 bg-background transition-all duration-500 ease-out hover:border-primary/60 hover:shadow-lg hover:shadow-primary/5 cursor-default">
-                  <div className="flex flex-col gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors duration-500">
-                        <Shield className="h-5 w-5 text-primary transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
-                      </div>
-                      <h3 className="text-xl font-serif font-semibold tracking-tight transition-all duration-500 group-hover:text-primary">
-                        Audit Defense Dossiers
-                      </h3>
-                    </div>
-                    <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                      Generate comprehensive defense documents with legal citations, binding rulings, and step-by-step reasoning. Every dossier is designed to withstand customs authority scrutiny and protect you during audits.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="group border border-primary/20 rounded-lg p-6 bg-background transition-all duration-500 ease-out hover:border-primary/60 hover:shadow-lg hover:shadow-primary/5 cursor-default">
-                  <div className="flex flex-col gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors duration-500">
-                        <Waypoints className="h-5 w-5 text-primary transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
-                      </div>
-                      <h3 className="text-xl font-serif font-semibold tracking-tight transition-all duration-500 group-hover:text-primary">
-                        Compliant Label Generation
-                      </h3>
-                    </div>
-                    <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                      Automatically generate bilingual (Finnish/Swedish) product labels with all mandatory EU requirements. Our compliance checker ensures allergen declarations, nutrition tables, and QUID percentages are correct before export.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="group border border-primary/20 rounded-lg p-6 bg-background transition-all duration-500 ease-out hover:border-primary/60 hover:shadow-lg hover:shadow-primary/5 cursor-default">
-                  <div className="flex flex-col gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors duration-500">
-                        <Database className="h-5 w-5 text-primary transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
-                      </div>
-                      <h3 className="text-xl font-serif font-semibold tracking-tight transition-all duration-500 group-hover:text-primary">
-                        Continuous Monitoring
-                      </h3>
-                    </div>
-                    <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                      We monitor regulatory changes, new binding rulings, and enforcement actions. You receive proactive alerts when your classifications may be at risk, ensuring ongoing compliance without manual tracking.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </ScrollAnimation>
         </div>
       </section>
 
@@ -401,11 +369,10 @@ export function LandingContent({ user }: LandingContentProps) {
               PLATFORM
             </p>
             <h2 className="text-4xl md:text-5xl font-serif font-bold tracking-tight mb-4">
-              Everything You Need for Compliance
+              Everything You Need to Prepare for EU Import Compliance
             </h2>
             <p className="text-base text-muted-foreground italic max-w-2xl">
-              A comprehensive suite of tools designed to eliminate classification errors and provide 
-              defensible audit protection for your import operations.
+              A practical set of tools designed to help small and growing EU sellers reduce uncertainty and prepare compliant imports with confidence.
             </p>
           </div>
         </ScrollAnimation>
@@ -418,12 +385,10 @@ export function LandingContent({ user }: LandingContentProps) {
               </div>
               <div className="flex-1">
                 <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                  Automated HTS Classification
+                  Automated Product Classification
                 </h3>
                 <p className="text-base text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                  Upload product images and descriptions to receive instant, AI-powered HTS code classifications. 
-                  Our system analyzes product characteristics against the Harmonized System Tariff and provides 
-                  detailed legal reasoning for every classification decision.
+                  Upload product descriptions and images to receive AI-assisted CN/TARIC classification suggestions based on product characteristics and official EU guidance.
                 </p>
               </div>
             </div>
@@ -439,9 +404,7 @@ export function LandingContent({ user }: LandingContentProps) {
                   Risk Monitoring & Alerts
                 </h3>
                 <p className="text-base text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                  Continuous monitoring of your classifications against regulatory changes, binding rulings, 
-                  and enforcement actions. Receive proactive alerts when your products may be at risk of 
-                  customs challenges.
+                  Monitor your products against regulatory updates, classification changes, and enforcement trends that may increase customs risk.
                 </p>
               </div>
             </div>
@@ -454,12 +417,10 @@ export function LandingContent({ user }: LandingContentProps) {
               </div>
               <div className="flex-1">
                 <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                  Audit Defense Dossiers
+                  Compliance Documentation Records
                 </h3>
                 <p className="text-base text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                  Generate comprehensive defense dossiers that document your classification decisions with 
-                  legal precedents, binding rulings, and detailed reasoning. Every dossier is designed to 
-                  withstand customs authority scrutiny.
+                  Maintain structured records explaining how classifications were determined, including referenced sources and timestamps, to demonstrate due diligence if questions arise.
                 </p>
               </div>
             </div>
@@ -472,12 +433,10 @@ export function LandingContent({ user }: LandingContentProps) {
               </div>
               <div className="flex-1">
                 <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                  Product Labeling
+                  Product Labeling for EU Markets
                 </h3>
                 <p className="text-base text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                  Generate compliant bilingual (Finnish/Swedish) product labels with nutrition tables, 
-                  ingredient lists, allergen warnings, and all mandatory EU requirements. Labels can be 
-                  exported as PDF or SVG for printing.
+                  Create bilingual (FI/SE) labels with required EU food information, including ingredients, allergens, nutrition tables, and mandatory disclosures. Export-ready for print.
                 </p>
               </div>
             </div>
@@ -493,11 +452,10 @@ export function LandingContent({ user }: LandingContentProps) {
               DATA SOURCES
             </p>
             <h2 className="text-4xl md:text-5xl font-serif font-bold tracking-tight mb-4">
-              Built on Authoritative Sources
+              Built on Official EU Regulatory Sources
             </h2>
             <p className="text-base text-muted-foreground italic max-w-2xl">
-              Our classifications are based exclusively on official regulatory sources and binding legal 
-              precedents, ensuring maximum reliability and defensibility.
+              HarmonizeAI relies exclusively on authoritative public data maintained by EU institutions and national authorities.
             </p>
           </div>
         </ScrollAnimation>
@@ -506,7 +464,7 @@ export function LandingContent({ user }: LandingContentProps) {
           <ScrollAnimation delay={100}>
             <div className="group border-l-4 border-primary/20 pl-6 transition-all duration-500 ease-out hover:border-primary/60 hover:pl-8 hover:bg-muted/30 -ml-2 py-2 rounded-r-md cursor-default">
               <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                EU Combined Nomenclature
+                EU Combined Nomenclature (CN)
               </h3>
               <p className="text-sm text-muted-foreground italic transition-colors duration-500 group-hover:text-foreground/80">
                 Official tariff classification system maintained by the European Commission
@@ -528,10 +486,10 @@ export function LandingContent({ user }: LandingContentProps) {
           <ScrollAnimation delay={300}>
             <div className="group border-l-4 border-primary/20 pl-6 transition-all duration-500 ease-out hover:border-primary/60 hover:pl-8 hover:bg-muted/30 -ml-2 py-2 rounded-r-md cursor-default">
               <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                Court Decisions & Legal Precedents
+                EU Court Decisions & Classification Guidance
               </h3>
               <p className="text-sm text-muted-foreground italic transition-colors duration-500 group-hover:text-foreground/80">
-                Historical classification cases and judicial interpretations from EU courts
+                Judicial interpretations and historical classification cases
               </p>
             </div>
           </ScrollAnimation>
@@ -564,11 +522,10 @@ export function LandingContent({ user }: LandingContentProps) {
               RELIABILITY
             </p>
             <h2 className="text-4xl md:text-5xl font-serif font-bold tracking-tight mb-4">
-              Continuous Validation
+              Continuously Updated, Always Current
             </h2>
             <p className="text-base text-muted-foreground italic max-w-2xl">
-              Our system continuously validates classifications against new rulings, regulatory updates, 
-              and enforcement actions to ensure ongoing compliance.
+              Classifications and requirements are continuously checked against new rulings, regulatory updates, and published guidance.
             </p>
           </div>
         </ScrollAnimation>
@@ -582,11 +539,10 @@ export function LandingContent({ user }: LandingContentProps) {
                 </div>
                 <div>
                   <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:text-primary">
-                    Real-Time Updates
+                    Real-Time Regulatory Updates
                   </h3>
                   <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                    Automatic monitoring of regulatory changes and new binding rulings that may affect 
-                    your existing classifications.
+                    Automatic monitoring of changes to CN codes, tariffs, and EU food regulations that may impact your products.
                   </p>
                 </div>
               </div>
@@ -601,11 +557,10 @@ export function LandingContent({ user }: LandingContentProps) {
                 </div>
                 <div>
                   <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:text-primary">
-                    Confidence Scoring
+                    Confidence Indicators
                   </h3>
                   <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                    Every classification includes a confidence score based on the strength of supporting 
-                    legal precedents and regulatory alignment.
+                    Each classification includes confidence signals based on data alignment, supporting guidance, and precedent strength.
                   </p>
                 </div>
               </div>
@@ -620,11 +575,10 @@ export function LandingContent({ user }: LandingContentProps) {
                 </div>
                 <div>
                   <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:text-primary">
-                    Audit Trail
+                    Transparent Audit Trail
                   </h3>
                   <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                    Complete documentation of every classification decision, including source materials, 
-                    reasoning, and timestamp for full audit compliance.
+                    Every decision is logged with sources, reasoning, and timestamps to support internal review and compliance checks.
                   </p>
                 </div>
               </div>
@@ -638,10 +592,10 @@ export function LandingContent({ user }: LandingContentProps) {
         <div className="container mx-auto max-w-4xl px-6 text-center">
           <ScrollAnimation>
           <h2 className="text-4xl font-serif font-semibold tracking-tight mb-3">
-            Ready to secure your global imports?
+            Ready to prepare for EU import compliance?
           </h2>
           <p className="text-base text-muted-foreground italic mb-8">
-            Join 1,000+ compliance officers who trust HarmonizeAI for their audit protection.
+            Designed for small and growing EU sellers who want clarity before shipping, not after goods are stopped.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button 
@@ -662,6 +616,17 @@ export function LandingContent({ user }: LandingContentProps) {
           </div>
           </ScrollAnimation>
         </div>
+      </section>
+
+      {/* Trust Disclaimer Section */}
+      <section className="container mx-auto max-w-4xl px-6 py-12">
+        <ScrollAnimation>
+          <div className="border-t border-border/50 pt-12">
+            <p className="text-sm text-muted-foreground leading-relaxed text-center max-w-3xl mx-auto">
+              HarmonizeAI provides compliance support and decision assistance based on publicly available EU regulations and guidance. It does not replace customs authorities, Binding Tariff Information (BTI), or professional legal advice.
+            </p>
+          </div>
+        </ScrollAnimation>
       </section>
 
       {/* Footer */}
