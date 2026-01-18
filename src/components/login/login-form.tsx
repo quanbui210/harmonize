@@ -3,27 +3,24 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { LoadingScreen } from "@/components/ui/loading-screen";
 
 type LoginFormProps = {
   redirectTo: string;
   signInAction: (formData: FormData) => Promise<void>;
+  onPendingChange?: (isPending: boolean) => void;
 };
 
-export function LoginForm({ redirectTo, signInAction }: LoginFormProps) {
+export function LoginForm({ redirectTo, signInAction, onPendingChange }: LoginFormProps) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    onPendingChange?.(true);
     startTransition(async () => {
       const formData = new FormData(e.currentTarget);
       await signInAction(formData);
     });
-  }
-
-  if (isPending) {
-    return <LoadingScreen />;
   }
 
   return (
@@ -31,13 +28,13 @@ export function LoginForm({ redirectTo, signInAction }: LoginFormProps) {
       <input type="hidden" name="redirectTo" value={redirectTo} />
       <Button
         type="submit"
-        className="w-full h-12 text-base font-medium"
+        className="w-full h-11 text-sm font-medium shadow-sm hover:shadow transition-shadow"
         size="lg"
         disabled={isPending}
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
-          className="mr-3 h-5 w-5"
+          className="mr-2.5 h-4 w-4"
           viewBox="0 0 24 24"
           fill="none"
         >
@@ -58,7 +55,7 @@ export function LoginForm({ redirectTo, signInAction }: LoginFormProps) {
             fill="currentColor"
           />
         </svg>
-        Continue with Google
+        Sign in with Google
       </Button>
     </form>
   );

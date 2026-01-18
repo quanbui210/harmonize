@@ -175,7 +175,7 @@ export function LandingContent({ user }: LandingContentProps) {
                 onClick={handleLoginClick}
                 className="transition-all duration-300 ease-out hover:scale-105 hover:shadow-lg hover:shadow-foreground/10"
               >
-                Get Started
+                Sign In
               </Button>
             )}
           </div>
@@ -187,10 +187,10 @@ export function LandingContent({ user }: LandingContentProps) {
         <div className="grid lg:grid-cols-2 gap-6 lg:gap-8 items-center">
           <ScrollAnimation>
             <div>
-              <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                 EU IMPORT COMPLIANCE
               </p>
-              <h1 className="text-4xl md:text-5xl font-serif font-bold tracking-tight mb-4 leading-tight">
+              <h1 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-3 leading-tight">
                 Import with <span className="text-primary">EU Regulatory Confidence</span>
               </h1>
               <p className="text-base text-muted-foreground italic mb-4 leading-relaxed max-w-2xl">
@@ -205,7 +205,7 @@ export function LandingContent({ user }: LandingContentProps) {
                   onClick={handleLoginClick}
                   className="transition-all duration-300 ease-out hover:scale-105 hover:shadow-lg hover:shadow-foreground/10"
                 >
-                  Start Risk Scan
+                  Get Started
                 </Button>
                 <Button 
                   size="lg" 
@@ -239,10 +239,10 @@ export function LandingContent({ user }: LandingContentProps) {
         <div className="container mx-auto max-w-7xl px-6 relative z-10">
           <ScrollAnimation>
             <div className="mb-16 text-center">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-[0.2em] mb-3">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                 THE EVOLUTION OF COMPLIANCE
               </p>
-              <h2 className="text-4xl md:text-5xl font-serif font-bold tracking-tight mb-2">
+              <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-2">
                 From Import Risk to Import Clarity
               </h2>
             </div>
@@ -371,13 +371,13 @@ export function LandingContent({ user }: LandingContentProps) {
       <section id="features" className="container mx-auto max-w-7xl px-6 py-20">
         <ScrollAnimation>
           <div className="mb-16">
-            <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
               PLATFORM
             </p>
-            <h2 className="text-4xl md:text-5xl font-serif font-bold tracking-tight mb-4">
+            <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-3">
               Everything You Need to Prepare for EU Import Compliance
             </h2>
-            <p className="text-base text-muted-foreground italic max-w-2xl">
+            <p className="text-sm text-muted-foreground italic max-w-2xl">
               A practical set of tools designed to help small and growing EU sellers reduce uncertainty and prepare compliant imports with confidence.
             </p>
           </div>
@@ -470,13 +470,13 @@ export function LandingContent({ user }: LandingContentProps) {
       <section id="sources" className="container mx-auto max-w-7xl px-6 py-20">
         <ScrollAnimation>
           <div className="mb-16">
-            <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
               DATA SOURCES
             </p>
-            <h2 className="text-4xl md:text-5xl font-serif font-bold tracking-tight mb-4">
+            <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-3">
               Built on Official EU Regulatory Sources
             </h2>
-            <p className="text-base text-muted-foreground italic max-w-2xl">
+            <p className="text-sm text-muted-foreground italic max-w-2xl">
               HarmonizeAI relies exclusively on authoritative public data maintained by EU institutions and national authorities.
             </p>
           </div>
@@ -540,13 +540,13 @@ export function LandingContent({ user }: LandingContentProps) {
       <section id="reliability" className="container mx-auto max-w-7xl px-6 py-20">
         <ScrollAnimation>
           <div className="mb-16">
-            <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
               RELIABILITY
             </p>
-            <h2 className="text-4xl md:text-5xl font-serif font-bold tracking-tight mb-4">
+            <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-3">
               Continuously Updated, Always Current
             </h2>
-            <p className="text-base text-muted-foreground italic max-w-2xl">
+            <p className="text-sm text-muted-foreground italic max-w-2xl">
               Classifications and requirements are continuously checked against new rulings, regulatory updates, and published guidance.
             </p>
           </div>

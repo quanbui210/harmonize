@@ -16,6 +16,7 @@ type LoginPageClientProps = {
 export function LoginPageClient({ redirectTo, signInAction }: LoginPageClientProps) {
   const [isChecking, setIsChecking] = useState(true);
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -46,8 +47,31 @@ export function LoginPageClient({ redirectTo, signInAction }: LoginPageClientPro
   }, [redirectTo, router]);
 
   // Show loading while checking for session or redirecting
-  if (isChecking || isRedirecting) {
-    return <LoadingScreen />;
+  if (isChecking) {
+    return (
+      <LoadingScreen 
+        message="Checking Session"
+        subMessage="Verifying your authentication status"
+      />
+    );
+  }
+  
+  if (isRedirecting) {
+    return (
+      <LoadingScreen 
+        message="Redirecting"
+        subMessage="Taking you to your dashboard"
+      />
+    );
+  }
+
+  if (isLoggingIn) {
+    return (
+      <LoadingScreen 
+        message="Redirecting to Google"
+        subMessage="You will be redirected to sign in with your Google account"
+      />
+    );
   }
 
   return (
@@ -80,60 +104,44 @@ export function LoginPageClient({ redirectTo, signInAction }: LoginPageClientPro
       </nav>
 
       {/* Main Content */}
-      <div className="flex min-h-[calc(100vh-73px)] items-center justify-center px-6 py-16">
-        <div className="w-full max-w-md space-y-8">
+      <div className="flex min-h-[calc(100vh-73px)] items-center justify-center px-6 py-12">
+        <div className="w-full max-w-sm space-y-6">
           {/* Header */}
-          <div className="space-y-4 text-center">
+          <div className="space-y-6 text-center">
             <div className="flex justify-center">
-              <div className="rounded-full bg-primary/10 p-4">
-                <Scale className="h-8 w-8 text-primary" />
+              <div className="rounded-full bg-primary/5 p-3 border border-primary/10">
+                <Scale className="h-6 w-6 text-primary" />
               </div>
             </div>
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 Welcome Back
               </p>
-              <h1 className="text-4xl md:text-5xl font-serif font-bold tracking-tight">
+              <h1 className="text-3xl font-serif font-bold tracking-tight">
                 Sign in to <span className="text-primary">HarmonizeAI</span>
               </h1>
-              <p className="text-base text-muted-foreground italic leading-relaxed">
-                Use your verified organization email to continue.
-              </p>
             </div>
           </div>
 
           {/* Login Form */}
-          <div className="space-y-6">
-            <LoginForm redirectTo={redirectTo} signInAction={signInAction} />
+          <div className="space-y-4">
+            <LoginForm 
+              redirectTo={redirectTo} 
+              signInAction={signInAction}
+              onPendingChange={setIsLoggingIn}
+            />
 
-            {/* Trust Indicators */}
-            <div className="space-y-4 rounded-lg border bg-card p-6">
-              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                <span>Get your imports past customs successfully</span>
-              </div>
-              <div className="border-t pt-4 text-center">
-                <p className="text-xs text-muted-foreground mb-3">
-                  By continuing, you agree to our{" "}
-                  <Link href="#" className="text-primary underline hover:text-primary/80">
-                    Terms
-                  </Link>{" "}
-                  and{" "}
-                  <Link href="#" className="text-primary underline hover:text-primary/80">
-                    Privacy Policy
-                  </Link>
-                </p>
-                <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
-                  <Link href="#" className="hover:text-foreground transition-colors">
-                    Need help?
-                  </Link>
-                  <span>•</span>
-                  <Link href="#" className="hover:text-foreground transition-colors">
-                    Contact Support
-                  </Link>
-                </div>
-              </div>
-            </div>
+            {/* Legal Text */}
+            <p className="text-xs text-center text-muted-foreground leading-relaxed">
+              By continuing, you agree to our{" "}
+              <Link href="#" className="text-primary hover:underline">
+                Terms
+              </Link>{" "}
+              and{" "}
+              <Link href="#" className="text-primary hover:underline">
+                Privacy Policy
+              </Link>
+            </p>
           </div>
         </div>
       </div>

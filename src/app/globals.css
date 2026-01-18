@@ -275,4 +275,23 @@
       -webkit-transform: translateY(0);
     }
   }
+  
+  /* Shimmer animation for loading progress bars */
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(200%);
+    }
+  }
+  
+  @-webkit-keyframes shimmer {
+    0% {
+      -webkit-transform: translateX(-100%);
+    }
+    100% {
+      -webkit-transform: translateX(200%);
+    }
+  }
 }
