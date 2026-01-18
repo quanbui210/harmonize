@@ -49,6 +49,7 @@ function detectProductTypeFromQuery(query: string): RegulatoryProductType {
 async function searchLegalChunksVector(query: string, limit: number = 5) {
   try {
     // Generate embedding for the query
+    const openai = createFeatureOpenAIClient("Compliance Chat Embeddings");
     const embeddingResponse = await openai.embeddings.create({
       model: "text-embedding-3-small",
       input: query,
@@ -324,6 +325,7 @@ async function searchComplianceDocuments(query: string, limit: number = 10) {
 async function generateAnswer(
   query: string,
   chunks: Array<{ sectionPath: string; excerpt: string; source?: string }>,
+  options?: { userId?: string; organizationId?: string },
 ): Promise<string> {
   const context = chunks
     .map(
@@ -401,8 +403,8 @@ If the question covers multiple areas, use sources from all relevant categories.
 
   try {
     const openai = createFeatureOpenAIClient("Compliance Chat", {
-      userId: input.userId,
-      organizationId: input.organizationId,
+      userId: options?.userId,
+      organizationId: options?.organizationId,
     });
     const response = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || "gpt-4o",

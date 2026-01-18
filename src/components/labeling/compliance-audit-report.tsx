@@ -26,19 +26,19 @@ function getProductNameString(productName: ProductNameType): string {
   if (typeof productName !== "object") return "Product";
   
   // Handle standard structure: {original: string, translations: {fi: string, sv: string}}
-  if (productName.translations && typeof productName.translations === "object") {
+  if ("translations" in productName && productName.translations && typeof productName.translations === "object") {
     const trans = productName.translations;
     if (typeof trans.fi === "string") return trans.fi;
     if (typeof trans.sv === "string") return trans.sv;
-    if (typeof productName.original === "string") return productName.original;
+    if ("original" in productName && typeof productName.original === "string") return productName.original;
   }
   
   // Handle edge case: direct {fi: string, sv: string} structure
-  if (typeof productName.fi === "string") return productName.fi;
-  if (typeof productName.sv === "string") return productName.sv;
+  if ("fi" in productName && typeof productName.fi === "string") return productName.fi;
+  if ("sv" in productName && typeof productName.sv === "string") return productName.sv;
   
   // Final fallback
-  if (typeof productName.original === "string") return productName.original;
+  if ("original" in productName && typeof productName.original === "string") return productName.original;
   
   return "Product";
 }
