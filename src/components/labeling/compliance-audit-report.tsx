@@ -4,10 +4,43 @@ import type { ComplianceResult } from "@/lib/labeling/compliance-checker";
 import { calculateComplianceScore } from "@/lib/labeling/compliance-checker";
 import { Badge } from "@/components/ui/badge";
 
+type ProductNameType = 
+  | string 
+  | { original?: string; translations?: { fi?: string; sv?: string } }
+  | { fi?: string; sv?: string }
+  | undefined;
+
 interface ComplianceAuditReportProps {
-  productName: string;
+  productName: ProductNameType;
   originCountry: string;
   complianceResults: ComplianceResult[];
+}
+
+/**
+ * Safely extract product name as string from various formats
+ * Handles: string, {original, translations}, {fi, sv}, undefined
+ */
+function getProductNameString(productName: ProductNameType): string {
+  if (!productName) return "Product";
+  if (typeof productName === "string") return productName;
+  if (typeof productName !== "object") return "Product";
+  
+  // Handle standard structure: {original: string, translations: {fi: string, sv: string}}
+  if (productName.translations && typeof productName.translations === "object") {
+    const trans = productName.translations;
+    if (typeof trans.fi === "string") return trans.fi;
+    if (typeof trans.sv === "string") return trans.sv;
+    if (typeof productName.original === "string") return productName.original;
+  }
+  
+  // Handle edge case: direct {fi: string, sv: string} structure
+  if (typeof productName.fi === "string") return productName.fi;
+  if (typeof productName.sv === "string") return productName.sv;
+  
+  // Final fallback
+  if (typeof productName.original === "string") return productName.original;
+  
+  return "Product";
 }
 
 export function ComplianceAuditReport({
@@ -15,6 +48,8 @@ export function ComplianceAuditReport({
   originCountry,
   complianceResults,
 }: ComplianceAuditReportProps) {
+  // Safely extract product name string
+  const productNameString = getProductNameString(productName);
   const score = calculateComplianceScore(complianceResults);
   const status = score >= 100 ? "Fully Compliant" : score >= 80 ? "Action Required" : "Critical Issues";
   const statusColor = score >= 100 ? "text-green-600" : score >= 80 ? "text-yellow-600" : "text-red-600";
@@ -65,7 +100,7 @@ export function ComplianceAuditReport({
         <div className="flex items-start gap-3">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
-              <span className="font-medium">{index + 1}. {result.ruleName}:</span>
+              <span className="font-medium">{result.ruleName}:</span>
               <span className={isPass ? "text-gray-700" : isCritical ? "text-red-600" : "text-gray-700"}>
                 {statusText}
               </span>
@@ -77,7 +112,7 @@ export function ComplianceAuditReport({
                 <div className="font-medium text-yellow-800 mb-1">Action Required:</div>
                 <div className="text-yellow-700">
                   {result.message.includes("QUID") && (
-                    <div>Please enter the % of {productName.split(" ")[0]} from the front of the original pack. (e.g., 95%)</div>
+                    <div>Please enter the % of {productNameString.split(" ")[0]} from the front of the original pack. (e.g., 95%)</div>
                   )}
                   {result.message.includes("salt") && (
                     <div>Added mandatory warning: &quot;Voimakassuolainen / Kraftigt saltad&quot;.</div>
@@ -118,7 +153,7 @@ export function ComplianceAuditReport({
   return (
     <div className="space-y-4">
       <div className="mb-4">
-        <h3 className="text-lg font-bold">Compliance Audit: {productName} ({originCountry})</h3>
+        <h3 className="text-lg font-bold">Compliance Audit: {productNameString} ({originCountry})</h3>
         <div className={`text-sm font-medium ${statusColor}`}>
           Status: {status} ({score}% Compliant)
         </div>
@@ -127,6 +162,7 @@ export function ComplianceAuditReport({
       {/* Language Check */}
       {languageChecks.length > 0 && (
         <div>
+          <div className="font-semibold mb-2">1. Finnish and Swedish Required:</div>
           {languageChecks.map((result, idx) => renderCheck(result, idx))}
         </div>
       )}
@@ -135,7 +171,7 @@ export function ComplianceAuditReport({
       {ingredientChecks.length > 0 && (
         <div>
           <div className="font-semibold mb-2">2. Ingredient & QUID Analysis:</div>
-          {ingredientChecks.map((result, idx) => renderCheck(result, languageChecks.length + idx))}
+          {ingredientChecks.map((result, idx) => renderCheck(result, idx))}
         </div>
       )}
 
@@ -145,20 +181,17 @@ export function ComplianceAuditReport({
           <div className="font-semibold mb-2">3. Allergen Detection:</div>
           {complianceResults
             .filter((r) => r.ruleId.includes("allergen"))
-            .map((result, idx) => renderCheck(result, languageChecks.length + ingredientChecks.length + idx))}
+            .map((result, idx) => renderCheck(result, idx))}
         </div>
       )}
 
-      {/* Salt Warning Check */}
-      {saltChecks.length > 0 && (
+      {/* Font Size Check */}
+      {otherChecks.some((r) => r.ruleId.includes("font")) && (
         <div>
-          <div className="font-semibold mb-2">4. Salt Warning Check:</div>
-          {saltChecks.map((result, idx) =>
-            renderCheck(
-              result,
-              languageChecks.length + ingredientChecks.length + (complianceResults.some((r) => r.ruleId.includes("allergen")) ? 1 : 0) + idx
-            )
-          )}
+          <div className="font-semibold mb-2">4. Minimum Font Size (1.2mm x-height):</div>
+          {otherChecks
+            .filter((r) => r.ruleId.includes("font"))
+            .map((result, idx) => renderCheck(result, idx))}
         </div>
       )}
 
@@ -166,33 +199,16 @@ export function ComplianceAuditReport({
       {entityChecks.length > 0 && (
         <div>
           <div className="font-semibold mb-2">5. Entity Verification:</div>
-          {entityChecks.map((result, idx) =>
-            renderCheck(
-              result,
-              languageChecks.length +
-                ingredientChecks.length +
-                (complianceResults.some((r) => r.ruleId.includes("allergen")) ? 1 : 0) +
-                saltChecks.length +
-                idx
-            )
-          )}
+          {entityChecks.map((result, idx) => renderCheck(result, idx))}
         </div>
       )}
 
-      {/* Other Checks */}
-      {otherChecks.length > 0 && (
+      {/* Other Checks (excluding font size which is now in its own section) */}
+      {otherChecks.filter((r) => !r.ruleId.includes("font")).length > 0 && (
         <div>
-          {otherChecks.map((result, idx) =>
-            renderCheck(
-              result,
-              languageChecks.length +
-                ingredientChecks.length +
-                (complianceResults.some((r) => r.ruleId.includes("allergen")) ? 1 : 0) +
-                saltChecks.length +
-                entityChecks.length +
-                idx
-            )
-          )}
+          {otherChecks
+            .filter((r) => !r.ruleId.includes("font"))
+            .map((result, idx) => renderCheck(result, idx))}
         </div>
       )}
     </div>

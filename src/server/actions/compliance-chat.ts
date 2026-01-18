@@ -2,13 +2,9 @@
 
 import { prisma } from "@/lib/prisma";
 import { openaiService } from "@/lib/eu/openai-service";
-import OpenAI from "openai";
 import { searchRegulatoryDocuments } from "@/lib/rag/regulatory-search";
 import type { RegulatoryProductType } from "@/lib/regulatory/product-type";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { createFeatureOpenAIClient } from "@/lib/langfuse/openai-wrapper";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -404,6 +400,10 @@ If the question covers multiple areas, use sources from all relevant categories.
   : `No specific sources were found for this question. Please provide helpful guidance using your knowledge of EU regulations (customs classification, food labeling, product safety, customs procedures, permits/licenses, or tax matters) as appropriate. Address ALL parts of the user's question.`}`;
 
   try {
+    const openai = createFeatureOpenAIClient("Compliance Chat", {
+      userId: input.userId,
+      organizationId: input.organizationId,
+    });
     const response = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || "gpt-4o",
       messages: [

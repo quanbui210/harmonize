@@ -5,11 +5,7 @@ import { euClassificationEngine } from "@/lib/eu/classification-engine";
 import { openaiService } from "@/lib/eu/openai-service";
 import type { EUProductAttributes, CNCode } from "@/lib/eu/types";
 import { MarketCode } from "@prisma/client";
-import OpenAI from "openai";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { createFeatureOpenAIClient } from "@/lib/langfuse/openai-wrapper";
 
 /**
  * RAG-based search using vector similarity (cosine similarity)
@@ -52,6 +48,7 @@ async function searchLegalChunksForProduct(
     : baseQuery;
   
   // Step 1: Generate embedding for the user query
+  const openai = createFeatureOpenAIClient("Classification Search Embeddings");
   const embeddingResponse = await openai.embeddings.create({
     model: "text-embedding-3-small",
     input: query,

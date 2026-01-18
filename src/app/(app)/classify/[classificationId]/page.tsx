@@ -455,9 +455,27 @@ export default async function ClassificationDetailPage({ params }: Props) {
             <div className="space-y-3">
               {classification.labels.map((label: any) => {
                 const labelData = label.labelData as any;
-                const productName = typeof labelData.productName === "string" 
-                  ? labelData.productName 
-                  : labelData.productName?.original || "Unnamed Product";
+                // Safely extract product name string
+                let productName = "Unnamed Product";
+                if (typeof labelData.productName === "string") {
+                  productName = labelData.productName;
+                } else if (labelData.productName && typeof labelData.productName === "object") {
+                  // Handle {original, translations: {fi, sv}}
+                  if (labelData.productName.translations) {
+                    productName = labelData.productName.translations.fi || 
+                                  labelData.productName.translations.sv || 
+                                  labelData.productName.original || 
+                                  "Unnamed Product";
+                  }
+                  // Handle direct {fi, sv}
+                  else if (labelData.productName.fi || labelData.productName.sv) {
+                    productName = labelData.productName.fi || labelData.productName.sv || "Unnamed Product";
+                  }
+                  // Fallback to original
+                  else {
+                    productName = labelData.productName.original || "Unnamed Product";
+                  }
+                }
                 return (
                   <div key={label.id} className="flex items-center justify-between rounded-lg border p-3">
                     <div className="flex-1">

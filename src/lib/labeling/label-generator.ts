@@ -3,15 +3,11 @@
  * Uses RAG to search regulatory documents for accurate requirements
  */
 
-import OpenAI from "openai";
 import { searchRegulatoryDocuments } from "@/lib/rag/regulatory-search";
 import { getRegulatoryProductType } from "@/lib/regulatory/product-type";
 import type { LabelData } from "./compliance-checker";
 import type { RegulatoryProductType } from "@/lib/regulatory/product-type";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { createFeatureOpenAIClient } from "@/lib/langfuse/openai-wrapper";
 
 interface ProductData {
   name: string;
@@ -118,6 +114,7 @@ Return JSON with this exact structure:
 }`;
 
   try {
+    const openai = createFeatureOpenAIClient("Label Generator");
     const response = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || "gpt-4o",
       messages: [

@@ -1,10 +1,6 @@
 "use server";
 
-import OpenAI from "openai";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { createFeatureOpenAIClient } from "@/lib/langfuse/openai-wrapper";
 
 export interface ExtractedProductData {
   productName?: string;
@@ -38,7 +34,8 @@ export async function extractProductDataFromImage(
   const base64Image = imageBuffer.toString("base64");
   const dataUrl = `data:${imageMimeType};base64,${base64Image}`;
 
-  const response = await openai.chat.completions.create({
+    const openai = createFeatureOpenAIClient("Image Extraction");
+    const response = await openai.chat.completions.create({
     model: "gpt-4o", // Using gpt-4o for best vision accuracy
     messages: [
       {

@@ -3,14 +3,10 @@
  * Uses GPT-4o for maximum accuracy and validates all marks against regulatory documents
  */
 
-import OpenAI from "openai";
 import { searchRegulatoryDocuments } from "@/lib/rag/regulatory-search";
 import { getRegulatoryProductType } from "@/lib/regulatory/product-type";
 import type { RegulatoryProductType } from "@/lib/regulatory/product-type";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { createFeatureOpenAIClient } from "@/lib/langfuse/openai-wrapper";
 
 export interface RequiredMarks {
   ceMarking?: boolean;
@@ -326,6 +322,7 @@ Return JSON with this exact structure:
 
   try {
     // Use GPT-4o for maximum accuracy
+    const openai = createFeatureOpenAIClient("Label Generator Enhanced");
     const response = await openai.chat.completions.create({
       model: "gpt-4o", // Best model for accuracy
       messages: [

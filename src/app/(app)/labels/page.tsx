@@ -28,14 +28,28 @@ export default async function LabelsPage() {
   });
 
   const getProductName = (labelData: any): string => {
+    if (!labelData?.productName) return "Unnamed Product";
     if (typeof labelData.productName === "string") {
       return labelData.productName;
     }
-    return (
-      labelData.productName?.original ||
-      labelData.productName?.translations?.fi ||
-      "Unnamed Product"
-    );
+    if (typeof labelData.productName !== "object") return "Unnamed Product";
+    
+    // Handle {original, translations: {fi, sv}}
+    if (labelData.productName.translations && typeof labelData.productName.translations === "object") {
+      const trans = labelData.productName.translations;
+      if (typeof trans.fi === "string") return trans.fi;
+      if (typeof trans.sv === "string") return trans.sv;
+      if (typeof labelData.productName.original === "string") return labelData.productName.original;
+    }
+    
+    // Handle direct {fi, sv} structure
+    if (typeof labelData.productName.fi === "string") return labelData.productName.fi;
+    if (typeof labelData.productName.sv === "string") return labelData.productName.sv;
+    
+    // Final fallback
+    if (typeof labelData.productName.original === "string") return labelData.productName.original;
+    
+    return "Unnamed Product";
   };
 
   const getComplianceStatus = (score: number | null) => {

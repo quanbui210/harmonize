@@ -1,9 +1,12 @@
-import OpenAI from "openai";
 import type { EUProductAttributes } from "./types";
+import { createFeatureOpenAIClient } from "@/lib/langfuse/openai-wrapper";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+
+const getOpenAIClient = (userId?: string, organizationId?: string) => 
+  createFeatureOpenAIClient("EU Classification", {
+    userId,
+    organizationId,
+  });
 
 interface ProductAnalysisResult {
   keyAttributes: {
@@ -121,6 +124,7 @@ IMPORTANT:
 - Example: Robot vacuum cleaner → Primary: 8508 11 00 (vacuum cleaner), Alternative: 8509 80 00 (if mopping is primary), with clarifying question`;
 
     try {
+      const openai = getOpenAIClient();
       const response = await openai.chat.completions.create({
         model: process.env.OPENAI_MODEL || "gpt-4o",
         messages: [
@@ -289,6 +293,7 @@ Generate a smart, product-specific question that will help determine the correct
 Return your response as JSON with: question, explanation, options (array of {value, label}), and field.`;
 
     try {
+      const openai = getOpenAIClient();
       const response = await openai.chat.completions.create({
         model: process.env.OPENAI_MODEL || "gpt-4o",
         messages: [
@@ -390,6 +395,7 @@ Provide a JSON response with:
 Be specific and practical. Focus on what the importer needs to know and do.`;
 
     try {
+      const openai = getOpenAIClient();
       const response = await openai.chat.completions.create({
         model: process.env.OPENAI_MODEL || "gpt-4o",
         messages: [
@@ -525,6 +531,7 @@ Generate a professional, audit-ready legal rationale that:
 Return your response as JSON with dutyRate and vatRate as numbers.`;
 
     try {
+      const openai = getOpenAIClient();
       const response = await openai.chat.completions.create({
         model: process.env.OPENAI_MODEL || "gpt-4o",
         messages: [
@@ -905,6 +912,7 @@ Sources: ${JSON.stringify(classificationResult.sources, null, 2)}${alternativesS
 Generate a comprehensive, professional dossier that can be submitted to EU customs authorities. Include a detailed comparison table if alternatives exist, showing duty rates, confidence levels, and trade-offs.`;
 
     try {
+      const openai = getOpenAIClient();
       const response = await openai.chat.completions.create({
         model: process.env.OPENAI_MODEL || "gpt-4o",
         messages: [

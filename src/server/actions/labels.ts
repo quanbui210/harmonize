@@ -13,7 +13,7 @@ import { requireAuthenticatedUser } from "@/lib/supabase/auth";
 import { getPrimaryMembership } from "@/server/queries/organizations";
 import { prisma } from "@/lib/prisma";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
-import OpenAI from "openai";
+import { createFeatureOpenAIClient } from "@/lib/langfuse/openai-wrapper";
 
 export interface GenerateLabelInput {
   productName: string;
@@ -145,7 +145,7 @@ export async function extractLabelTextAction(imageBase64: string): Promise<strin
     throw new Error("No image provided");
   }
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const openai = createFeatureOpenAIClient("Label Text Extraction");
 
   const response = await openai.chat.completions.create({
     model: process.env.OPENAI_MODEL || "gpt-4o-mini",

@@ -81,7 +81,7 @@ export default async function LabelDetailPage({ params }: LabelDetailPageProps) 
           </CardHeader>
           <CardContent>
             <ComplianceAuditReport
-              productName={typeof labelData.productName === "string" ? labelData.productName : labelData.productName?.original || "Product"}
+              productName={labelData.productName || "Product"}
               originCountry={labelData.originCountry || ""}
               complianceResults={complianceResults}
             />

@@ -114,19 +114,23 @@ function detectDocumentMetadata(fileName: string): DocumentConfig | null {
  */
 async function extractTextFromPDF(pdfPath: string): Promise<string> {
   try {
-    // pdf-parse v2.4.5 - use dynamic import for ES module
-    const pdfModule = await import("pdf-parse");
-    // Handle both default export and named export cases
-    // pdf-parse exports the function directly, not as default
-    const pdfParse = pdfModule as unknown as (buffer: Buffer) => Promise<{ text: string }>;
+    // pdf-parse v2.4.5 uses class-based API
+    const pdfParseModule = require("pdf-parse");
+    const PDFParse = pdfParseModule.PDFParse || pdfParseModule;
     
-    if (typeof pdfParse !== "function") {
-      throw new Error(`pdf-parse did not export a function. Got: ${typeof pdfParse}`);
+    if (typeof PDFParse !== "function") {
+      throw new Error(`PDFParse is not available. Got: ${typeof PDFParse}`);
     }
     
     const dataBuffer = await readFile(pdfPath);
-    const data = await pdfParse(dataBuffer);
-    return data.text;
+    
+    // Use class-based API (same as ingest-eurlex script)
+    const parser = new PDFParse({ data: dataBuffer });
+    const textResult = await parser.getText();
+    await parser.destroy();
+    
+    // Return combined text from all pages
+    return textResult.text || "";
   } catch (error) {
     console.error(`[Ingest] Failed to parse PDF ${pdfPath}:`, error);
     throw error;

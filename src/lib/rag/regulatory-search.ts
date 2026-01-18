@@ -4,12 +4,8 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import OpenAI from "openai";
 import type { RegulatoryProductType } from "@/lib/regulatory/product-type";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { createFeatureOpenAIClient } from "@/lib/langfuse/openai-wrapper";
 
 export interface RegulatoryChunk {
   id: string;
@@ -35,6 +31,7 @@ interface RegulatorySearchOptions {
  */
 async function translateToFinnish(query: string): Promise<string> {
   try {
+    const openai = createFeatureOpenAIClient("Regulatory Search Translation");
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -65,6 +62,7 @@ export async function searchRegulatoryDocuments(
   const searchQuery = language === "FI" ? query : await translateToFinnish(query);
 
   // Generate embedding
+  const openai = createFeatureOpenAIClient("Regulatory Search Embeddings");
   const embeddingResponse = await openai.embeddings.create({
     model: "text-embedding-3-small",
     input: searchQuery,

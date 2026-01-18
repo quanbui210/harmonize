@@ -6,11 +6,7 @@
 import { searchRegulatoryDocuments } from "@/lib/rag/regulatory-search";
 import { getRegulatoryProductType } from "@/lib/regulatory/product-type";
 import type { RegulatoryProductType } from "@/lib/regulatory/product-type";
-import OpenAI from "openai";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { createFeatureOpenAIClient } from "@/lib/langfuse/openai-wrapper";
 
 export interface MissingField {
   fieldId: string;
@@ -147,6 +143,7 @@ Identify:
 Return JSON only.`;
 
   try {
+    const openai = createFeatureOpenAIClient("Label Analyzer");
     const response = await openai.chat.completions.create({
       model: "gpt-4o", // Best model for accuracy
       messages: [

@@ -1139,9 +1139,8 @@ export default function NewLabelPage() {
                   <ComplianceAuditReport
                     productName={
                       form.productName || 
-                      (typeof generatedLabel.productName === "string" 
-                        ? generatedLabel.productName 
-                        : generatedLabel.productName?.original || generatedLabel.productName?.translations?.fi || "Product")
+                      generatedLabel.productName || 
+                      "Product"
                     }
                     originCountry={form.originCountry || "Unknown"}
                     complianceResults={complianceResults}
