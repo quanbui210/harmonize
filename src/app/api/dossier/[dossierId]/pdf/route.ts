@@ -76,7 +76,7 @@ export async function GET(
     const filename = `dossier_${productName}_${dossierId.slice(0, 8)}.pdf`;
     const filenameEncoded = encodeURIComponent(filename);
 
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(pdfBuffer.toString(), {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${filename}"; filename*=UTF-8''${filenameEncoded}`,

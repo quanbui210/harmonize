@@ -29,8 +29,10 @@ export async function GET(
       return NextResponse.json({ error: "Label not found" }, { status: 404 });
     }
 
-    const labelData = label.labelData as any as EnhancedLabelData;
-    const productCategory = labelData?.productCategory || "food";
+    const labelData = label.labelData as any as EnhancedLabelData & {
+      productCategory?: string;
+    };
+    const productCategory = (labelData?.productCategory as string | undefined) || "food";
 
     // Generate HTML content
     const htmlContent = generateLabelHTML(labelData, productCategory);
@@ -97,7 +99,7 @@ export async function GET(
     const filename = `${sanitizedProductName}_label.pdf`;
     const filenameEncoded = encodeURIComponent(filename);
 
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(pdfBuffer.toString(), {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${filename}"; filename*=UTF-8''${filenameEncoded}`,

@@ -28,12 +28,13 @@ export async function GET(
       return NextResponse.json({ error: "Label not found" }, { status: 404 });
     }
 
-    const labelData = label.labelData as any as EnhancedLabelData;
-    const productCategory = labelData?.productCategory || "food";
+    const labelData = label.labelData as any as EnhancedLabelData & {
+      productCategory?: string;
+    };
+    const productCategory = (labelData?.productCategory as string | undefined) || "food";
 
     const htmlContent = generateLabelHTML(labelData, productCategory);
     
-    // Add print styles and auto-print script
     const printReadyHTML = `
 <!DOCTYPE html>
 <html lang="en">
