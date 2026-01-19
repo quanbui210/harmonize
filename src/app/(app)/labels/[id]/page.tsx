@@ -99,6 +99,7 @@ export default async function LabelDetailPage({ params }: LabelDetailPageProps) 
             labelData={labelData}
             productCategory={productCategory}
             productName={getProductName(labelData?.productName)}
+            labelId={id}
           />
         </CardContent>
       </Card>
