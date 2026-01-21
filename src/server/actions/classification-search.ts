@@ -101,7 +101,6 @@ async function searchLegalChunksForProduct(
     
     console.log(`[RAG] Vector search found ${chunks.length} chunks with similarity scores`);
     
-    // If no chunks found with embeddings, try fallback keyword search
     if (chunks.length === 0) {
       console.log("[RAG] No chunks with embeddings found, falling back to keyword search");
       const fallbackChunks = await prisma.legalSourceChunk.findMany({
@@ -162,74 +161,7 @@ async function searchLegalChunksForProduct(
   }));
 }
 
-/**
- * Extract CN codes directly from legal document chunks using RAG
- * The document has CN codes in table format like:
- *   CN code: 4202 21 00
- *   Description: ...
- * Or in table rows where code is at the start of the line
- */
-function extractCNCodesFromChunks(chunks: Array<{ sectionPath: string; excerpt: string; fullContent?: string }>): string[] {
-  const cnCodes: Set<string> = new Set();
-  
-  for (const chunk of chunks) {
-    const content = chunk.fullContent || chunk.excerpt;
-    
-    // Pattern 1: "CN code: 4202 21 00" or "4202 21 00" (with or without spaces/dots)
-    const pattern1 = /(?:CN\s+code|code)[:\s]*(\d{4}[\s\.]?\d{2}[\s\.]?\d{2})\b/gi;
-    const matches1 = content.matchAll(pattern1);
-    for (const match of matches1) {
-      const code = match[1].replace(/[\s\.]/g, "");
-      if (code.length === 8 && code !== "00000000") {
-        const chapter = parseInt(code.substring(0, 2), 10);
-        if (chapter >= 1 && chapter <= 97) {
-          cnCodes.add(code);
-        }
-      }
-    }
-    
-    // Pattern 2: Table format - code at start of line followed by description
-    // Example from document: "4202 21 00" or "8901 10 10" at line start
-    const lines = content.split(/\r?\n/);
-    for (const line of lines) {
-      // Match CN code at start of line (with optional whitespace, optional "CN code:" prefix)
-      // Format: "4202 21 00" or "42022100" or "CN code: 4202 21 00"
-      const lineMatch = line.match(/^(?:\s*CN\s+code[:\s]+)?(\d{4}[\s\.]?\d{2}[\s\.]?\d{2})\b/);
-      if (lineMatch) {
-        const code = lineMatch[1].replace(/[\s\.]/g, "");
-        if (code.length === 8 && code !== "00000000") {
-          const chapter = parseInt(code.substring(0, 2), 10);
-          if (chapter >= 1 && chapter <= 97) {
-            cnCodes.add(code);
-          }
-        }
-      }
-    }
-    
-    // Pattern 3: Any 8-digit code in the content (more permissive, but validate chapter)
-    const pattern3 = /\b(\d{4}[\s\.]?\d{2}[\s\.]?\d{2})\b/g;
-    const matches3 = content.matchAll(pattern3);
-    for (const match of matches3) {
-      const code = match[1].replace(/[\s\.]/g, "");
-      if (code.length === 8 && code !== "00000000") {
-        const chapter = parseInt(code.substring(0, 2), 10);
-        if (chapter >= 1 && chapter <= 97) {
-          cnCodes.add(code);
-        }
-      }
-    }
-  }
-  
-  // Return sorted by relevance (longer codes first, then by chapter)
-  return Array.from(cnCodes).sort((a, b) => {
-    // Prefer codes that are more specific (higher subheading digits)
-    const aSpecificity = parseInt(a.substring(4, 8), 10);
-    const bSpecificity = parseInt(b.substring(4, 8), 10);
-    if (bSpecificity !== aSpecificity) return bSpecificity - aSpecificity;
-    // Then by chapter
-    return parseInt(a.substring(0, 2), 10) - parseInt(b.substring(0, 2), 10);
-  });
-}
+
 import { requireAuthenticatedUser } from "@/lib/supabase/auth";
 import { getPrimaryMembership } from "@/server/queries/organizations";
 
@@ -312,9 +244,7 @@ export async function searchAndClassifyAction(input: {
       : undefined,
   };
 
-  // Use LLM knowledge directly (RAG search removed - was causing latency and most codes were rejected)
-  // The AI has sufficient training knowledge to classify products accurately
-  console.log(`[Classification] Using LLM knowledge directly (RAG search skipped for performance)`);
+ 
   const aiAnalysis = await openaiService.analyzeProduct(productAttributes, []);
   
   if (!aiAnalysis || !aiAnalysis.suggestedChapters || !Array.isArray(aiAnalysis.suggestedChapters)) {
