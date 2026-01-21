@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { generateDossierAction } from "@/server/actions/dossier";
-import { Loader2, FileText, Download, Eye } from "lucide-react";
+import { Loader2, FileText, Download, Eye, Printer } from "lucide-react";
 import type { Classification, Product, ClassificationSource, DutySummary, Dossier } from "@prisma/client";
 
 type Props = {
@@ -146,10 +146,21 @@ export function DossierGenerator({ classification, organizationId, userId }: Pro
                     const exportUrl = dossierUrl.replace("/preview", "/export");
                     window.open(exportUrl, "_blank");
                   }}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  <Printer className="mr-2 h-4 w-4" />
+                  Print
+                </Button>
+                <Button
+                  onClick={() => {
+                    const pdfUrl = dossierUrl.replace("/preview", "/pdf");
+                    window.open(pdfUrl, "_blank");
+                  }}
                   className="flex-1"
                 >
                   <Download className="mr-2 h-4 w-4" />
-                  Export PDF
+                  Download PDF
                 </Button>
               </div>
               {showPreview && (
