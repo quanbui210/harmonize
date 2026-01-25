@@ -74,11 +74,7 @@ export default async function DashboardPage() {
             {membership.organization.name}.
           </p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <Button className="bg-blue-600 text-white hover:bg-blue-700" asChild>
-            <Link href="/classify">+ New Classification</Link>
-          </Button>
-        </div>
+        
       </div>
 
       <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
@@ -104,7 +100,11 @@ export default async function DashboardPage() {
                 <path
                   className="text-blue-600"
                   strokeWidth="3.8"
-                  strokeDasharray={`${data.auditReadinessScore}, 100`}
+                  strokeDasharray={`${
+                    data.approvedCount + data.pendingCount === 0
+                      ? 0
+                      : data.auditReadinessScore
+                  }, 100`}
                   strokeLinecap="round"
                   stroke="currentColor"
                   fill="transparent"
@@ -118,7 +118,9 @@ export default async function DashboardPage() {
                   className="fill-slate-900 text-[0.6rem] font-semibold"
                   textAnchor="middle"
                 >
-                  {data.auditReadinessScore}%
+                  {data.approvedCount + data.pendingCount === 0
+                    ? "N/A"
+                    : `${data.auditReadinessScore}%`}
                 </text>
               </svg>
             </div>
@@ -129,9 +131,15 @@ export default async function DashboardPage() {
               <p className="text-sm text-muted-foreground">
                 Pending: {data.pendingCount}
               </p>
-              <Badge variant="secondary" className="mt-2">
-                High Trust
-              </Badge>
+              {data.approvedCount + data.pendingCount > 0 && (
+                <Badge variant="secondary" className="mt-2">
+                  {data.auditReadinessScore >= 90
+                    ? "High Trust"
+                    : data.auditReadinessScore >= 50
+                    ? "Medium Risk"
+                    : "Action Needed"}
+                </Badge>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -171,7 +179,7 @@ export default async function DashboardPage() {
             <div className="space-y-4 md:hidden">
               {data.actionItems.length === 0 && (
                 <p className="text-center text-sm text-muted-foreground py-8">
-                  All classifications are covered. Great job.
+                  No classifications yet. Start by classifying a product.
                 </p>
               )}
               {data.actionItems.map((item: any) => (
@@ -261,8 +269,8 @@ export default async function DashboardPage() {
                 <TableBody>
                   {data.actionItems.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-sm">
-                        All classifications are covered. Great job.
+                      <TableCell colSpan={4} className="text-center text-sm py-8">
+                        No classifications yet. Start by classifying a product.
                       </TableCell>
                     </TableRow>
                   )}

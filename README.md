@@ -1,4 +1,4 @@
-# HarmonizeAI
+# TulliCheck
 
 Foundational codebase for an AI-driven HTS classification suite that delivers the GRI Engine, Reasoning Dossier, Compliance Vault, and Duty Calculator.
 

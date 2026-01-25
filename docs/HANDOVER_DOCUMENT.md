@@ -1,4 +1,4 @@
-# HarmonizeAI - Complete Handover Document
+# TulliCheck - Complete Handover Document
 
 ## 📋 Table of Contents
 
@@ -22,7 +22,7 @@
 
 ## Project Overview
 
-**HarmonizeAI** is an AI-driven HTS (Harmonized Tariff Schedule) classification suite that helps businesses classify products for international trade, generate compliance documentation, and manage regulatory requirements. The platform provides:
+**TulliCheck** is an AI-driven HTS (Harmonized Tariff Schedule) classification suite that helps businesses classify products for international trade, generate compliance documentation, and manage regulatory requirements. The platform provides:
 
 - **AI-Powered Product Classification**: Automated HTS/CN code classification using EU GRI (General Rules of Interpretation) engine
 - **Defense Dossier Generation**: Automated generation of legal defense documents for customs audits

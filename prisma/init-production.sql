@@ -1,7 +1,7 @@
 -- ============================================
--- HarmonizeAI Production Database Setup
+-- TulliCheck Production Database Setup
 -- ============================================
--- This script sets up the complete database schema for HarmonizeAI
+-- This script sets up the complete database schema for TulliCheck
 -- Run this in your Supabase SQL Editor
 -- ============================================
 

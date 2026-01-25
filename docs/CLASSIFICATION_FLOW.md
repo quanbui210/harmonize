@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document explains the complete end-to-end flow of how HarmonizeAI classifies products and determines CN codes. Understanding this flow is essential for modifying prompting strategies and improving classification accuracy.
+This document explains the complete end-to-end flow of how TulliCheck classifies products and determines CN codes. Understanding this flow is essential for modifying prompting strategies and improving classification accuracy.
 
 ---
 

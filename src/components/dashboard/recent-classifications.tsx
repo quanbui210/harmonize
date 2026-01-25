@@ -47,7 +47,7 @@ export function RecentClassifications({ items }: Props) {
       <div className="space-y-4 md:hidden">
         {items.length === 0 && (
           <p className="text-center text-sm text-muted-foreground py-8">
-            All classifications are covered. Great job.
+            No classifications yet. Start by classifying a product.
           </p>
         )}
         {displayItems.map((item) => (

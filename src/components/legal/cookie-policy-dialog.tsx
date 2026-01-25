@@ -39,7 +39,7 @@ export function CookiePolicyDialog({ open, onOpenChange }: CookiePolicyDialogPro
           <div>
             <h3 className="text-lg font-semibold mb-2">How We Use Cookies</h3>
             <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-              HarmonizeAI uses cookies for the following purposes:
+              TulliCheck uses cookies for the following purposes:
             </p>
             
             <div className="space-y-4">

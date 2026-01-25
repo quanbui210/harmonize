@@ -90,7 +90,7 @@ export function Sidebar({ organizationName, organizationLogoUrl }: SidebarProps)
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-serif font-bold tracking-tight">
-            Harmonize<span className="text-primary">AI</span>
+            Tulli<span className="text-primary">Check</span>
           </p>
           <div className="flex items-center gap-2">
             {organizationLogoUrl ? (
@@ -136,10 +136,12 @@ export function Sidebar({ organizationName, organizationLogoUrl }: SidebarProps)
           <div className="mt-3 space-y-2">
             <Button 
               className="w-full justify-start gap-2"
-              onClick={() => window.location.href = "/classify"}
+              asChild
             >
-              <Waypoints className="h-4 w-4" />
-              New Classification
+              <Link href="/classify">
+                <FlaskConical className="h-4 w-4" />
+                New Classification
+              </Link>
             </Button>
             <Button 
               variant="secondary" 

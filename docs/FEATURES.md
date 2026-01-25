@@ -1,8 +1,8 @@
-# HarmonizeAI - Complete Features Documentation
+# TulliCheck - Complete Features Documentation
 
 ## Overview
 
-HarmonizeAI is a comprehensive customs classification and compliance management platform designed to help businesses accurately classify products, manage shipments, and maintain audit-ready documentation for customs authorities.
+TulliCheck is a comprehensive customs classification and compliance management platform designed to help businesses accurately classify products, manage shipments, and maintain audit-ready documentation for customs authorities.
 
 ---
 

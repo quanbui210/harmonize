@@ -37,7 +37,7 @@ export function PrivacyPolicyDialog({ open, onOpenChange }: PrivacyPolicyDialogP
           <div>
             <h3 className="text-lg font-semibold mb-2">1. Introduction</h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              HarmonizeAI (&quot;we&quot;, &quot;our&quot;, &quot;us&quot;) provides an online platform that assists users in 
+              TulliCheck (&quot;we&quot;, &quot;our&quot;, &quot;us&quot;) provides an online platform that assists users in 
               understanding EU import classification and compliance requirements. We respect your privacy and 
               are committed to protecting personal data in accordance with the EU General Data Protection 
               Regulation (GDPR).
@@ -47,15 +47,15 @@ export function PrivacyPolicyDialog({ open, onOpenChange }: PrivacyPolicyDialogP
           <div>
             <h3 className="text-lg font-semibold mb-2">2. Data Controller</h3>
             <p className="text-sm text-muted-foreground leading-relaxed mb-2">
-              HarmonizeAI
+              TulliCheck
             </p>
             <p className="text-sm text-muted-foreground leading-relaxed">
               For privacy-related requests, please contact us at{" "}
               <a 
-                href="mailto:privacy@harmonizeai.com" 
+                href="mailto:privacy@tullicheck.com" 
                 className="text-primary hover:underline"
               >
-                privacy@harmonizeai.com
+                privacy@tullicheck.com
               </a>
             </p>
           </div>
@@ -195,10 +195,10 @@ export function PrivacyPolicyDialog({ open, onOpenChange }: PrivacyPolicyDialogP
             <p className="text-sm text-muted-foreground leading-relaxed">
               For privacy-related requests:{" "}
               <a 
-                href="mailto:privacy@harmonizeai.com" 
+                href="mailto:privacy@tullicheck.com" 
                 className="text-primary hover:underline"
               >
-                privacy@harmonizeai.com
+                privacy@tullicheck.com
               </a>
             </p>
           </div>

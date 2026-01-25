@@ -81,7 +81,7 @@ export function LandingContent({ user }: LandingContentProps) {
           <div className="flex items-center justify-between">
             <Link href="/" className="group transition-all duration-300 hover:opacity-80">
               <span className="text-2xl font-serif font-bold tracking-tight">
-                Harmonize<span className="text-primary">AI</span>
+                Tulli<span className="text-primary">Check</span>
               </span>
             </Link>
             <div className="hidden md:flex items-center gap-6">
@@ -194,7 +194,7 @@ export function LandingContent({ user }: LandingContentProps) {
                 Import with <span className="text-primary">EU Regulatory Confidence</span>
               </h1>
               <p className="text-base text-muted-foreground italic mb-4 leading-relaxed max-w-2xl">
-                HarmonizeAI helps you understand whether your product can be imported into the EU, how it should be classified, and what is required to do it correctly.
+                TulliCheck helps you understand whether your product can be imported into the EU, how it should be classified, and what is required to do it correctly.
               </p>
               <p className="text-base text-muted-foreground mb-8 leading-relaxed max-w-2xl">
                 We analyze your product against official EU customs data, tariff classifications, and regulatory guidance so you can avoid delays, fines, and rejected shipments before you ship.
@@ -283,7 +283,7 @@ export function LandingContent({ user }: LandingContentProps) {
                     AI-Assisted Classification
                   </h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    HarmonizeAI analyzes your product against EU Combined Nomenclature (CN), TARIC data, and official classification guidance. Each result includes clear reasoning and confidence indicators to reduce misclassification risk.
+                    TulliCheck analyzes your product against EU Combined Nomenclature (CN), TARIC data, and official classification guidance. Each result includes clear reasoning and confidence indicators to reduce misclassification risk.
                   </p>
                 </div>
               </div>
@@ -477,7 +477,7 @@ export function LandingContent({ user }: LandingContentProps) {
               Built on Official EU Regulatory Sources
             </h2>
             <p className="text-sm text-muted-foreground italic max-w-2xl">
-              HarmonizeAI relies exclusively on authoritative public data maintained by EU institutions and national authorities.
+              TulliCheck relies exclusively on authoritative public data maintained by EU institutions and national authorities.
             </p>
           </div>
         </ScrollAnimation>
@@ -645,7 +645,7 @@ export function LandingContent({ user }: LandingContentProps) {
         <ScrollAnimation>
           <div className="border-t border-border/50 pt-12">
             <p className="text-sm text-muted-foreground leading-relaxed text-center max-w-3xl mx-auto">
-              HarmonizeAI provides compliance support and decision assistance based on publicly available EU regulations and guidance. It does not replace customs authorities, Binding Tariff Information (BTI), or professional legal advice.
+              TulliCheck provides compliance support and decision assistance based on publicly available EU regulations and guidance. It does not replace customs authorities, Binding Tariff Information (BTI), or professional legal advice.
             </p>
           </div>
         </ScrollAnimation>
@@ -691,7 +691,7 @@ export function LandingContent({ user }: LandingContentProps) {
             </div>
           </div>
           <div className="border-t pt-8 flex flex-col sm:flex-row justify-between items-center text-sm text-muted-foreground">
-            <p>© 2024 HarmonizeAI Technologies Inc. All rights reserved.</p>
+            <p>© 2024 TulliCheck Technologies Inc. All rights reserved.</p>
             <div className="flex gap-6 mt-4 sm:mt-0">
               <button 
                 onClick={() => setPrivacyPolicyOpen(true)}

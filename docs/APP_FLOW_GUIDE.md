@@ -1,4 +1,4 @@
-# HarmonizeAI - Complete App Flow Guide
+# TulliCheck - Complete App Flow Guide
 
 ## 🎯 Main User Journeys
 
