@@ -304,7 +304,7 @@ export async function searchAndClassifyAction(input: {
         { value: "synthetic (polyester/nylon)", label: "Synthetic (polyester / nylon)" },
         { value: "wool", label: "Wool" },
         { value: "silk", label: "Silk" },
-        { value: "other", label: "Other / I’ll type it" },
+        { value: "other", label: "Other / I&apos;ll type it" },
       ],
       field: "compositionText",
     };
