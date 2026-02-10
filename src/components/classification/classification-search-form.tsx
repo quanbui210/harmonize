@@ -21,51 +21,7 @@ import { ImageUploadSection } from "./image-upload-section";
 import { ProductScanSection } from "./product-scan-section";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-type ClassificationResult = {
-  productId: string;
-  classificationId: string;
-  candidates: Array<{
-    htsCode: string;
-    cnCode: string;
-    confidence: number;
-    description: string;
-    dutyRate: number;
-    vatRate: number;
-    precedent?: string;
-    reasoning: string;
-    legalRationale?: string;
-    distinctions?: Array<{
-      heading: string;
-      reason: string;
-    }>;
-    keyFeatures?: string[];
-    griRule?: string;
-    notes?: string;
-    importGuidance?: {
-      importStatus: "ALLOWED" | "RESTRICTED" | "PROHIBITED";
-      importStatusMessage: string;
-      riskLevel: "LOW" | "MEDIUM" | "HIGH";
-      requiredDocuments: string[];
-      foodSafetyRisks?: Array<{
-        risk: string;
-        level: "LOW" | "MEDIUM" | "HIGH";
-        reason: string;
-      }>;
-      recommendedTests?: string[];
-      labellingRequirements?: string[];
-      borderControlLikelihood: "LOW" | "MEDIUM" | "HIGH";
-      borderControlReason?: string;
-      nextActions: string[];
-    };
-  }>;
-  refinementQuestion: {
-    question: string;
-    explanation: string;
-    options: Array<{ value: string; label: string }>;
-    field: string;
-  } | null;
-  needsRefinement: boolean;
-};
+type ClassificationResult = Awaited<ReturnType<typeof searchAndClassifyAction>>;
 
 type Props = {
   organizationId: string;
@@ -403,7 +359,14 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
         </CardContent>
       </Card>
 
-      {result?.refinementQuestion && result.refinementQuestion.question && (
+      {/* {result && !result.refinementQuestion && (
+        <div className="p-4 bg-gray-100 rounded text-xs font-mono">
+          <p>Debug: Result received but no refinement question.</p>
+          <pre>{JSON.stringify({ needsRefinement: result.needsRefinement }, null, 2)}</pre>
+        </div>
+      )} */}
+
+      {result?.refinementQuestion && (
         <Card className="border-blue-200 bg-blue-50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -441,7 +404,7 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
               )}
             </div>
 
-            {result.refinementQuestion.options.some((o) => o.value === "other") && (
+            {result.refinementQuestion.options?.some((o) => o.value === "other") && (
               <div className="space-y-2">
                 <Label htmlFor="refinementAnswer">If other, type details</Label>
                 <div className="flex gap-2">

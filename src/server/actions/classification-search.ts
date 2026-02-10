@@ -270,7 +270,29 @@ export async function searchAndClassifyAction(input: {
     input.materials,
   );
 
+  // Parse AI clarifying question if available
+  const aiRefinementQuestion = aiAnalysis.clarifyingQuestion ? {
+    question: aiAnalysis.clarifyingQuestion.question,
+    explanation: aiAnalysis.clarifyingQuestion.explanation,
+    options: (aiAnalysis.clarifyingQuestion.options || []).map(opt => {
+      if (typeof opt === "string") return { value: opt, label: opt };
+      if (opt && typeof opt === "object") {
+        return {
+          value: opt.value || opt.label || String(opt),
+          label: opt.label || opt.value || String(opt),
+        };
+      }
+      return { value: String(opt), label: String(opt) };
+    }).filter(opt => opt.value && opt.label),
+    field: "classification",
+  } : null;
+
   let refinementQuestion: RefinementQuestion | null = null;
+  
+  // Logic for selecting the best refinement question:
+  // 1. If it's a textile missing composition, FORCE the specific composition question (critical for duty rates)
+  // 2. If the AI provided a clarifying question in the analysis, use that (now handles missing info for all products)
+  // 3. If confidence is low and no question yet, generate one dynamically
   
   if (shouldAskComposition) {
     refinementQuestion = {
@@ -286,6 +308,8 @@ export async function searchAndClassifyAction(input: {
       ],
       field: "compositionText",
     };
+  } else if (aiRefinementQuestion) {
+    refinementQuestion = aiRefinementQuestion;
   } else if (needsChapterRefinement) {
     const topChapters = aiAnalysis.suggestedChapters.slice(0, 2);
     const question = await generateRefinementQuestion(
@@ -644,34 +668,14 @@ export async function searchAndClassifyAction(input: {
       },
   });
 
-  // Combine refinement question with clarifying question from AI
-  const combinedRefinementQuestion = refinementQuestion || (aiAnalysis.clarifyingQuestion ? {
-    question: aiAnalysis.clarifyingQuestion.question,
-    explanation: aiAnalysis.clarifyingQuestion.explanation,
-    options: (aiAnalysis.clarifyingQuestion.options || []).map(opt => {
-      // Handle different possible structures
-      if (typeof opt === "string") {
-        return { value: opt, label: opt };
-      }
-      if (opt && typeof opt === "object") {
-        return {
-          value: opt.value || opt.label || String(opt),
-          label: opt.label || opt.value || String(opt),
-        };
-      }
-      return { value: String(opt), label: String(opt) };
-    }).filter(opt => opt.value && opt.label), // Filter out any invalid options
-    field: "classification", // Default field for clarifying questions
-  } : null);
-
   // Debug: Log if question exists
-  if (combinedRefinementQuestion) {
+  if (refinementQuestion) {
     console.log("[Classification] Refinement question generated:", {
-      question: combinedRefinementQuestion.question,
-      explanation: combinedRefinementQuestion.explanation,
-      optionsCount: combinedRefinementQuestion.options?.length || 0,
-      options: combinedRefinementQuestion.options,
-      field: combinedRefinementQuestion.field,
+      question: refinementQuestion.question,
+      explanation: refinementQuestion.explanation,
+      optionsCount: refinementQuestion.options?.length || 0,
+      options: refinementQuestion.options,
+      field: refinementQuestion.field,
     });
   } else {
     console.log("[Classification] No refinement question generated");
@@ -681,8 +685,8 @@ export async function searchAndClassifyAction(input: {
     productId: product.id,
     classificationId: classification.id,
     candidates,
-    refinementQuestion: combinedRefinementQuestion,
-    needsRefinement: !!combinedRefinementQuestion,
+    refinementQuestion: refinementQuestion,
+    needsRefinement: !!refinementQuestion,
   };
 }
 

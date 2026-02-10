@@ -188,16 +188,16 @@ export function LandingContent({ user }: LandingContentProps) {
           <ScrollAnimation>
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                EU IMPORT COMPLIANCE
+                EU IMPORT COMPLIANCE SOLVED
               </p>
               <h1 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-3 leading-tight">
-                Import with <span className="text-primary">EU Regulatory Confidence</span>
+                Get Your Products <span className="text-primary">EU-Ready in Seconds</span>
               </h1>
-              <p className="text-base text-muted-foreground italic mb-4 leading-relaxed max-w-2xl">
-                TulliCheck helps you understand whether your product can be imported into the EU, how it should be classified, and what is required to do it correctly.
+              <p className="text-lg text-foreground/80 font-medium mb-4 leading-relaxed max-w-2xl">
+                Stop risking fines, delays, and rejected shipments.
               </p>
               <p className="text-base text-muted-foreground mb-8 leading-relaxed max-w-2xl">
-                We analyze your product against official EU customs data, tariff classifications, and regulatory guidance so you can avoid delays, fines, and rejected shipments before you ship.
+                Instantly classify products, generate compliant labels, and identify required documents using official EU customs data. No legal expertise required.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button 
@@ -240,10 +240,10 @@ export function LandingContent({ user }: LandingContentProps) {
           <ScrollAnimation>
             <div className="mb-16 text-center">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                THE EVOLUTION OF COMPLIANCE
+                THE VALUE EQUATION
               </p>
               <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-2">
-                From Import Risk to Import Clarity
+                Stop Guessing. Start Shipping.
               </h2>
             </div>
           </ScrollAnimation>
@@ -280,10 +280,10 @@ export function LandingContent({ user }: LandingContentProps) {
                 {/* Advantage Side */}
                 <div className="border-l-2 border-border pl-8 lg:pl-8">
                   <h3 className="text-lg font-serif font-semibold tracking-tight text-primary mb-2 group-hover/item:text-primary/90 transition-colors">
-                    AI-Assisted Classification
+                    Instant, Audit-Ready Classifications
                   </h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    TulliCheck analyzes your product against EU Combined Nomenclature (CN), TARIC data, and official classification guidance. Each result includes clear reasoning and confidence indicators to reduce misclassification risk.
+                    Get accurate CN/TARIC codes in seconds. Our AI analyzes official EU data to provide clear reasoning and confidence scores, giving you the certainty you need without the research time.
                   </p>
                 </div>
               </div>
@@ -305,10 +305,10 @@ export function LandingContent({ user }: LandingContentProps) {
                 {/* Advantage Side */}
                 <div className="border-l-2 border-border pl-8 lg:pl-8">
                   <h3 className="text-lg font-serif font-semibold tracking-tight text-primary mb-2 group-hover/item:text-primary/90 transition-colors">
-                    Document Requirement Guidance
+                    Know Exact Document Requirements
                   </h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    Automatically identify which documents may be required based on your product, origin, and EU regulations, including commercial invoices, certificates, and declarations.
+                    Eliminate the guesswork. Instantly see exactly which invoices, certificates, and declarations are required for your specific product and origin to clear customs smoothly.
                   </p>
                 </div>
               </div>
@@ -330,10 +330,10 @@ export function LandingContent({ user }: LandingContentProps) {
                 {/* Advantage Side */}
                 <div className="border-l-2 border-border pl-8 lg:pl-8">
                   <h3 className="text-lg font-serif font-semibold tracking-tight text-primary mb-2 group-hover/item:text-primary/90 transition-colors">
-                    EU-Compliant Label Generation
+                    One-Click Compliant Labels
                   </h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    Generate compliant bilingual (Finnish/Swedish) labels with ingredient lists, allergen disclosures, nutrition tables, and mandatory EU food labeling elements.
+                    Skip the design work. Generate fully compliant, bilingual (Finnish/Swedish) labels with all mandatory EU elements (allergens, nutrition, etc.) in a single click.
                   </p>
                 </div>
               </div>
@@ -355,10 +355,10 @@ export function LandingContent({ user }: LandingContentProps) {
                 {/* Advantage Side */}
                 <div className="border-l-2 border-border pl-8 lg:pl-8">
                   <h3 className="text-lg font-serif font-semibold tracking-tight text-primary mb-2 group-hover/item:text-primary/90 transition-colors">
-                    Continuous Monitoring
+                    Automated Regulatory Watchdog
                   </h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    Stay informed with alerts when EU tariff classifications or regulatory requirements change and may affect your products.
+                    Sleep soundly knowing we're watching the regulations for you. We automatically alert you if a tariff or requirement changes that impacts your specific products.
                   </p>
                 </div>
               </div>
