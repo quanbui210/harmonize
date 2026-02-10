@@ -4,23 +4,24 @@ import { getSupabaseServerClient } from "@/lib/supabase/server"
 import { LoginPageClient } from "@/components/login/login-page-client"
 
 function getAppUrl(): string {
-  // First try environment variable
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    return process.env.NEXT_PUBLIC_APP_URL
+  let url = process.env.NEXT_PUBLIC_APP_URL;
+
+  if (!url) {
+    // Fallback to request origin from headers
+    const headersList = headers();
+    const host = headersList.get("host");
+    const protocol = headersList.get("x-forwarded-proto") ||
+      (headersList.get("x-forwarded-ssl") === "on" ? "https" : "http");
+
+    if (host) {
+      url = `${protocol}://${host}`;
+    } else {
+      url = "http://localhost:3000";
+    }
   }
-  
-  // Fallback to request origin from headers
-  const headersList = headers()
-  const host = headersList.get("host")
-  const protocol = headersList.get("x-forwarded-proto") || 
-                   (headersList.get("x-forwarded-ssl") === "on" ? "https" : "http")
-  
-  if (host) {
-    return `${protocol}://${host}`
-  }
-  
-  // Last resort fallback (should not happen in production)
-  return "http://localhost:3000"
+
+  // Ensure no trailing slash
+  return url.replace(/\/$/, "");
 }
 
 async function signInWithGoogle(formData: FormData) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { uploadProductImageAction } from "@/server/actions/product-images";
 import { searchAndClassifyAction } from "@/server/actions/classification-search";
@@ -288,10 +289,12 @@ export function ProductScanSection({
               {images.map((image) => (
                 <div key={image.id} className="relative group">
                   <div className="relative aspect-square rounded-lg border-2 border-gray-200 bg-gray-50 overflow-hidden">
-                    <img
+                    <Image
                       src={image.preview}
                       alt="Product"
                       className="w-full h-full object-contain p-2"
+                      fill
+                      unoptimized
                     />
                     {image.isProcessing && (
                       <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
