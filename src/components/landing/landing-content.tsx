@@ -358,7 +358,7 @@ export function LandingContent({ user }: LandingContentProps) {
                     Automated Regulatory Watchdog
                   </h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    Sleep soundly knowing we're watching the regulations for you. We automatically alert you if a tariff or requirement changes that impacts your specific products.
+                    Sleep soundly knowing we&apos;re watching the regulations for you. We automatically alert you if a tariff or requirement changes that impacts your specific products.
                   </p>
                 </div>
               </div>
