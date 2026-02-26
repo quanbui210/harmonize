@@ -427,6 +427,25 @@ model BindingRuling {
   @@index([market, htsCode])
 }
 
+model BtiRuling {
+  id                String                 @id @default(uuid())
+  reference         String                 @unique // e.g., DE-BTI-2024-1234
+  country           String                 // e.g., 'FI', 'DE', 'NL'
+  hsCode            String                 // The 6, 8, or 10 digit nomenclature code
+  description       String                 // The technical description of the goods
+  justification     String?                // The legal reasoning (GRI rules used)
+  startDate         DateTime?              // Validity start
+  endDate           DateTime?              // Validity end
+  descriptionVector Unsupported("vector")? // AI Embedding of the description field
+  language          String                 @default("EN")
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@index([hsCode])
+  @@index([country])
+  @@index([startDate])
+}
+
 model DutyRate {
   id        String     @id @default(cuid())
   market    MarketCode
