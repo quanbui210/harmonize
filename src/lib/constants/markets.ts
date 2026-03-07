@@ -1,8 +1,12 @@
-export const marketCodes = ["US", "EU", "UK", "VN", "CA", "AU", "OTHER"] as const;
+export const marketCodes = ["US", "EU", "UK", "VN", "CA", "AU", "FI", "DE", "NL", "FR", "OTHER"] as const;
 
 export const marketOptions = [
-  { value: "US", label: "United States" },
+  { value: "FI", label: "Finland" },
   { value: "EU", label: "European Union" },
+  { value: "DE", label: "Germany" },
+  { value: "NL", label: "Netherlands" },
+  { value: "FR", label: "France" },
+  { value: "US", label: "United States" },
   { value: "UK", label: "United Kingdom" },
   { value: "VN", label: "Viet Nam" },
   { value: "CA", label: "Canada" },

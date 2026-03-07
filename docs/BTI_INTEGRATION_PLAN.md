@@ -75,7 +75,7 @@ When a user searches for "Running shoes with LED lights", we run a **Hybrid Sear
 - [ ] **Task 2.2**: Run the initial ingestion.
     -   Start with a sample (e.g., 10k records) to validate.
     -   Full ingestion of 1.2M records.
-
+ 
 ### Phase 3: UI Integration
 - [ ] **Task 3.1**: "Precedent Search" Component.
     -   A search bar specifically for looking up rulings.

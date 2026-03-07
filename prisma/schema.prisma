@@ -433,7 +433,12 @@ model BtiRuling {
   country           String                 // e.g., 'FI', 'DE', 'NL'
   hsCode            String                 // The 6, 8, or 10 digit nomenclature code
   description       String                 // The technical description of the goods
+  descriptionEn     String?                // Translated description (English)
+  titleEn           String?                // AI-generated short title (English)
   justification     String?                // The legal reasoning (GRI rules used)
+  justificationEn   String?                // Translated justification (English)
+  category          String?                // AI-assigned product category
+  keywords          String[]               // AI-extracted keywords
   startDate         DateTime?              // Validity start
   endDate           DateTime?              // Validity end
   descriptionVector Unsupported("vector")? // AI Embedding of the description field

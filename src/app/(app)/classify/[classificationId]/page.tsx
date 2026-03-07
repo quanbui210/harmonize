@@ -12,6 +12,7 @@ import { getRegulatoryProductType } from "@/lib/regulatory/product-type";
 import { DeleteClassificationButton } from "@/components/classification/delete-classification-button";
 import { ImportGuidanceSection } from "@/components/classification/import-guidance-section";
 import { AlternativeClassifications } from "@/components/classification/alternative-classifications";
+import { BtiDefenseCard } from "@/components/classification/bti-defense-card";
 import { ReactElement, JSXElementConstructor, ReactNode, ReactPortal, AwaitedReactNode, Key } from "react";
 
 type Props = {
@@ -430,6 +431,14 @@ export default async function ClassificationDetailPage({ params }: Props) {
           primaryCode={cnCode}
           primaryDutyRate={Number(classification.dutySummary?.dutyRate || 0)}
           primaryVatRate={Number(classification.dutySummary?.vatRate || 20)}
+        />
+      )}
+
+      {/* BTI Defense Card */}
+      {hasValidCode && (
+        <BtiDefenseCard 
+          hsCode={cnCode || htsCode} 
+          description={classification.product.description} 
         />
       )}
 

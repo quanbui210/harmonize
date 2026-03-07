@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -21,23 +21,25 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { BookOpenCheck, Search, FileText, Calendar, Hash } from "lucide-react";
 import { listRulingsAction } from "@/server/actions/rulings";
-import { MarketCode } from "@prisma/client";
+import Link from "next/link";
+
 function formatCNCode(cnCode: string): string {
   if (!cnCode || cnCode.length !== 8) return cnCode;
   return `${cnCode.substring(0, 4)} ${cnCode.substring(4, 6)} ${cnCode.substring(6, 8)}`;
 }
-import Link from "next/link";
 
 type Ruling = {
   id: string;
-  market: MarketCode;
+  market: string;
   reference: string;
   title: string;
   body: string;
+  isTranslated?: boolean;
+  category?: string | null;
   htsCode: string;
-  issuedAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
+  issuedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 type MarketOption = {
@@ -58,6 +60,14 @@ type Props = {
   };
 };
 
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Info } from "lucide-react";
+
 export function RulingsPageClient({
   initialRulings,
   total,
@@ -71,13 +81,19 @@ export function RulingsPageClient({
   const [isPending, startTransition] = useTransition();
   const [rulings, setRulings] = useState<Ruling[]>(initialRulings);
   const [search, setSearch] = useState(initialFilters.search || "");
-  const [market, setMarket] = useState(initialFilters.market || "all");
+  const [market, setMarket] = useState(initialFilters.market || "FI");
   const [htsCode, setHtsCode] = useState(initialFilters.htsCode || "");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleSearch = () => {
     startTransition(async () => {
       const params = new URLSearchParams();
-      if (market && market !== "all") params.set("market", market);
+      // Always set market if it's not empty, defaulting to FI logic is handled in initial state
+      if (market) params.set("market", market);
       if (htsCode) params.set("htsCode", htsCode);
       if (search) params.set("search", search);
       params.set("page", "1");
@@ -86,7 +102,7 @@ export function RulingsPageClient({
       
       // Reload data
       const result = await listRulingsAction({
-        market: market && market !== "all" ? (market as MarketCode) : undefined,
+        market: market || "FI",
         htsCode: htsCode || undefined,
         search: search || undefined,
         limit,
@@ -98,10 +114,37 @@ export function RulingsPageClient({
 
   const handleClear = () => {
     setSearch("");
-    setMarket("all");
+    setMarket("FI");
     setHtsCode("");
-    router.push("/rulings");
-    setRulings(initialRulings);
+    
+    startTransition(async () => {
+      router.push("/rulings?market=FI");
+      const result = await listRulingsAction({ 
+        market: "FI",
+        limit, 
+        offset: 0 
+      });
+      setRulings(result.rulings);
+    });
+  };
+
+  const handlePageChange = (newPage: number) => {
+    startTransition(async () => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("page", newPage.toString());
+      if (market) params.set("market", market);
+      
+      router.push(`/rulings?${params.toString()}`);
+      
+      const result = await listRulingsAction({
+        market: market || "FI",
+        htsCode: htsCode || undefined,
+        search: search || undefined,
+        limit,
+        offset: (newPage - 1) * limit,
+      });
+      setRulings(result.rulings);
+    });
   };
 
   const totalPages = Math.ceil(total / limit);
@@ -123,6 +166,48 @@ export function RulingsPageClient({
         </div>
       </div>
 
+      {/* Info Section */}
+      <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
+        <Accordion type="single" collapsible className="w-full">
+          <AccordionItem value="what-is-bti" className="border-b-0">
+            <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/50 rounded-lg">
+              <div className="flex items-center gap-2 text-blue-600">
+                <Info className="h-5 w-5" />
+                <span className="font-semibold">What is a Binding Tariff Information (BTI) ruling?</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-6 pb-4">
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p>
+                  A <strong>Binding Tariff Information (BTI)</strong> ruling is a written legal decision issued by EU customs authorities. It confirms the correct classification (CN/TARIC code) for a specific product.
+                </p>
+                <div className="grid md:grid-cols-2 gap-4 mt-2">
+                  <div className="bg-muted/30 p-3 rounded-md">
+                    <h4 className="font-medium text-foreground mb-1">It IS:</h4>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>A legal precedent for product classification.</li>
+                      <li>Binding on all EU customs administrations for 3 years.</li>
+                      <li>A way to ensure legal certainty for importers.</li>
+                    </ul>
+                  </div>
+                  <div className="bg-muted/30 p-3 rounded-md">
+                    <h4 className="font-medium text-foreground mb-1">It is NOT:</h4>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>A list of all products imported into the EU.</li>
+                      <li>An approval of product safety or quality.</li>
+                      <li>Binding for products that are not identical.</li>
+                    </ul>
+                  </div>
+                </div>
+                <p className="text-xs italic mt-2">
+                  Note: While a BTI is legally binding only for the holder, they are public records that provide authoritative guidance for classifying similar goods.
+                </p>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      </div>
+
       {/* Search and Filters */}
       <Card>
         <CardHeader>
@@ -136,12 +221,11 @@ export function RulingsPageClient({
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Market</label>
-                <Select value={market || "all"} onValueChange={(value) => setMarket(value === "all" ? "" : value)}>
+                <Select value={market || "FI"} onValueChange={(value) => setMarket(value)} disabled={isPending}>
                   <SelectTrigger>
-                    <SelectValue placeholder="All markets" />
+                    <SelectValue placeholder="Select market" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All markets</SelectItem>
                     {marketOptions.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
@@ -156,6 +240,7 @@ export function RulingsPageClient({
                   placeholder="e.g., 8806"
                   value={htsCode}
                   onChange={(e) => setHtsCode(e.target.value)}
+                  disabled={isPending}
                 />
               </div>
               <div className="space-y-2">
@@ -169,6 +254,7 @@ export function RulingsPageClient({
                       handleSearch();
                     }
                   }}
+                  disabled={isPending}
                 />
               </div>
             </div>
@@ -219,6 +305,16 @@ export function RulingsPageClient({
                         <div className="flex-1 space-y-2">
                           <div className="flex items-center gap-2">
                             <Badge variant="outline">{ruling.market}</Badge>
+                            {ruling.category && (
+                              <Badge variant="secondary" className="bg-slate-100 text-slate-800">
+                                {ruling.category}
+                              </Badge>
+                            )}
+                            {ruling.isTranslated && (
+                              <Badge variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200">
+                                Translated
+                              </Badge>
+                            )}
                             <span className="font-mono text-sm font-semibold text-blue-600">
                               {ruling.reference}
                             </span>
@@ -237,7 +333,7 @@ export function RulingsPageClient({
                               <div className="flex items-center gap-1">
                                 <Calendar className="h-4 w-4" />
                                 <span>
-                                  {new Date(ruling.issuedAt).toLocaleDateString()}
+                                  {mounted ? new Date(ruling.issuedAt).toLocaleDateString() : new Date(ruling.issuedAt).toISOString().split('T')[0]}
                                 </span>
                               </div>
                             )}
@@ -269,11 +365,7 @@ export function RulingsPageClient({
                       variant="outline"
                       size="sm"
                       disabled={currentPage === 1 || isPending}
-                      onClick={() => {
-                        const params = new URLSearchParams(searchParams.toString());
-                        params.set("page", String(currentPage - 1));
-                        router.push(`/rulings?${params.toString()}`);
-                      }}
+                      onClick={() => handlePageChange(currentPage - 1)}
                     >
                       Previous
                     </Button>
@@ -281,11 +373,7 @@ export function RulingsPageClient({
                       variant="outline"
                       size="sm"
                       disabled={currentPage === totalPages || isPending}
-                      onClick={() => {
-                        const params = new URLSearchParams(searchParams.toString());
-                        params.set("page", String(currentPage + 1));
-                        router.push(`/rulings?${params.toString()}`);
-                      }}
+                      onClick={() => handlePageChange(currentPage + 1)}
                     >
                       Next
                     </Button>

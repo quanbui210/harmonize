@@ -27,7 +27,7 @@ export default async function RulingsPage({ searchParams }: Props) {
   const offset = (page - 1) * limit;
 
   const { rulings, total } = await listRulingsAction({
-    market: searchParams.market as any,
+    market: (searchParams.market as any) || "FI", // Default to Finland
     htsCode: searchParams.htsCode,
     search: searchParams.search,
     limit,
@@ -42,7 +42,7 @@ export default async function RulingsPage({ searchParams }: Props) {
       limit={limit}
       marketOptions={[...marketOptions]}
       initialFilters={{
-        market: searchParams.market,
+        market: searchParams.market || "FI",
         htsCode: searchParams.htsCode,
         search: searchParams.search,
       }}

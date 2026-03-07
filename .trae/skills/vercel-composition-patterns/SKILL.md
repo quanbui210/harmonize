@@ -87,3 +87,5 @@ Each rule file contains:
 ## Full Compiled Document
 
 For the complete guide with all rules expanded: `AGENTS.md`
+$env:PROD_DATABASE_URL="postgresql://postgres.kqgjfojdcgjsmufpoyyo:buidamquan1@aws-1-eu-west-3.pooler.supabase.com:5432/postgres?pgbouncer=true"
+npx tsx scripts/migrate-bti-prod.ts

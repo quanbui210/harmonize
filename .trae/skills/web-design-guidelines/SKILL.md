@@ -37,3 +37,8 @@ When a user provides a file or pattern argument:
 4. Output findings using the format specified in the guidelines
 
 If no files specified, ask the user which files to review.
+
+
+
+$env:PROD_DATABASE_URL="postgresql://postgres.YOUR_PROD_REF:YOUR_PASSWORD@aws-0-eu-central-1.pooler.supabase.com:6543/postgres"
+npx tsx scripts/migrate-bti-prod.ts
