@@ -84,7 +84,7 @@ export function BtiDefenseCard({ hsCode, description, className }: BtiDefenseCar
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            While we couldn't find an exact match in our database of 1.2M rulings, you can search manually for broader precedents.
+            While we couldn&apos;t find an exact match in our database of 1.2M rulings, you can search manually for broader precedents.
           </p>
           <Button variant="link" className="px-0 mt-2" asChild>
             <Link href={`/rulings?htsCode=${hsCode.substring(0, 4)}`}>
@@ -138,7 +138,7 @@ export function BtiDefenseCard({ hsCode, description, className }: BtiDefenseCar
           </div>
           
           <div className="text-sm text-muted-foreground">
-            <p className="line-clamp-3 italic">"{bestMatch.description}"</p>
+            <p className="line-clamp-3 italic">&quot;{bestMatch.description}&quot;</p>
           </div>
 
           <div className="flex items-center gap-2 pt-2">
