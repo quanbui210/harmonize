@@ -94,7 +94,7 @@ OUTPUT REQUIREMENTS:
   * Primary recommendation (highest confidence)
   * 2-3 alternative codes with explanations
   * Trade-offs (duty rates, legal justification)
-  * Clarifying questions to help user choose (e.g., "Is mopping the primary function?")`;
+  * Clarifying questions to help user choose (e.g., "Is mopping the primary function?") OR to gather missing critical information (e.g., "What is the material composition?")`;
 
     const legalContext = "\nNote: Rely on standard GRI rules and Chapter Notes from Regulation (EU) 2021/1832. Use your training knowledge of the Combined Nomenclature. Be extra cautious and cite your sources.";
 
@@ -111,7 +111,7 @@ Provide your response in JSON format with:
 2. suggestedChapters (array of objects with: chapter, heading (optional), subheading (optional), cnCode (8-digit if you can determine it), reason, confidence 0-1, dutyRate (optional number - EU MFN duty rate if known), isPrimary (boolean - true for primary recommendation))
 3. classificationNotes (any special considerations, exclusions, or warnings)
 4. alternativeClassifications (optional array of objects with: cnCode, reason, confidence, dutyRate, tradeOffs - for ambiguous cases like robot vacuums 8508 vs 8509)
-5. clarifyingQuestion (optional object with: question, explanation, options - for ambiguous classifications that need user input)
+5. clarifyingQuestion (optional object with: question, explanation, options - for ambiguous classifications OR if critical info like materials/dimensions is missing)
 
 IMPORTANT: 
 - Try to provide specific CN codes (8-digit) when possible

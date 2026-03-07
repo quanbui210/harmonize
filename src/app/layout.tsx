@@ -19,7 +19,7 @@ const playfairDisplay = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "HarmonizeAI",
+  title: "TulliCheck",
   description:
     "Audit-ready HTS classification, duty modeling, and compliance vault.",
   metadataBase: new URL(

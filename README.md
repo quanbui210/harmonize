@@ -1,4 +1,4 @@
-# HarmonizeAI
+# TulliCheck
 
 Foundational codebase for an AI-driven HTS classification suite that delivers the GRI Engine, Reasoning Dossier, Compliance Vault, and Duty Calculator.
 
@@ -55,7 +55,8 @@ Quick summary:
 
 ## Documentation
 
-- **App Flow Guide:** [docs/APP_FLOW_GUIDE.md](./docs/APP_FLOW_GUIDE.md) - Complete user journey and navigation
+- **App Features & Flow:** [docs/FEATURES.md](./docs/FEATURES.md) - Complete guide to app features and navigation
+- **App Flow Guide:** [docs/APP_FLOW_GUIDE.md](./docs/APP_FLOW_GUIDE.md) - User journey examples
 - **Use Cases:** [docs/USE_CASES_EXPLAINED.md](./docs/USE_CASES_EXPLAINED.md) - When to use VAT, TARIC, EORI
 - **API Access:** [docs/API_ACCESS_GUIDE.md](./docs/API_ACCESS_GUIDE.md) - How to get API keys
 - **Supabase Setup:** [docs/SUPABASE_SETUP.md](./docs/SUPABASE_SETUP.md) - Storage and RLS configuration

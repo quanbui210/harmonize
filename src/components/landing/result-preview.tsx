@@ -157,7 +157,7 @@ export function ResultPreview() {
             </p>
             <div className="flex items-center justify-between gap-4">
               <p className="font-mono text-xs font-semibold tracking-tight">
-                H-AI_092384_VERIFIED
+                TC_092384_VERIFIED
               </p>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
                 <CheckCircle2 className="h-3 w-3" />

@@ -31,7 +31,7 @@ export function TermsOfServiceDialog({ open, onOpenChange }: TermsOfServiceDialo
           <div>
             <h3 className="text-lg font-semibold mb-2">1. Acceptance of Terms</h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              By accessing or using HarmonizeAI, you agree to these Terms of Service. If you do not agree, 
+              By accessing or using TulliCheck, you agree to these Terms of Service. If you do not agree, 
               do not use the service.
             </p>
           </div>
@@ -39,12 +39,12 @@ export function TermsOfServiceDialog({ open, onOpenChange }: TermsOfServiceDialo
           <div>
             <h3 className="text-lg font-semibold mb-2">2. Description of Service</h3>
             <p className="text-sm text-muted-foreground leading-relaxed mb-2">
-              HarmonizeAI provides AI-assisted tools to help users understand EU import classification, 
+              TulliCheck provides AI-assisted tools to help users understand EU import classification, 
               documentation, and labeling requirements based on publicly available regulatory information.
             </p>
             <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 mt-2">
               <p className="text-sm text-destructive font-medium">
-                ⚠️ HarmonizeAI does not provide legal advice and does not replace customs authorities or 
+                ⚠️ TulliCheck does not provide legal advice and does not replace customs authorities or 
                 Binding Tariff Information (BTI).
               </p>
             </div>
@@ -80,7 +80,7 @@ export function TermsOfServiceDialog({ open, onOpenChange }: TermsOfServiceDialo
           <div>
             <h3 className="text-lg font-semibold mb-2">5. Intellectual Property</h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              All platform content, software, and branding belong to HarmonizeAI. Users retain ownership 
+              All platform content, software, and branding belong to TulliCheck. Users retain ownership 
               of their uploaded data.
             </p>
           </div>
@@ -99,7 +99,7 @@ export function TermsOfServiceDialog({ open, onOpenChange }: TermsOfServiceDialo
               To the maximum extent permitted by law:
             </p>
             <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-              <li>HarmonizeAI is not liable for indirect, incidental, or consequential damages</li>
+              <li>TulliCheck is not liable for indirect, incidental, or consequential damages</li>
               <li>We are not responsible for customs decisions, delays, penalties, or enforcement actions</li>
             </ul>
           </div>
@@ -107,34 +107,20 @@ export function TermsOfServiceDialog({ open, onOpenChange }: TermsOfServiceDialo
           <div>
             <h3 className="text-lg font-semibold mb-2">8. Termination</h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              We may suspend or terminate access if these terms are violated. Users may stop using the 
-              service at any time.
+              We reserve the right to suspend or terminate accounts that violate these terms or misuse the 
+              service.
             </p>
           </div>
 
-          <div>
-            <h3 className="text-lg font-semibold mb-2">9. Governing Law</h3>
+          <div className="pt-4 border-t">
+            <h3 className="text-lg font-semibold mb-2">Contact Us</h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              These terms are governed by the laws of Finland / European Union.
-            </p>
-          </div>
-
-          <div>
-            <h3 className="text-lg font-semibold mb-2">10. Changes to Terms</h3>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              We may update these terms. Continued use constitutes acceptance of the updated terms.
-            </p>
-          </div>
-
-          <div>
-            <h3 className="text-lg font-semibold mb-2">11. Contact</h3>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              For questions about these terms:{" "}
+              For any questions regarding these Terms of Service, please contact us at{" "}
               <a 
-                href="mailto:support@harmonizeai.com" 
+                href="mailto:support@tullicheck.com" 
                 className="text-primary hover:underline"
               >
-                support@harmonizeai.com
+                support@tullicheck.com
               </a>
             </p>
           </div>

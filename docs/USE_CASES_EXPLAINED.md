@@ -1,4 +1,4 @@
-# HarmonizeAI Use Cases: VAT, TARIC, and EORI Explained
+# TulliCheck Use Cases: VAT, TARIC, and EORI Explained
 
 ## Real-World Scenarios for Importers & Exporters
 
@@ -15,7 +15,7 @@
 - EU customs needs to know the **HTS/CN code** to calculate duties
 - You need to provide correct classification on shipping documents
 
-**What HarmonizeAI does:**
+**What TulliCheck does:**
 1. You input: "Wireless Bluetooth headphones with lithium battery"
 2. AI classifies: `CN Code 8518.30.00` (Headphones, earphones)
 3. TARIC provides: **Duty rate: 0%** (Free for this category)
@@ -32,7 +32,7 @@
 - Your EU customer (or their customs broker) needs an EORI number to clear customs
 - If you're shipping directly to EU consumers, you may need your own EORI
 
-**What HarmonizeAI does:**
+**What TulliCheck does:**
 - Validates your customer's EORI number before shipping
 - Ensures customs clearance won't be delayed due to invalid EORI
 
@@ -69,7 +69,7 @@
 - **For customs declaration**: You must provide correct CN code
 - **For duty calculation**: Customs calculates duties based on CN code
 
-**What HarmonizeAI does:**
+**What TulliCheck does:**
 1. You classify: "Electric water kettle, 1.7L, stainless steel"
 2. AI determines: `CN Code 8516.79.70` (Electric kettles)
 3. TARIC shows: **Duty rate: 0%** (Free for this category)
@@ -159,7 +159,7 @@
 
 ---
 
-## How HarmonizeAI Helps in Each Scenario
+## How TulliCheck Helps in Each Scenario
 
 ### For Vietnam Seller → EU Buyer:
 
@@ -208,7 +208,7 @@ Looking at your Amazon invoice:
 3. ✅ Amazon EU's VAT number `LU20260743` is valid
 4. ✅ You paid correct amount: €21.08 (€16.80 + €4.28 VAT)
 
-**If HarmonizeAI was used:**
+**If TulliCheck was used:**
 - You'd have a Defense Dossier proving the classification
 - You'd have validated Amazon's VAT number
 - All stored in Compliance Vault for audit protection
@@ -221,7 +221,7 @@ Looking at your Amazon invoice:
 2. **EORI**: Always needed for imports/exports with non-EU countries
 3. **VAT**: Needed for B2B transactions to verify reverse charge eligibility
 
-**HarmonizeAI's value:**
+**TulliCheck's value:**
 - ✅ Prevents classification errors (saves money on duties)
 - ✅ Validates business partners (prevents fraud)
 - ✅ Creates audit trail (protects you from penalties)

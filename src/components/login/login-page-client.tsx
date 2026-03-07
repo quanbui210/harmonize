@@ -82,7 +82,7 @@ export function LoginPageClient({ redirectTo, signInAction }: LoginPageClientPro
           <div className="flex items-center justify-between">
             <Link href="/" className="group transition-all duration-300 hover:opacity-80">
               <span className="text-2xl font-serif font-bold tracking-tight">
-                Harmonize<span className="text-primary">AI</span>
+                Tulli<span className="text-primary">Check</span>
               </span>
             </Link>
             <div className="hidden md:flex items-center gap-6">
@@ -118,7 +118,7 @@ export function LoginPageClient({ redirectTo, signInAction }: LoginPageClientPro
                 Welcome Back
               </p>
               <h1 className="text-3xl font-serif font-bold tracking-tight">
-                Sign in to <span className="text-primary">HarmonizeAI</span>
+                Sign in to <span className="text-primary">TulliCheck</span>
               </h1>
             </div>
           </div>

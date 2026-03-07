@@ -1,6 +1,6 @@
 # Authentication Flow Documentation
 
-This document provides a comprehensive overview of the authentication system in HarmonizeAI, detailing the step-by-step flow, key components, and implementation details.
+This document provides a comprehensive overview of the authentication system in TulliCheck, detailing the step-by-step flow, key components, and implementation details.
 
 ## Table of Contents
 
@@ -17,7 +17,7 @@ This document provides a comprehensive overview of the authentication system in 
 
 ## Overview
 
-HarmonizeAI uses **Supabase Authentication** with **Google OAuth** as the primary authentication provider. The application is built on **Next.js 14+** with the App Router, utilizing Server Components, Server Actions, and middleware for authentication handling.
+TulliCheck uses **Supabase Authentication** with **Google OAuth** as the primary authentication provider. The application is built on **Next.js 14+** with the App Router, utilizing Server Components, Server Actions, and middleware for authentication handling.
 
 ### JWT Tokens: Yes, But Abstracted
 

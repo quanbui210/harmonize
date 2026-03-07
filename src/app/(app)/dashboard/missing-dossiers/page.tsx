@@ -59,6 +59,13 @@ export default async function MissingDossiersPage() {
     },
   });
 
+  // Check total classifications to distinguish empty state
+  const totalClassifications = await prisma.classification.count({
+    where: {
+      organizationId: membership.organizationId,
+    },
+  });
+
   return (
     <div className="container mx-auto max-w-7xl space-y-8 py-8">
       {/* Header */}
@@ -106,12 +113,21 @@ export default async function MissingDossiersPage() {
               {classifications.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center text-sm py-8">
-                    <div className="space-y-2">
-                      <p className="font-medium">All classifications are covered!</p>
-                      <p className="text-muted-foreground">
-                        Great job. All your products have defense dossiers.
-                      </p>
-                    </div>
+                    {totalClassifications === 0 ? (
+                      <div className="space-y-2">
+                        <p className="font-medium">No classifications yet</p>
+                        <p className="text-muted-foreground">
+                          Start by classifying a product from the dashboard.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="font-medium">All classifications are covered!</p>
+                        <p className="text-muted-foreground">
+                          Great job. All your products have defense dossiers.
+                        </p>
+                      </div>
+                    )}
                   </TableCell>
                 </TableRow>
               )}

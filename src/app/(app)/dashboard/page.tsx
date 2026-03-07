@@ -74,11 +74,7 @@ export default async function DashboardPage() {
             {membership.organization.name}.
           </p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <Button className="bg-blue-600 text-white hover:bg-blue-700" asChild>
-            <Link href="/classify">+ New Classification</Link>
-          </Button>
-        </div>
+        
       </div>
 
       <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
@@ -104,7 +100,11 @@ export default async function DashboardPage() {
                 <path
                   className="text-blue-600"
                   strokeWidth="3.8"
-                  strokeDasharray={`${data.auditReadinessScore}, 100`}
+                  strokeDasharray={`${
+                    data.approvedCount + data.pendingCount === 0
+                      ? 0
+                      : data.auditReadinessScore
+                  }, 100`}
                   strokeLinecap="round"
                   stroke="currentColor"
                   fill="transparent"
@@ -118,7 +118,9 @@ export default async function DashboardPage() {
                   className="fill-slate-900 text-[0.6rem] font-semibold"
                   textAnchor="middle"
                 >
-                  {data.auditReadinessScore}%
+                  {data.approvedCount + data.pendingCount === 0
+                    ? "N/A"
+                    : `${data.auditReadinessScore}%`}
                 </text>
               </svg>
             </div>
@@ -129,9 +131,15 @@ export default async function DashboardPage() {
               <p className="text-sm text-muted-foreground">
                 Pending: {data.pendingCount}
               </p>
-              <Badge variant="secondary" className="mt-2">
-                High Trust
-              </Badge>
+              {data.approvedCount + data.pendingCount > 0 && (
+                <Badge variant="secondary" className="mt-2">
+                  {data.auditReadinessScore >= 90
+                    ? "High Trust"
+                    : data.auditReadinessScore >= 50
+                    ? "Medium Risk"
+                    : "Action Needed"}
+                </Badge>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -167,74 +175,68 @@ export default async function DashboardPage() {
             </Button>
           </CardHeader>
           <CardContent className="flex-1">
-            {/* Mobile/Tablet: Card Layout */}
-            <div className="space-y-4 md:hidden">
+            {/* Mobile/Tablet/Laptop: Card Layout */}
+            <div className="space-y-4 xl:hidden">
               {data.actionItems.length === 0 && (
                 <p className="text-center text-sm text-muted-foreground py-8">
-                  All classifications are covered. Great job.
+                  No classifications yet. Start by classifying a product.
                 </p>
               )}
               {data.actionItems.map((item: any) => (
                 <div
                   key={item.id}
-                  className="block rounded-lg border p-4 hover:bg-muted/50 transition-colors"
+                  className="block rounded-lg border p-3 hover:bg-muted/50 transition-colors"
                 >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <Link href={`/classify/${item.id}`} className="flex-1 min-w-0">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <p className="font-medium text-sm leading-tight cursor-help">
-                                {item.product?.name ?? "Untitled Product"}
-                              </p>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="max-w-xs">{item.product?.name ?? "Untitled Product"}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </Link>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="shrink-0">
-                              {item.dossier ? (
-                                <Check className="h-5 w-5 text-green-600" />
-                              ) : (
-                                <X className="h-5 w-5 text-muted-foreground" />
-                              )}
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{item.dossier ? "Dossier Ready" : "No Dossier"}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <Link href={`/classify/${item.id}`} className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">
+                        {item.product?.name ?? "Untitled Product"}
+                      </p>
+                    </Link>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="shrink-0 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-50 border text-xs font-medium">
+                            {item.dossier ? (
+                              <>
+                                <Check className="h-3.5 w-3.5 text-green-600" />
+                                <span className="text-green-700">Ready</span>
+                              </>
+                            ) : (
+                              <>
+                                <X className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span className="text-muted-foreground">Pending</span>
+                              </>
+                            )}
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>{item.dossier ? "Dossier generated" : "Missing dossier"}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  
+                  <div className="flex items-center justify-between gap-2">
                     <Link href={`/classify/${item.id}`} className="block">
                       {item.htsCode && item.htsCode !== "0000000000" ? (
-                        <CodeDisplay
-                          cnCode={item.htsCode.substring(0, 8)}
-                          hsCode={(item as any).hsCode || item.htsCode.substring(0, 6)}
-                          htsCode={item.htsCode}
-                        />
+                        <div className="font-mono text-xs bg-slate-100 px-2 py-1 rounded text-slate-700">
+                          {formatCNCode(item.htsCode.substring(0, 8))}
+                        </div>
                       ) : (
-                        <span className="text-sm text-muted-foreground">Pending classification</span>
+                        <span className="text-xs text-muted-foreground italic">Pending code</span>
                       )}
                     </Link>
-                    <div className="flex items-center gap-2 pt-2">
+                    
+                    <div className="flex items-center gap-2">
                       <Button 
-                        variant="outline" 
+                        variant="ghost" 
                         size="sm"
-                        className="flex-1"
+                        className="h-7 text-xs px-2 hover:bg-blue-50 hover:text-blue-600"
                         asChild
                       >
-                        <Link href={item.dossier 
-                          ? `/classify/${item.id}/dossier` 
-                          : `/classify/${item.id}`}
-                        >
-                          {item.dossier ? "View Dossier" : "View"}
+                        <Link href={`/classify/${item.id}`}>
+                          View
                         </Link>
                       </Button>
                       <DeleteClassificationButton
@@ -247,8 +249,8 @@ export default async function DashboardPage() {
               ))}
             </div>
 
-            {/* Desktop: Table Layout */}
-            <div className="hidden md:block overflow-x-auto">
+            {/* Desktop (Large Screens): Table Layout */}
+            <div className="hidden xl:block overflow-x-auto">
               <Table>
                 <TableHeader>
                     <TableRow>
@@ -261,8 +263,8 @@ export default async function DashboardPage() {
                 <TableBody>
                   {data.actionItems.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-sm">
-                        All classifications are covered. Great job.
+                      <TableCell colSpan={4} className="text-center text-sm py-8">
+                        No classifications yet. Start by classifying a product.
                       </TableCell>
                     </TableRow>
                   )}

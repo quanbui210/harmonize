@@ -65,7 +65,7 @@ export async function ensureUserWorkspace(user: User) {
   }
 
   const organizationName =
-    (profile.fullName ? `${profile.fullName.split(" ")[0]}'s Workspace` : "Harmonize Workspace")
+    (profile.fullName ? `${profile.fullName.split(" ")[0]}'s Workspace` : "TulliCheck Workspace")
   const organization = await createWorkspace(organizationName, profile.id)
 
   return prisma.membership.create({

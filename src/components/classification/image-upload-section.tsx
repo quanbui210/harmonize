@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { uploadProductImageAction } from "@/server/actions/product-images";
@@ -130,10 +131,13 @@ export function ImageUploadSection({
         {preview && (
           <div className="mt-3 space-y-3">
             <div className="relative">
-              <img
+              <Image
                 src={preview}
                 alt="Uploaded product label"
                 className="w-full max-h-48 object-contain rounded border bg-gray-50"
+                width={400}
+                height={192}
+                unoptimized
               />
               <Button
                 type="button"

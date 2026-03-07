@@ -100,7 +100,6 @@ export default async function ClassifyPage() {
                 <TableHead>Product</TableHead>
                 <TableHead>Code</TableHead>
                 <TableHead className="hidden lg:table-cell">Duty Rate</TableHead>
-                <TableHead className="hidden lg:table-cell">Confidence</TableHead>
                 <TableHead>Dossier</TableHead>
                 <TableHead className="hidden xl:table-cell">Legal Rationale</TableHead>
                 <TableHead className="text-right">Action</TableHead>
@@ -177,17 +176,6 @@ export default async function ClassifyPage() {
                         )}
                       </Link>
                     </TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      <Link href={`/classify/${item.id}`} className="block">
-                        {item.confidence ? (
-                          <Badge variant="outline">
-                            {Math.round(Number(item.confidence) * 100)}%
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </Link>
-                    </TableCell>
                     <TableCell>
                       <Link href={`/classify/${item.id}`} className="block">
                         {item.dossier ? (
@@ -218,12 +206,13 @@ export default async function ClassifyPage() {
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
                         <Button 
-                          variant="outline" 
+                          variant="ghost" 
                           size="sm"
+                          className="h-8 px-2"
                           asChild
                         >
                           <Link href={`/classify/${item.id}`}>
-                            View Details
+                            View
                           </Link>
                         </Button>
                         <DeleteClassificationButton

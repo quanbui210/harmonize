@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { generateLabelAction, exportLabelPDFAction, exportLabelSVGAction, saveLabelAction } from "@/server/actions/labels";
 import { analyzeLabelAction } from "@/server/actions/label-analysis";
 import { getClassificationsForLabelAction, getClassificationAction } from "@/server/actions/classifications";
@@ -102,6 +102,7 @@ export default function NewLabelPage() {
   }>>([]);
   const [isLoadingClassifications, setIsLoadingClassifications] = useState(false);
   
+  const router = useRouter();
   const searchParams = useSearchParams();
 
   // Load classifications and handle query param on mount
@@ -400,7 +401,7 @@ export default function NewLabelPage() {
       });
 
       // Redirect to view page or show success
-      window.location.href = `/labels/${labelId}`;
+      router.push(`/labels/${labelId}`);
     } catch (err: any) {
       setError(err?.message || "Failed to save label");
     } finally {

@@ -1,6 +1,6 @@
 # Production Deployment Guide
 
-Complete guide for deploying HarmonizeAI to production.
+Complete guide for deploying TulliCheck to production.
 
 ---
 

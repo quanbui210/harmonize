@@ -69,7 +69,7 @@ export function LoginClient({ redirectTo }: LoginClientProps) {
           <div className="flex items-center justify-between">
             <Link href="/" className="group transition-all duration-300 hover:opacity-80">
               <span className="text-2xl font-serif font-bold tracking-tight">
-                Harmonize<span className="text-primary">AI</span>
+                Tulli<span className="text-primary">Check</span>
               </span>
             </Link>
             <div className="hidden md:flex items-center gap-6">
@@ -105,7 +105,7 @@ export function LoginClient({ redirectTo }: LoginClientProps) {
                 Welcome Back
               </p>
               <h1 className="text-4xl md:text-5xl font-serif font-bold tracking-tight">
-                Sign in to <span className="text-primary">HarmonizeAI</span>
+                Sign in to <span className="text-primary">TulliCheck</span>
               </h1>
               <p className="text-base text-muted-foreground italic leading-relaxed">
                 Use your verified organization email to continue.
