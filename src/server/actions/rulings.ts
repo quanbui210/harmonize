@@ -167,6 +167,7 @@ export async function ingestRulingsAction(input: {
           title: ruling.title,
           body: ruling.body,
           htsCode: ruling.htsCode,
+          market: "EU",
           issuedAt: ruling.issuedAt,
           updatedAt: new Date(),
         },
@@ -175,6 +176,7 @@ export async function ingestRulingsAction(input: {
           title: ruling.title,
           body: ruling.body,
           htsCode: ruling.htsCode,
+          market: "EU",
           issuedAt: ruling.issuedAt,
         },
       });
