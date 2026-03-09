@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireAuthenticatedUser } from "@/lib/supabase/auth";
 import { getPrimaryMembership } from "@/server/queries/organizations";
-import { listRulingsAction } from "@/server/actions/rulings";
+import { listRulingsAction, getRulingCategoriesAction } from "@/server/actions/rulings";
 import { RulingsPageClient } from "@/components/rulings/rulings-page-client";
 import { marketOptions } from "@/lib/constants/markets";
 
@@ -10,6 +10,7 @@ type Props = {
     market?: string;
     htsCode?: string;
     search?: string;
+    category?: string;
     page?: string;
   };
 };
@@ -26,10 +27,14 @@ export default async function RulingsPage({ searchParams }: Props) {
   const limit = 50;
   const offset = (page - 1) * limit;
 
+  const market = (searchParams.market as any) || "FI";
+  const categories = market === "FI" ? await getRulingCategoriesAction(market) : [];
+
   const { rulings, total } = await listRulingsAction({
-    market: (searchParams.market as any) || "FI", // Default to Finland
+    market,
     htsCode: searchParams.htsCode,
     search: searchParams.search,
+    category: searchParams.category,
     limit,
     offset,
   });
@@ -41,10 +46,12 @@ export default async function RulingsPage({ searchParams }: Props) {
       currentPage={page}
       limit={limit}
       marketOptions={[...marketOptions]}
+      categories={categories}
       initialFilters={{
-        market: searchParams.market || "FI",
+        market,
         htsCode: searchParams.htsCode,
         search: searchParams.search,
+        category: searchParams.category,
       }}
     />
   );

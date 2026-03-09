@@ -14,10 +14,8 @@ const CSV_FILE_PATH = path.resolve(
   "data/bti-reference/EBTI_FI.csv"
 );
 
-// Batch size for processing
 const BATCH_SIZE = 50;
 
-// Function to parse date (DD/MM/YYYY)
 function parseDate(dateStr: string): Date | null {
   if (!dateStr) return null;
   const parts = dateStr.split("/");

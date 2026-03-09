@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BookOpenCheck, Search, FileText, Calendar, Hash } from "lucide-react";
-import { listRulingsAction } from "@/server/actions/rulings";
+import { listRulingsAction, getRulingCategoriesAction } from "@/server/actions/rulings";
 import Link from "next/link";
 
 function formatCNCode(cnCode: string): string {
@@ -53,10 +53,12 @@ type Props = {
   currentPage: number;
   limit: number;
   marketOptions: { value: string; label: string }[];
+  categories?: string[];
   initialFilters: {
     market?: string;
     htsCode?: string;
     search?: string;
+    category?: string;
   };
 };
 
@@ -75,6 +77,7 @@ export function RulingsPageClient({
   limit,
   marketOptions,
   initialFilters,
+  categories = [],
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -82,12 +85,27 @@ export function RulingsPageClient({
   const [rulings, setRulings] = useState<Ruling[]>(initialRulings);
   const [search, setSearch] = useState(initialFilters.search || "");
   const [market, setMarket] = useState(initialFilters.market || "FI");
+  const [category, setCategory] = useState(initialFilters.category || "all");
   const [htsCode, setHtsCode] = useState(initialFilters.htsCode || "");
+  const [availableCategories, setAvailableCategories] = useState<string[]>(categories);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    setAvailableCategories(categories);
+  }, [categories]);
+
+  useEffect(() => {
+    if (market === "FI" && availableCategories.length === 0) {
+      startTransition(async () => {
+        const cats = await getRulingCategoriesAction("FI");
+        setAvailableCategories(cats);
+      });
+    }
+  }, [market, availableCategories.length]);
 
   const handleSearch = () => {
     startTransition(async () => {
@@ -96,6 +114,7 @@ export function RulingsPageClient({
       if (market) params.set("market", market);
       if (htsCode) params.set("htsCode", htsCode);
       if (search) params.set("search", search);
+      if (category && category !== "all") params.set("category", category);
       params.set("page", "1");
 
       router.push(`/rulings?${params.toString()}`);
@@ -105,6 +124,7 @@ export function RulingsPageClient({
         market: market || "FI",
         htsCode: htsCode || undefined,
         search: search || undefined,
+        category: category !== "all" ? category : undefined,
         limit,
         offset: 0,
       });
@@ -116,6 +136,7 @@ export function RulingsPageClient({
     setSearch("");
     setMarket("FI");
     setHtsCode("");
+    setCategory("all");
     
     startTransition(async () => {
       router.push("/rulings?market=FI");
@@ -133,6 +154,7 @@ export function RulingsPageClient({
       const params = new URLSearchParams(searchParams.toString());
       params.set("page", newPage.toString());
       if (market) params.set("market", market);
+      if (category && category !== "all") params.set("category", category);
       
       router.push(`/rulings?${params.toString()}`);
       
@@ -140,6 +162,7 @@ export function RulingsPageClient({
         market: market || "FI",
         htsCode: htsCode || undefined,
         search: search || undefined,
+        category: category !== "all" ? category : undefined,
         limit,
         offset: (newPage - 1) * limit,
       });
@@ -202,6 +225,17 @@ export function RulingsPageClient({
                 <p className="text-xs italic mt-2">
                   Note: While a BTI is legally binding only for the holder, they are public records that provide authoritative guidance for classifying similar goods.
                 </p>
+              <p className="text-xs text-muted-foreground">
+                Source: EU Binding Tariff Information (BTI) database.{" "}
+                <a
+                  href="https://ec.europa.eu/taxation_customs/dds2/ebti/ebti_home.jsp?Lang=en"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline hover:text-foreground"
+                >
+                  Official site
+                </a>
+              </p>
               </div>
             </AccordionContent>
           </AccordionItem>
@@ -214,14 +248,35 @@ export function RulingsPageClient({
           <CardTitle>Search Rulings</CardTitle>
           <CardDescription>
             Filter by market, HTS code, or search by reference, title, or content
+            <span className="block text-xs text-muted-foreground mt-1">
+              Data is sourced from the EU’s official Binding Tariff Information (BTI) records.{" "}
+              <a
+                href="https://ec.europa.eu/taxation_customs/dds2/ebti/ebti_home.jsp?Lang=en"
+                target="_blank"
+                rel="noreferrer"
+                className="underline hover:text-foreground"
+              >
+                Learn more
+              </a>
+              .
+            </span>
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className={`grid gap-4 ${market === "FI" && availableCategories.length > 0 ? "md:grid-cols-2 lg:grid-cols-4" : "md:grid-cols-3"}`}>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Market</label>
-                <Select value={market || "FI"} onValueChange={(value) => setMarket(value)} disabled={isPending}>
+                <Select 
+                  value={market || "FI"} 
+                  onValueChange={(value) => {
+                    setMarket(value);
+                    if (value !== "FI") {
+                      setCategory("all");
+                    }
+                  }} 
+                  disabled={isPending}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select market" />
                   </SelectTrigger>
@@ -234,6 +289,26 @@ export function RulingsPageClient({
                   </SelectContent>
                 </Select>
               </div>
+              
+              {market === "FI" && availableCategories.length > 0 && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Category</label>
+                  <Select value={category || "all"} onValueChange={(value) => setCategory(value)} disabled={isPending}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      {availableCategories.map((cat) => (
+                        <SelectItem key={cat} value={cat}>
+                          {cat}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <label className="text-sm font-medium">HTS Code</label>
                 <Input
@@ -387,4 +462,3 @@ export function RulingsPageClient({
     </div>
   );
 }
-

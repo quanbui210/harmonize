@@ -48,7 +48,6 @@ export default async function AppLayout({ children }: AppLayoutProps) {
     )
   }
 
-  // User has only one organization
   const membership = memberships[0]
   return (
     <AppShell user={user} organization={membership.organization} memberships={formattedMemberships}>

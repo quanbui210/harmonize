@@ -124,7 +124,7 @@ async function main() {
     console.log(`   Failed: ${result.failed}\n`);
 
     if (result.failed > 0) {
-      console.log("❌ Failed rulings:");
+      console.log("Failed rulings:");
       result.results
         .filter((r) => !r.success)
         .forEach((r) => {
@@ -134,19 +134,15 @@ async function main() {
 
     // Show summary
     const totalRulings = await prisma.bindingRuling.count();
-    console.log(`\n📊 Total rulings in database: ${totalRulings}`);
+    console.log(`\nTotal rulings in database: ${totalRulings}`);
     
     const byMarket = await prisma.bindingRuling.groupBy({
       by: ["market"],
       _count: true,
     });
     
-    console.log("\n📈 Rulings by market:");
-    byMarket.forEach(({ market, _count }) => {
-      console.log(`   ${market}: ${_count}`);
-    });
   } catch (error) {
-    console.error("❌ Error ingesting rulings:", error);
+    console.error(" Error ingesting rulings:", error);
     process.exit(1);
   } finally {
     await prisma.$disconnect();

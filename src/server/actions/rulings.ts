@@ -6,6 +6,7 @@ export async function listRulingsAction(input: {
   market?: string;
   htsCode?: string;
   search?: string;
+  category?: string;
   limit?: number;
   offset?: number;
 }) {
@@ -23,6 +24,10 @@ export async function listRulingsAction(input: {
   } else {
     // Default to FI if no market specified
     where.country = "FI";
+  }
+
+  if (input.category && input.category !== "all") {
+    where.category = input.category;
   }
 
   if (input.htsCode) {
@@ -196,5 +201,23 @@ export async function ingestRulingsAction(input: {
     failed: results.filter((r) => !r.success).length,
     results,
   };
+}
+
+export async function getRulingCategoriesAction(market: string = "FI") {
+  const categories = await prisma.btiRuling.findMany({
+    where: {
+      country: market,
+      category: { not: null },
+    },
+    select: {
+      category: true,
+    },
+    distinct: ["category"],
+  });
+
+  return categories
+    .map((c) => c.category)
+    .filter((c): c is string => !!c)
+    .sort();
 }
 
