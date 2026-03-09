@@ -48,7 +48,7 @@ export async function enrichPendingRulings(batchSize = 10, countryCode = "FI") {
         console.log(`Enriching ${ruling.reference}...`);
         
         const completion = await openai.chat.completions.create({
-          model: "gpt-4o-mini", 
+          model: "gpt-3.5-turbo", 
           messages: [
             {
               role: "system",
@@ -131,7 +131,7 @@ export async function fixJustificationsBatch(skip = 0, batchSize = 20, countryCo
       // or just re-process to be safe. Let's re-process to be safe.
       
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-3.5-turbo",
         messages: [
           {
             role: "system",
