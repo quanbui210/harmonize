@@ -3,9 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollAnimation } from "@/components/landing/scroll-animation";
 import { ResultPreview } from "@/components/landing/result-preview";
 import { LoadingScreen } from "@/components/ui/loading-screen";
@@ -13,21 +11,17 @@ import { CookiePolicyDialog } from "@/components/legal/cookie-policy-dialog";
 import { PrivacyPolicyDialog } from "@/components/legal/privacy-policy-dialog";
 import { TermsOfServiceDialog } from "@/components/legal/terms-of-service-dialog";
 import { 
-  FileText, 
   Shield, 
   Search, 
   Database, 
   CheckCircle2, 
-  BookOpen, 
   Scale,
-  Globe,
   Lock,
-  TrendingUp,
   FileCheck,
-  AlertCircle,
-  AlertTriangle,
-  Waypoints,
-  XCircle
+  FileText,
+  Users,
+  Truck,
+  ClipboardCheck
 } from "lucide-react";
 
 type UserData = {
@@ -40,6 +34,121 @@ type UserData = {
 type LandingContentProps = {
   user?: UserData;
 };
+
+const heroStats = [
+  { value: "70K+", label: "EU BTI rulings indexed" },
+  { value: "< 60s", label: "Average first classification" },
+  { value: "24/7", label: "Regulatory watch coverage" },
+];
+
+const platformPillars = [
+  {
+    title: "Classification Intelligence",
+    description: "Find defensible CN/TARIC codes with AI reasoning grounded in official EU sources and BTI precedent context.",
+    highlights: ["Image + text product intake", "Confidence indicators", "Alternative code candidates"],
+    icon: Search
+  },
+  {
+    title: "Compliance Operations",
+    description: "Move from one-off checks to a repeatable operating system covering labels, supplier docs, and risk changes.",
+    highlights: ["FI/SE label generation", "Supplier document vault", "Risk monitoring and alerts"],
+    icon: FileCheck
+  },
+  {
+    title: "Team-Ready Governance",
+    description: "Give compliance, operations, and management a shared source of truth with traceable decisions and evidence.",
+    highlights: ["Audit-ready decision records", "Organization roles and oversight", "Historical timeline and status"],
+    icon: FileText,
+  }
+];
+
+const workflowSteps = [
+  {
+    step: "01",
+    title: "Upload Product Data",
+    detail: "Add product image, materials, usage, and origin details to start a structured classification workflow.",
+    icon: Search
+  },
+  {
+    step: "02",
+    title: "Receive Classification",
+    detail: "Review top CN/TARIC candidates with rationale, confidence, and source-backed signals.",
+    icon: CheckCircle2
+  },
+  {
+    step: "03",
+    title: "Generate Defense Dossier",
+    detail: "Compile legal basis, references, and decision notes into a ready-to-share customs dossier.",
+    icon: FileText
+  },
+  {
+    step: "04",
+    title: "Generate EU Label",
+    detail: "Produce compliant FI/SE labels with required nutrition, allergen, and disclosure elements.",
+    icon: Scale
+  },
+  {
+    step: "05",
+    title: "Manage Organization Workspace",
+    detail: "Invite teammates, assign access, and monitor member activity across your compliance workflow.",
+    icon: Users
+  },
+  {
+    step: "06",
+    title: "Prepare Audit Package",
+    detail: "Export structured records to prove due diligence and defend classification choices.",
+    icon: ClipboardCheck
+  },
+  {
+    step: "07",
+    title: "Track Shipment Risk",
+    detail: "Monitor if regulatory shifts or document gaps could impact upcoming entries.",
+    icon: Truck
+  },
+  {
+    step: "08",
+    title: "Maintain Living Compliance",
+    detail: "Keep dossiers and labels current as rules, rulings, and product lines evolve.",
+    icon: Shield
+  }
+];
+
+const dataSourceLayers = [
+  {
+    name: "EU Combined Nomenclature (CN)",
+    description: "Primary tariff classification framework maintained by the European Commission."
+  },
+  {
+    name: "Binding Tariff Information (BTI) Rulings",
+    description: "Legally binding precedent decisions from EU customs authorities used for consistency checks."
+  },
+  {
+    name: "EU Court Decisions & Guidance",
+    description: "Interpretive legal context that clarifies ambiguous or disputed classification outcomes."
+  },
+  {
+    name: "National Authority Rules",
+    description: "Market-level compliance requirements, including food and labeling obligations."
+  }
+];
+
+const trustSignals = [
+  {
+    title: "Source Traceability",
+    description: "Every output links back to the governing basis used in the recommendation.",
+    icon: Database
+  },
+  {
+    title: "Always-Current Monitoring",
+    description: "Regulatory updates and newly published rulings can trigger proactive review paths.",
+    icon: Shield
+  },
+  {
+    title: "Audit-Ready Records",
+    description: "Classification rationale, document evidence, and timeline snapshots stay exportable.",
+    icon: Lock
+  }
+];
 
 export function LandingContent({ user }: LandingContentProps) {
   const [isNavigating, setIsNavigating] = useState(false);
@@ -74,9 +183,9 @@ export function LandingContent({ user }: LandingContentProps) {
     "U";
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pt-20">
       {/* Navigation */}
-      <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <nav className="fixed inset-x-0 top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto max-w-7xl px-6 py-4">
           <div className="flex items-center justify-between">
             <Link href="/" className="group transition-all duration-300 hover:opacity-80">
@@ -98,6 +207,18 @@ export function LandingContent({ user }: LandingContentProps) {
                 <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-foreground transition-all duration-300 group-hover:w-full"></span>
               </a>
               <a 
+                href="#workflow" 
+                className="text-sm text-muted-foreground hover:text-foreground transition-all duration-300 relative group"
+                onClick={(e) => {
+                  e.preventDefault();
+                  const element = document.getElementById("workflow");
+                  element?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+              >
+                Workflow
+                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-foreground transition-all duration-300 group-hover:w-full"></span>
+              </a>
+              <a 
                 href="#sources" 
                 className="text-sm text-muted-foreground hover:text-foreground transition-all duration-300 relative group"
                 onClick={(e) => {
@@ -110,15 +231,15 @@ export function LandingContent({ user }: LandingContentProps) {
                 <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-foreground transition-all duration-300 group-hover:w-full"></span>
               </a>
               <a 
-                href="#reliability" 
+                href="#sources" 
                 className="text-sm text-muted-foreground hover:text-foreground transition-all duration-300 relative group"
                 onClick={(e) => {
                   e.preventDefault();
-                  const element = document.getElementById("reliability");
+                  const element = document.getElementById("sources");
                   element?.scrollIntoView({ behavior: "smooth", block: "start" });
                 }}
               >
-                Reliability
+                Trust
                 <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-foreground transition-all duration-300 group-hover:w-full"></span>
               </a>
               {!user && (
@@ -220,9 +341,14 @@ export function LandingContent({ user }: LandingContentProps) {
                   Learn More
                 </Button>
               </div>
-              {/* <p className="text-xs text-muted-foreground mt-12 uppercase tracking-wider italic">
-                Trusted by 200+ Global Logistics Partners
-              </p> */}
+              <div className="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {heroStats.map((stat) => (
+                  <div key={stat.label} className="rounded-xl border border-border/60 bg-background/70 px-4 py-3 backdrop-blur">
+                    <p className="text-xl font-semibold tracking-tight">{stat.value}</p>
+                    <p className="text-xs text-muted-foreground">{stat.label}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </ScrollAnimation>
           
@@ -367,242 +493,125 @@ export function LandingContent({ user }: LandingContentProps) {
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="container mx-auto max-w-7xl px-6 py-20">
+      <section id="features" className="container mx-auto max-w-7xl scroll-mt-28 px-6 py-20">
         <ScrollAnimation>
-          <div className="mb-16">
+          <div className="mb-14">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
               PLATFORM
             </p>
             <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-3">
-              Everything You Need to Prepare for EU Import Compliance
+              One Operating System for EU Import Compliance
             </h2>
-            <p className="text-sm text-muted-foreground italic max-w-2xl">
-              A practical set of tools designed to help small and growing EU sellers reduce uncertainty and prepare compliant imports with confidence.
+            <p className="text-sm text-muted-foreground italic max-w-3xl">
+              Instead of disconnected tools, TulliCheck combines classification, documentation, labeling, and governance into one clear operating flow.
             </p>
           </div>
         </ScrollAnimation>
 
-        <div className="space-y-12">
-          <div className="stagger-fade-in group border-b border-border/30 pb-8 transition-all duration-500 ease-out hover:border-border/60 hover:pb-10 cursor-default" style={{ animationDelay: '0ms' }}>
-            <div className="flex items-start gap-6">
-              <div className="flex-shrink-0 transition-transform duration-500 ease-out group-hover:scale-110 group-hover:rotate-3">
-                <Search className="h-6 w-6 text-primary transition-all duration-500 group-hover:text-foreground" />
+        <div className="grid gap-6 md:grid-cols-3">
+          {platformPillars.map((pillar, index) => (
+            <ScrollAnimation key={pillar.title} delay={100 + index * 100}>
+              <div className="h-full rounded-2xl border border-border/40 bg-card p-6 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl hover:shadow-primary/5">
+                <div className="mb-4 inline-flex rounded-lg bg-primary/10 p-3 text-primary">
+                  <pillar.icon className="h-5 w-5" />
+                </div>
+                <h3 className="mb-2 text-xl font-serif font-semibold tracking-tight">{pillar.title}</h3>
+                <p className="mb-5 text-sm text-muted-foreground leading-relaxed">{pillar.description}</p>
+                <div className="space-y-2">
+                  {pillar.highlights.map((highlight) => (
+                    <div key={highlight} className="flex items-start gap-2">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 text-primary shrink-0" />
+                      <p className="text-sm text-muted-foreground">{highlight}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="flex-1">
-                <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                  Automated Product Classification
-                </h3>
-                <p className="text-base text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                  Upload product descriptions and images to receive AI-assisted CN/TARIC classification suggestions based on product characteristics and official EU guidance.
-                </p>
-              </div>
-            </div>
-          </div>
+            </ScrollAnimation>
+          ))}
+        </div>
+      </section>
 
-          <div className="stagger-fade-in group border-b border-border/30 pb-8 transition-all duration-500 ease-out hover:border-border/60 hover:pb-10 cursor-default" style={{ animationDelay: '150ms' }}>
-            <div className="flex items-start gap-6">
-              <div className="flex-shrink-0 transition-transform duration-500 ease-out group-hover:scale-110 group-hover:rotate-3">
-                <Shield className="h-6 w-6 text-primary transition-all duration-500 group-hover:text-foreground" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                  Risk Monitoring & Alerts
-                </h3>
-                <p className="text-base text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                  Monitor your products against regulatory updates, classification changes, and enforcement trends that may increase customs risk.
-                </p>
-              </div>
-            </div>
+      <section id="workflow" className="container mx-auto max-w-7xl scroll-mt-28 px-6 py-20">
+        <ScrollAnimation>
+          <div className="mb-14">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+              GUIDED WORKFLOW
+            </p>
+            <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-3">
+              From Product Intake to Audit Defense in One Guided Journey
+            </h2>
+            <p className="text-sm text-muted-foreground italic max-w-3xl">
+              A visual step-by-step process keeps teams aligned from initial product upload through classification, labels, organization management, and shipment risk tracking.
+            </p>
           </div>
+        </ScrollAnimation>
 
-          <div className="stagger-fade-in group border-b border-border/30 pb-8 transition-all duration-500 ease-out hover:border-border/60 hover:pb-10 cursor-default" style={{ animationDelay: '300ms' }}>
-            <div className="flex items-start gap-6">
-              <div className="flex-shrink-0 transition-transform duration-500 ease-out group-hover:scale-110 group-hover:rotate-3">
-                <FileCheck className="h-6 w-6 text-primary transition-all duration-500 group-hover:text-foreground" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                  Compliance Documentation Records
-                </h3>
-                <p className="text-base text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                  Maintain structured records explaining how classifications were determined, including referenced sources and timestamps, to demonstrate due diligence if questions arise.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="stagger-fade-in group border-b border-border/30 pb-8 transition-all duration-500 ease-out hover:border-border/60 hover:pb-10 cursor-default" style={{ animationDelay: '450ms' }}>
-            <div className="flex items-start gap-6">
-              <div className="flex-shrink-0 transition-transform duration-500 ease-out group-hover:scale-110 group-hover:rotate-3">
-                <Scale className="h-6 w-6 text-primary transition-all duration-500 group-hover:text-foreground" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                  Product Labeling for EU Markets
-                </h3>
-                <p className="text-base text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                  Create bilingual (FI/SE) labels with required EU food information, including ingredients, allergens, nutrition tables, and mandatory disclosures. Export-ready for print.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="stagger-fade-in group border-b border-border/30 pb-8 transition-all duration-500 ease-out hover:border-border/60 hover:pb-10 cursor-default" style={{ animationDelay: '600ms' }}>
-            <div className="flex items-start gap-6">
-              <div className="flex-shrink-0 transition-transform duration-500 ease-out group-hover:scale-110 group-hover:rotate-3">
-                <Lock className="h-6 w-6 text-primary transition-all duration-500 group-hover:text-foreground" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                  Compliance Vault
-                </h3>
-                <p className="text-base text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                  Request required compliance documents from suppliers with a simple, secure link. All documents are stored in an encrypted vault, ensuring your import documentation is organized, accessible, and protected for EU customs requirements.
-                </p>
-              </div>
-            </div>
+        <div className="relative">
+          <div className="pointer-events-none absolute left-0 right-0 top-4 hidden h-px bg-border lg:block" />
+          <div className="pointer-events-none absolute left-0 right-0 top-[calc(50%+20px)] hidden h-px bg-border lg:block" />
+          <div className="grid gap-x-6 gap-y-10 md:grid-cols-2 lg:grid-cols-4">
+            {workflowSteps.map((step, index) => (
+              <ScrollAnimation key={step.step} delay={80 + index * 60}>
+                <div className={`${index >= 4 ? "lg:pt-10" : ""}`}>
+                  <div className="mb-2 flex items-center gap-3">
+                    <span className="text-xs font-semibold text-primary tracking-[0.15em]">{step.step}</span>
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-primary/50 bg-background">
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                    </span>
+                    <step.icon className="h-4 w-4 text-primary/80" />
+                  </div>
+                  <h3 className="mb-1 text-lg font-serif font-semibold tracking-tight">{step.title}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{step.detail}</p>
+                </div>
+              </ScrollAnimation>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Data Sources Section */}
-      <section id="sources" className="container mx-auto max-w-7xl px-6 py-20">
+      <section id="sources" className="container mx-auto max-w-7xl scroll-mt-28 px-6 py-20">
         <ScrollAnimation>
-          <div className="mb-16">
+          <div className="mb-14">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-              DATA SOURCES
+              DATA SOURCES & TRUST
             </p>
             <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-3">
-              Built on Official EU Regulatory Sources
+              Authoritative Inputs, Transparent Outputs
             </h2>
-            <p className="text-sm text-muted-foreground italic max-w-2xl">
-              TulliCheck relies exclusively on authoritative public data maintained by EU institutions and national authorities.
+            <p className="text-sm text-muted-foreground italic max-w-3xl">
+              Every recommendation is built on public regulatory sources and presented with traceable evidence so teams can act confidently.
             </p>
           </div>
         </ScrollAnimation>
 
-        <div className="space-y-12">
+        <div className="grid gap-6 lg:grid-cols-2">
           <ScrollAnimation delay={100}>
-            <div className="group border-l-4 border-primary/20 pl-6 transition-all duration-500 ease-out hover:border-primary/60 hover:pl-8 hover:bg-muted/30 -ml-2 py-2 rounded-r-md cursor-default">
-              <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                EU Combined Nomenclature (CN)
-              </h3>
-              <p className="text-sm text-muted-foreground italic transition-colors duration-500 group-hover:text-foreground/80">
-                Official tariff classification system maintained by the European Commission
-              </p>
-            </div>
-          </ScrollAnimation>
-
-          <ScrollAnimation delay={200}>
-            <div className="group border-l-4 border-primary/20 pl-6 transition-all duration-500 ease-out hover:border-primary/60 hover:pl-8 hover:bg-muted/30 -ml-2 py-2 rounded-r-md cursor-default">
-              <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                Binding Tariff Information (BTI) Rulings
-              </h3>
-              <p className="text-sm text-muted-foreground italic transition-colors duration-500 group-hover:text-foreground/80">
-                Legally binding classification decisions issued by EU customs authorities
-              </p>
-            </div>
-          </ScrollAnimation>
-
-          <ScrollAnimation delay={300}>
-            <div className="group border-l-4 border-primary/20 pl-6 transition-all duration-500 ease-out hover:border-primary/60 hover:pl-8 hover:bg-muted/30 -ml-2 py-2 rounded-r-md cursor-default">
-              <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                EU Court Decisions & Classification Guidance
-              </h3>
-              <p className="text-sm text-muted-foreground italic transition-colors duration-500 group-hover:text-foreground/80">
-                Judicial interpretations and historical classification cases
-              </p>
-            </div>
-          </ScrollAnimation>
-
-          <ScrollAnimation delay={400}>
-            <div className="group border-l-4 border-primary/20 pl-6 transition-all duration-500 ease-out hover:border-primary/60 hover:pl-8 hover:bg-muted/30 -ml-2 py-2 rounded-r-md cursor-default">
-              <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                Finnish Food Authority (Ruokavirasto)
-              </h3>
-              <p className="text-sm text-muted-foreground italic transition-colors duration-500 group-hover:text-foreground/80">
-                <a 
-                  href="https://www.ruokavirasto.fi/en/foodstuffs/food-sector/instructions-and-legislation/#labelling" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline transition-all duration-300"
-                >
-                  Official food labeling regulations and requirements
-                </a>
-              </p>
-            </div>
-          </ScrollAnimation>
-        </div>
-      </section>
-
-      {/* Reliability Section */}
-      <section id="reliability" className="container mx-auto max-w-7xl px-6 py-20">
-        <ScrollAnimation>
-          <div className="mb-16">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-              RELIABILITY
-            </p>
-            <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-3">
-              Continuously Updated, Always Current
-            </h2>
-            <p className="text-sm text-muted-foreground italic max-w-2xl">
-              Classifications and requirements are continuously checked against new rulings, regulatory updates, and published guidance.
-            </p>
-          </div>
-        </ScrollAnimation>
-
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <ScrollAnimation delay={100}>
-            <div className="group border border-border/30 rounded-lg p-6 bg-background transition-all duration-500 ease-out hover:border-primary/60 hover:shadow-lg hover:shadow-primary/5 cursor-default">
-              <div className="flex flex-col items-start gap-4">
-                <div className="p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors duration-500">
-                  <Shield className="h-6 w-6 text-primary transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:text-primary">
-                    Real-Time Regulatory Updates
-                  </h3>
-                  <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                    Automatic monitoring of changes to CN codes, tariffs, and EU food regulations that may impact your products.
-                  </p>
-                </div>
+            <div className="rounded-2xl border border-border/40 bg-card p-6">
+              <h3 className="mb-5 text-xl font-serif font-semibold tracking-tight">Source Layers</h3>
+              <div className="space-y-4">
+                {dataSourceLayers.map((source) => (
+                  <div key={source.name} className="rounded-xl border border-border/40 bg-background px-4 py-3">
+                    <p className="text-sm font-semibold">{source.name}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{source.description}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </ScrollAnimation>
 
           <ScrollAnimation delay={200}>
-            <div className="group border border-border/30 rounded-lg p-6 bg-background transition-all duration-500 ease-out hover:border-primary/60 hover:shadow-lg hover:shadow-primary/5 cursor-default">
-              <div className="flex flex-col items-start gap-4">
-                <div className="p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors duration-500">
-                  <CheckCircle2 className="h-6 w-6 text-primary transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:text-primary">
-                    Confidence Indicators
-                  </h3>
-                  <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                    Each classification includes confidence signals based on data alignment, supporting guidance, and precedent strength.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </ScrollAnimation>
-
-          <ScrollAnimation delay={300}>
-            <div className="group border border-border/30 rounded-lg p-6 bg-background transition-all duration-500 ease-out hover:border-primary/60 hover:shadow-lg hover:shadow-primary/5 cursor-default md:col-span-2 lg:col-span-1">
-              <div className="flex flex-col items-start gap-4">
-                <div className="p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors duration-500">
-                  <Database className="h-6 w-6 text-primary transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:text-primary">
-                    Transparent Audit Trail
-                  </h3>
-                  <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                    Every decision is logged with sources, reasoning, and timestamps to support internal review and compliance checks.
-                  </p>
-                </div>
+            <div className="rounded-2xl border border-border/40 bg-card p-6">
+              <h3 className="mb-5 text-xl font-serif font-semibold tracking-tight">Trust Controls</h3>
+              <div className="space-y-4">
+                {trustSignals.map((signal) => (
+                  <div key={signal.title} className="rounded-xl border border-border/40 bg-background px-4 py-3">
+                    <div className="mb-2 inline-flex rounded-md bg-primary/10 p-2 text-primary">
+                      <signal.icon className="h-4 w-4" />
+                    </div>
+                    <p className="text-sm font-semibold">{signal.title}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{signal.description}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </ScrollAnimation>
@@ -669,15 +678,15 @@ export function LandingContent({ user }: LandingContentProps) {
               <h3 className="font-semibold mb-4 text-xs uppercase tracking-wider text-muted-foreground">Platform</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li><Link href="#features" className="hover:text-foreground transition-colors italic">HTS Classification</Link></li>
-                <li><Link href="#sources" className="hover:text-foreground transition-colors italic">Risk Monitoring</Link></li>
-                <li><Link href="#reliability" className="hover:text-foreground transition-colors italic">Audit Defense</Link></li>
+                <li><Link href="#workflow" className="hover:text-foreground transition-colors italic">Workflow Guidance</Link></li>
+                <li><Link href="#sources" className="hover:text-foreground transition-colors italic">Audit Defense</Link></li>
               </ul>
             </div>
             <div>
               <h3 className="font-semibold mb-4 text-xs uppercase tracking-wider text-muted-foreground">Resources</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li><Link href="#sources" className="hover:text-foreground transition-colors italic">Data Sources</Link></li>
-                <li><Link href="#reliability" className="hover:text-foreground transition-colors italic">Reliability</Link></li>
+                <li><Link href="#sources" className="hover:text-foreground transition-colors italic">Reliability</Link></li>
                 <li><Link href="/login?redirectTo=/dashboard" className="hover:text-foreground transition-colors italic">Documentation</Link></li>
               </ul>
             </div>
@@ -722,5 +731,3 @@ export function LandingContent({ user }: LandingContentProps) {
     </div>
   );
 }
-
-
