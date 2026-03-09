@@ -52,18 +52,23 @@ export async function enrichPendingRulings(batchSize = 10, countryCode = "FI") {
           messages: [
             {
               role: "system",
-              content: `Translate to English. Extract 3-5 keywords. Assign broad category (e.g. Textiles, Electronics, Food, Chemicals, Machinery, Other). Generate a short, descriptive title (max 10 words). JSON only.
+              content: `You are an expert customs classifier. Translate the following BTI ruling description and justification to English. 
+1. Translate 'description' and 'justification' fully and accurately, preserving legal references (e.g., regulations, nomenclature codes). Do not summarize the justification; translate the full legal reasoning.
+2. Extract 3-5 keywords. 
+3. Assign a broad category (e.g. Textiles, Electronics, Food, Chemicals, Machinery, Other). 
+4. Generate a short, descriptive title (max 10 words). 
+Output JSON only.
               { 
                 "titleEn": "Short descriptive title",
-                "descriptionEn": "...", 
-                "justificationEn": "...", 
-                "category": "...", 
-                "keywords": ["..."] 
+                "descriptionEn": "Full translation of description", 
+                "justificationEn": "Full translation of justification", 
+                "category": "Category", 
+                "keywords": ["keyword1", "keyword2"] 
               }`
             },
             {
               role: "user",
-              content: `DESC: ${ruling.description.substring(0, 1000)}\nJUST: ${ruling.justification?.substring(0, 500) || "N/A"}`
+              content: `DESC: ${ruling.description.substring(0, 4000)}\nJUST: ${ruling.justification?.substring(0, 4000) || "N/A"}`
             }
           ],
           response_format: { type: "json_object" },
@@ -101,4 +106,65 @@ export async function enrichPendingRulings(batchSize = 10, countryCode = "FI") {
 
   console.log(`Finished! Total enriched: ${processedCount}`);
   return processedCount;
+}
+
+export async function fixJustificationsBatch(skip = 0, batchSize = 20, countryCode = "FI") {
+  const rulings = await prisma.btiRuling.findMany({
+    where: {
+      country: countryCode,
+      titleEn: { not: null }, // Only process enriched ones
+    },
+    orderBy: { createdAt: 'desc' }, // Consistent ordering
+    skip: skip,
+    take: batchSize,
+  });
+
+  if (rulings.length === 0) return 0;
+
+  console.log(`Fixing justifications for batch of ${rulings.length} rulings (skip: ${skip})...`);
+
+  for (const ruling of rulings) {
+    if (!ruling.justification) continue;
+
+    try {
+      // Skip if justificationEn seems long enough compared to justification (heuristic)
+      // or just re-process to be safe. Let's re-process to be safe.
+      
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You are an expert customs classifier. Translate the following BTI ruling justification to English.
+1. Translate fully and accurately, preserving legal references. Do not summarize.
+Output JSON only.
+{ "justificationEn": "Full translation of justification" }`
+          },
+          {
+            role: "user",
+            content: `JUST: ${ruling.justification.substring(0, 4000)}`
+          }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.0,
+      });
+
+      const content = completion.choices[0].message.content;
+      if (!content) continue;
+
+      const result = JSON.parse(content);
+
+      await prisma.btiRuling.update({
+        where: { id: ruling.id },
+        data: {
+          justificationEn: result.justificationEn,
+        },
+      });
+
+    } catch (error) {
+      console.error(`Failed to fix justification for ${ruling.reference}:`, error);
+    }
+  }
+
+  return rulings.length;
 }

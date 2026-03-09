@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { uploadBtiCsvAction, triggerEnrichmentAction } from "@/server/actions/admin";
+import { uploadBtiCsvAction, triggerEnrichmentAction, fixJustificationsAction } from "@/server/actions/admin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,7 @@ import { ManualRulingForm } from "@/components/admin/manual-ruling-form";
 export default function AdminRulingsPage() {
   const [uploading, setUploading] = useState(false);
   const [enriching, setEnriching] = useState(false);
+  const [fixing, setFixing] = useState(false);
   const [enrichCount, setEnrichCount] = useState<number | null>(null);
 
   async function handleUpload(e: React.FormEvent<HTMLFormElement>) {
@@ -47,6 +48,22 @@ export default function AdminRulingsPage() {
       toast.error(error.message || "Enrichment failed");
     } finally {
       setEnriching(false);
+    }
+  }
+
+  async function handleFix() {
+    setFixing(true);
+    try {
+      const count = await fixJustificationsAction();
+      if (count > 0) {
+        toast.success(`Fixed ${count} rulings`);
+      } else {
+        toast.info("No rulings processed");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Fix failed");
+    } finally {
+      setFixing(false);
     }
   }
 
@@ -120,10 +137,18 @@ export default function AdminRulingsPage() {
             
             <div className="space-y-4">
               <div className="flex flex-col gap-4">
-                <Button onClick={handleEnrich} disabled={enriching} variant="secondary" className="w-full">
+                <Button onClick={handleEnrich} disabled={enriching || fixing} variant="secondary" className="w-full">
                   {enriching && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Trigger Enrichment Batch
                 </Button>
+                
+                <div className="pt-2 border-t">
+                  <p className="text-xs text-muted-foreground mb-2">Maintenance</p>
+                  <Button onClick={handleFix} disabled={fixing || enriching} variant="outline" className="w-full text-xs">
+                    {fixing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Fix Justifications (Latest 20)
+                  </Button>
+                </div>
                 {enrichCount !== null && (
                   <span className="text-sm text-center text-muted-foreground">
                     Last run: {enrichCount} enriched

@@ -3,7 +3,7 @@
 
 import { requireSystemAdmin } from "@/lib/auth/admin";
 import { ingestBtiCsv } from "@/lib/bti/ingestion";
-import { enrichPendingRulings } from "@/lib/bti/enrichment";
+import { enrichPendingRulings, fixJustificationsBatch } from "@/lib/bti/enrichment";
 import { prisma } from "@/lib/prisma";
 import { createFeatureOpenAIClient } from "@/lib/langfuse/openai-wrapper";
 
@@ -27,6 +27,13 @@ export async function triggerEnrichmentAction() {
   // Process a batch of 10
   const processedCount = await enrichPendingRulings(10);
   
+  return processedCount;
+}
+
+export async function fixJustificationsAction() {
+  await requireSystemAdmin();
+  // Fix the latest 20 rulings
+  const processedCount = await fixJustificationsBatch(0, 20);
   return processedCount;
 }
 

@@ -1,7 +1,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { PrismaClient } from "@prisma/client";
-
+ 
 const prisma = new PrismaClient();
 
 // Use Service Role Key to bypass RLS and manage users
