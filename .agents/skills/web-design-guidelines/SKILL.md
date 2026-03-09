@@ -37,8 +37,7 @@ When a user provides a file or pattern argument:
 4. Output findings using the format specified in the guidelines
 
 If no files specified, ask the user which files to review.
+$env:START_OFFSET="4200"; $env:PROD_DATABASE_URL="postgresql://postgres.kqgjfojdcgjsmufpoyyo:buidamquan1@aws-1-eu-west-3.pooler.supabase.com:5432/postgres?pgbouncer=true"; npx tsx scripts/migrate-bti-prod.ts
 
 
-
-$env:PROD_DATABASE_URL="postgresql://postgres.YOUR_PROD_REF:YOUR_PASSWORD@aws-0-eu-central-1.pooler.supabase.com:6543/postgres"
-npx tsx scripts/migrate-bti-prod.ts
+$env:NEXT_PUBLIC_SUPABASE_URL="https://kqgjfojdcgjsmufpoyyo.supabase.co"; $env:SUPABASE_SERVICE_ROLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxZ2pmb2pkY2dqc211ZnBveXlvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2ODU2MjU1OSwiZXhwIjoyMDg0MTM4NTU5fQ.zxzqFisfKqAIumxu-Z99GEf3Uwycna2dVje3m2ufmYs"; $env:DATABASE_URL="postgresql://postgres.kqgjfojdcgjsmufpoyyo:buidamquan1@aws-1-eu-west-3.pooler.supabase.com:5432/postgres?pgbouncer=true"; npx tsx scripts/seed-admin.ts

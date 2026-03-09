@@ -8,19 +8,33 @@ const prismaStaging = new PrismaClient();
 const prodUrl = process.env.PROD_DATABASE_URL;
 if (!prodUrl) {
   console.error("Error: PROD_DATABASE_URL environment variable is required.");
-  console.error("Usage: PROD_DATABASE_URL='postgresql://...' npx tsx scripts/migrate-bti-prod.ts");
+  console.log("Usage: PROD_DATABASE_URL='postgresql://...' npx tsx scripts/migrate-bti-prod.ts");
   process.exit(1);
 }
 
-const prismaProd = new PrismaClient({
-  datasources: {
-    db: {
-      url: prodUrl,
+// Mask password for logging
+const maskedUrl = prodUrl.replace(/:([^:@]+)@/, ":****@");
+  console.log(`Using Production DB URL: ${maskedUrl}`);
+  
+  const prismaProd = new PrismaClient({
+    datasources: {
+      db: {
+        url: prodUrl,
+      },
     },
-  },
-});
+  });
 
-const BATCH_SIZE = 50;
+  try {
+    console.log("Verifying Production connection...");
+    // await prismaProd.$connect();
+    console.log("Production connection verification skipped (top-level await issue).");
+  } catch (error) {
+    console.error("Failed to connect to Production database. Please check PROD_DATABASE_URL.");
+    console.error(error);
+    process.exit(1);
+  }
+
+  const BATCH_SIZE = 50;
 
 async function main() {
   console.log("Starting migration from Staging to Production...");
@@ -29,9 +43,10 @@ async function main() {
   const count = await prismaStaging.btiRuling.count();
   console.log(`Found ${count} rulings in Staging.`);
 
-  let processed = 0;
-  // Start from 0
-  let skip = 0;
+  // Start from offset provided in env or 0
+  const startOffset = parseInt(process.env.START_OFFSET || "0", 10);
+  let skip = startOffset;
+  let processed = startOffset;
 
   while (processed < count) {
     // 2. Fetch data from Staging

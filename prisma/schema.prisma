@@ -15,6 +15,11 @@ enum MembershipRole {
   VIEWER
 }
 
+enum SystemRole {
+  USER
+  ADMIN
+}
+
 enum MarketCode {
   US
   EU
@@ -93,6 +98,7 @@ model User {
   email           String           @unique
   fullName        String?
   authProviderId  String?          @unique
+  systemRole      SystemRole       @default(USER)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   memberships     Membership[]
