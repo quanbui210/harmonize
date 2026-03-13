@@ -1,9 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollAnimation } from "@/components/landing/scroll-animation";
 import { ResultPreview } from "@/components/landing/result-preview";
 import { LoadingScreen } from "@/components/ui/loading-screen";
@@ -11,18 +16,61 @@ import { CookiePolicyDialog } from "@/components/legal/cookie-policy-dialog";
 import { PrivacyPolicyDialog } from "@/components/legal/privacy-policy-dialog";
 import { TermsOfServiceDialog } from "@/components/legal/terms-of-service-dialog";
 import { 
+  FileText, 
   Shield, 
   Search, 
   Database, 
   CheckCircle2, 
+  BookOpen, 
   Scale,
+  Globe,
   Lock,
+  TrendingUp,
   FileCheck,
-  FileText,
-  Users,
-  Truck,
-  ClipboardCheck
+  AlertCircle,
+  AlertTriangle,
+  Waypoints,
+  XCircle,
+  ArrowRight,
+  Calendar,
+  Loader2
 } from "lucide-react";
+
+type LandingRuling = {
+  id: string;
+  market: string;
+  reference: string;
+  title: string;
+  body: string;
+  originalBody: string;
+  isTranslated: boolean;
+  category: string | null;
+  htsCode: string | null;
+  issuedAt: string | null;
+  justification: string | null;
+  originalJustification: string | null;
+};
+
+function toFlagEmoji(countryCode: string) {
+  const cc = (countryCode || "").toUpperCase();
+  if (cc.length !== 2) return "🏳️";
+  const A = 0x1f1e6;
+  const base = "A".charCodeAt(0);
+  const codePoints = [A + (cc.charCodeAt(0) - base), A + (cc.charCodeAt(1) - base)];
+  return String.fromCodePoint(...codePoints);
+}
+
+const HERO_MORPH_PATH_A =
+  "M63.8,-49.6C80.6,-28.8,90.3,-2.6,84.2,19.5C78.2,41.5,56.4,59.3,33.2,67.2C10,75.1,-14.6,73.1,-35.6,62.1C-56.6,51.1,-74,31.1,-79.2,8.4C-84.3,-14.3,-77.3,-39.7,-61.2,-60.2C-45.1,-80.7,-20,-96.2,1.9,-97.7C23.8,-99.2,47.6,-86.2,63.8,-49.6Z";
+const HERO_MORPH_PATH_B =
+  "M60.7,-45.5C76.7,-28.7,86.4,-2.3,81.1,20.8C75.9,43.9,55.7,63.7,31.9,74.1C8.1,84.6,-19.2,85.6,-38.8,74.5C-58.4,63.5,-70.3,40.5,-74.3,17.2C-78.3,-6.1,-74.4,-29.6,-61.1,-46.6C-47.9,-63.6,-24.9,-74.2,-1.2,-73.2C22.5,-72.1,44.9,-59.3,60.7,-45.5Z";
+
+const RULING_SUGGESTIONS = [
+  { label: "Energy drink concentrate", query: "energy drink" },
+  { label: "Gluten-free pasta", query: "pasta" },
+  { label: "1905 90 60", query: "1905 90 60" },
+  { label: "Electric vehicles", query: "electric vehicles" },
+] as const;
 
 type UserData = {
   id: string;
@@ -35,127 +83,187 @@ type LandingContentProps = {
   user?: UserData;
 };
 
-const heroStats = [
-  { value: "70K+", label: "EU BTI rulings indexed" },
-  { value: "< 60s", label: "Average first classification" },
-  { value: "24/7", label: "Regulatory watch coverage" },
-];
-
-const platformPillars = [
-  {
-    title: "Classification Intelligence",
-    description: "Find defensible CN/TARIC codes with AI reasoning grounded in official EU sources and BTI precedent context.",
-    highlights: ["Image + text product intake", "Confidence indicators", "Alternative code candidates"],
-    icon: Search
-  },
-  {
-    title: "Compliance Operations",
-    description: "Move from one-off checks to a repeatable operating system covering labels, supplier docs, and risk changes.",
-    highlights: ["FI/SE label generation", "Supplier document vault", "Risk monitoring and alerts"],
-    icon: FileCheck
-  },
-  {
-    title: "Team-Ready Governance",
-    description: "Give compliance, operations, and management a shared source of truth with traceable decisions and evidence.",
-    highlights: ["Audit-ready decision records", "Organization roles and oversight", "Historical timeline and status"],
-    icon: FileText,
-  }
-];
-
-const workflowSteps = [
-  {
-    step: "01",
-    title: "Upload Product Data",
-    detail: "Add product image, materials, usage, and origin details to start a structured classification workflow.",
-    icon: Search
-  },
-  {
-    step: "02",
-    title: "Receive Classification",
-    detail: "Review top CN/TARIC candidates with rationale, confidence, and source-backed signals.",
-    icon: CheckCircle2
-  },
-  {
-    step: "03",
-    title: "Generate Defense Dossier",
-    detail: "Compile legal basis, references, and decision notes into a ready-to-share customs dossier.",
-    icon: FileText
-  },
-  {
-    step: "04",
-    title: "Generate EU Label",
-    detail: "Produce compliant FI/SE labels with required nutrition, allergen, and disclosure elements.",
-    icon: Scale
-  },
-  {
-    step: "05",
-    title: "Manage Organization Workspace",
-    detail: "Invite teammates, assign access, and monitor member activity across your compliance workflow.",
-    icon: Users
-  },
-  {
-    step: "06",
-    title: "Prepare Audit Package",
-    detail: "Export structured records to prove due diligence and defend classification choices.",
-    icon: ClipboardCheck
-  },
-  {
-    step: "07",
-    title: "Track Shipment Risk",
-    detail: "Monitor if regulatory shifts or document gaps could impact upcoming entries.",
-    icon: Truck
-  },
-  {
-    step: "08",
-    title: "Maintain Living Compliance",
-    detail: "Keep dossiers and labels current as rules, rulings, and product lines evolve.",
-    icon: Shield
-  }
-];
-
-const dataSourceLayers = [
-  {
-    name: "EU Combined Nomenclature (CN)",
-    description: "Primary tariff classification framework maintained by the European Commission."
-  },
-  {
-    name: "Binding Tariff Information (BTI) Rulings",
-    description: "Legally binding precedent decisions from EU customs authorities used for consistency checks."
-  },
-  {
-    name: "EU Court Decisions & Guidance",
-    description: "Interpretive legal context that clarifies ambiguous or disputed classification outcomes."
-  },
-  {
-    name: "National Authority Rules",
-    description: "Market-level compliance requirements, including food and labeling obligations."
-  }
-];
-
-const trustSignals = [
-  {
-    title: "Source Traceability",
-    description: "Every output links back to the governing basis used in the recommendation.",
-    icon: Database
-  },
-  {
-    title: "Always-Current Monitoring",
-    description: "Regulatory updates and newly published rulings can trigger proactive review paths.",
-    icon: Shield
-  },
-  {
-    title: "Audit-Ready Records",
-    description: "Classification rationale, document evidence, and timeline snapshots stay exportable.",
-    icon: Lock
-  }
-];
-
 export function LandingContent({ user }: LandingContentProps) {
   const [isNavigating, setIsNavigating] = useState(false);
   const [cookiePolicyOpen, setCookiePolicyOpen] = useState(false);
   const [privacyPolicyOpen, setPrivacyPolicyOpen] = useState(false);
   const [termsOfServiceOpen, setTermsOfServiceOpen] = useState(false);
   const router = useRouter();
+  const heroRef = useRef<HTMLElement | null>(null);
+  const magneticWrapRef = useRef<HTMLDivElement | null>(null);
+  const morphPathRef = useRef<SVGPathElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const searchAbortRef = useRef<AbortController | null>(null);
+
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [teaserRulings, setTeaserRulings] = useState<LandingRuling[]>([]);
+  const [teaserLoading, setTeaserLoading] = useState(true);
+
+  const [rulingsQuery, setRulingsQuery] = useState("");
+  const [rulingsTouched, setRulingsTouched] = useState(false);
+  const [rulingsLoading, setRulingsLoading] = useState(false);
+  const [rulingsError, setRulingsError] = useState<string | null>(null);
+  const [rulings, setRulings] = useState<LandingRuling[]>([]);
+  const [selectedRuling, setSelectedRuling] = useState<LandingRuling | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerShowOriginal, setDrawerShowOriginal] = useState(false);
+
+  const normalizedQuery = useMemo(() => rulingsQuery.trim(), [rulingsQuery]);
+
+  useEffect(() => {
+    const media = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    if (!media) return;
+    const apply = () => setPrefersReducedMotion(media.matches);
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, []);
+
+  useEffect(() => {
+    if (prefersReducedMotion) return;
+    const alreadyPlayed = sessionStorage.getItem("tc_hero_morph_played");
+    if (alreadyPlayed) return;
+    sessionStorage.setItem("tc_hero_morph_played", "1");
+
+    let cancelled = false;
+    (async () => {
+      const mod = await import("gsap");
+      if (cancelled) return;
+      const gsap = mod.gsap;
+      const path = morphPathRef.current;
+      if (!gsap || !path) return;
+      gsap.set(path, { attr: { d: HERO_MORPH_PATH_A } });
+      gsap.to(path, {
+        duration: 1.2,
+        attr: { d: HERO_MORPH_PATH_B },
+        ease: "power2.out",
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [prefersReducedMotion]);
+
+  useEffect(() => {
+    const container = heroRef.current;
+    if (!container || prefersReducedMotion) return;
+
+    let rafId = 0;
+    const onScroll = () => {
+      if (rafId) return;
+      rafId = window.requestAnimationFrame(() => {
+        rafId = 0;
+        const y = window.scrollY || 0;
+        container.style.setProperty("--parallax-y-1", `${y * 0.08}px`);
+        container.style.setProperty("--parallax-y-2", `${y * 0.14}px`);
+        container.style.setProperty("--parallax-y-3", `${y * 0.2}px`);
+      });
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (rafId) window.cancelAnimationFrame(rafId);
+    };
+  }, [prefersReducedMotion]);
+
+  useEffect(() => {
+    const supportsIdle =
+      typeof window !== "undefined" &&
+      "requestIdleCallback" in window &&
+      "cancelIdleCallback" in window;
+
+    let idleId: number | null = null;
+    let timeoutId: number | null = null;
+
+    const schedule = (cb: () => void) => {
+      if (supportsIdle) {
+        idleId = (window as any).requestIdleCallback(cb, { timeout: 1500 });
+        return;
+      }
+      timeoutId = window.setTimeout(cb, 700);
+    };
+
+    schedule(async () => {
+      try {
+        setTeaserLoading(true);
+        const res = await fetch("/api/rulings?market=FI&limit=3");
+        if (!res.ok) throw new Error("Failed to load rulings");
+        const data = await res.json();
+        const list = Array.isArray(data?.rulings) ? (data.rulings as LandingRuling[]) : [];
+        setTeaserRulings(list.slice(0, 3));
+      } catch {
+        setTeaserRulings([]);
+      } finally {
+        setTeaserLoading(false);
+      }
+    });
+
+    return () => {
+      if (idleId != null && supportsIdle) {
+        (window as any).cancelIdleCallback(idleId);
+      }
+      if (timeoutId != null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!rulingsTouched) return;
+    if (normalizedQuery.length === 0) {
+      setRulings([]);
+      setRulingsError(null);
+      return;
+    }
+
+    setRulingsError(null);
+    const handle = window.setTimeout(async () => {
+      try {
+        setRulingsLoading(true);
+        searchAbortRef.current?.abort();
+        const controller = new AbortController();
+        searchAbortRef.current = controller;
+        const url = `/api/rulings?market=FI&limit=12&includeRelated=1&search=${encodeURIComponent(normalizedQuery)}`;
+        const res = await fetch(url, { signal: controller.signal });
+        if (!res.ok) throw new Error("Search failed");
+        const data = await res.json();
+        const list = Array.isArray(data?.rulings) ? (data.rulings as LandingRuling[]) : [];
+        setRulings(list);
+      } catch (err: any) {
+        if (err?.name === "AbortError") return;
+        setRulingsError("Could not load rulings right now.");
+      } finally {
+        setRulingsLoading(false);
+      }
+    }, 300);
+
+    return () => window.clearTimeout(handle);
+  }, [normalizedQuery, rulingsTouched]);
+
+  const handleMagneticMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (prefersReducedMotion) return;
+    const el = magneticWrapRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const x = e.clientX - rect.left - rect.width / 2;
+    const y = e.clientY - rect.top - rect.height / 2;
+    const max = 10;
+    const mx = Math.max(-max, Math.min(max, x * 0.12));
+    const my = Math.max(-max, Math.min(max, y * 0.12));
+    el.style.setProperty("--mx", `${mx.toFixed(2)}px`);
+    el.style.setProperty("--my", `${my.toFixed(2)}px`);
+  };
+
+  const handleMagneticLeave = () => {
+    const el = magneticWrapRef.current;
+    if (!el) return;
+    el.style.setProperty("--mx", `0px`);
+    el.style.setProperty("--my", `0px`);
+  };
 
   const handleLoginClick = (e: React.MouseEvent<HTMLElement>) => {
     e.preventDefault();
@@ -183,9 +291,9 @@ export function LandingContent({ user }: LandingContentProps) {
     "U";
 
   return (
-    <div className="min-h-screen bg-background pt-20">
+    <div className="min-h-screen bg-background">
       {/* Navigation */}
-      <nav className="fixed inset-x-0 top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto max-w-7xl px-6 py-4">
           <div className="flex items-center justify-between">
             <Link href="/" className="group transition-all duration-300 hover:opacity-80">
@@ -207,18 +315,6 @@ export function LandingContent({ user }: LandingContentProps) {
                 <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-foreground transition-all duration-300 group-hover:w-full"></span>
               </a>
               <a 
-                href="#workflow" 
-                className="text-sm text-muted-foreground hover:text-foreground transition-all duration-300 relative group"
-                onClick={(e) => {
-                  e.preventDefault();
-                  const element = document.getElementById("workflow");
-                  element?.scrollIntoView({ behavior: "smooth", block: "start" });
-                }}
-              >
-                Workflow
-                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-foreground transition-all duration-300 group-hover:w-full"></span>
-              </a>
-              <a 
                 href="#sources" 
                 className="text-sm text-muted-foreground hover:text-foreground transition-all duration-300 relative group"
                 onClick={(e) => {
@@ -231,15 +327,15 @@ export function LandingContent({ user }: LandingContentProps) {
                 <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-foreground transition-all duration-300 group-hover:w-full"></span>
               </a>
               <a 
-                href="#sources" 
+                href="#reliability" 
                 className="text-sm text-muted-foreground hover:text-foreground transition-all duration-300 relative group"
                 onClick={(e) => {
                   e.preventDefault();
-                  const element = document.getElementById("sources");
+                  const element = document.getElementById("reliability");
                   element?.scrollIntoView({ behavior: "smooth", block: "start" });
                 }}
               >
-                Trust
+                Reliability
                 <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-foreground transition-all duration-300 group-hover:w-full"></span>
               </a>
               {!user && (
@@ -260,9 +356,11 @@ export function LandingContent({ user }: LandingContentProps) {
                   className="hidden md:flex items-center gap-3 px-4 py-2 rounded-lg border border-border/50 bg-background hover:bg-muted/30 hover:border-primary/30 transition-all duration-300 group"
                 >
                   {user.avatar ? (
-                    <img 
-                      src={user.avatar} 
+                    <Image
+                      src={user.avatar}
                       alt={user.name}
+                      width={32}
+                      height={32}
                       className="h-8 w-8 rounded-full ring-1 ring-border/30 group-hover:ring-primary/40 transition-all duration-300"
                     />
                   ) : (
@@ -303,62 +401,344 @@ export function LandingContent({ user }: LandingContentProps) {
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="container mx-auto max-w-7xl px-6 py-20 md:py-32">
-        <div className="grid lg:grid-cols-2 gap-6 lg:gap-8 items-center">
-          <ScrollAnimation>
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                EU IMPORT COMPLIANCE SOLVED
-              </p>
-              <h1 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-3 leading-tight">
-                Get Your Products <span className="text-primary">EU-Ready in Seconds</span>
-              </h1>
-              <p className="text-lg text-foreground/80 font-medium mb-4 leading-relaxed max-w-2xl">
-                Stop risking fines, delays, and rejected shipments.
-              </p>
-              <p className="text-base text-muted-foreground mb-8 leading-relaxed max-w-2xl">
-                Instantly classify products, generate compliant labels, and identify required documents using official EU customs data. No legal expertise required.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4">
-                <Button 
-                  size="lg" 
-                  onClick={handleLoginClick}
-                  className="transition-all duration-300 ease-out hover:scale-105 hover:shadow-lg hover:shadow-foreground/10"
-                >
-                  Get Started
-                </Button>
-                <Button 
-                  size="lg" 
-                  variant="outline"
-                  className="transition-all duration-300 ease-out hover:scale-105 hover:bg-foreground hover:text-background hover:border-foreground hover:shadow-lg hover:shadow-foreground/10"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    const element = document.getElementById("sources");
-                    element?.scrollIntoView({ behavior: "smooth", block: "start" });
-                  }}
-                >
-                  Learn More
-                </Button>
-              </div>
-              <div className="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                {heroStats.map((stat) => (
-                  <div key={stat.label} className="rounded-xl border border-border/60 bg-background/70 px-4 py-3 backdrop-blur">
-                    <p className="text-xl font-semibold tracking-tight">{stat.value}</p>
-                    <p className="text-xs text-muted-foreground">{stat.label}</p>
+      <section
+        ref={(el) => {
+          heroRef.current = el;
+        }}
+        className="relative overflow-hidden hero-animated-bg"
+      >
+        <div className="pointer-events-none absolute inset-0">
+          <div className="hero-gradient-layer" />
+          <div className="hero-grid-layer parallax-layer parallax-layer-1" />
+          <div className="hero-glow-layer parallax-layer parallax-layer-2" />
+        </div>
+        <div className="container mx-auto max-w-7xl px-6 py-16 md:py-24 relative">
+          <div className="grid lg:grid-cols-2 gap-10 lg:gap-12 items-center">
+            <ScrollAnimation className="relative">
+              <div className="relative">
+                <div className="absolute -top-16 -left-12 h-48 w-48 opacity-80 pointer-events-none">
+                  <svg viewBox="0 0 200 200" className="h-full w-full">
+                    <path ref={morphPathRef} transform="translate(100 100)" fill="currentColor" className="text-primary/15" />
+                  </svg>
+                </div>
+
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+                  EU IMPORT COMPLIANCE SOLVED
+                </p>
+                <h1 className="text-4xl md:text-5xl font-serif font-bold tracking-tight mb-4 leading-[1.05]">
+                  EU import decisions that feel{" "}
+                  <span className="relative inline-block">
+                    instant
+                    <span className="absolute -bottom-1 left-0 h-[3px] w-full bg-primary/40 rounded-full" />
+                  </span>
+                  .
+                </h1>
+                <p className="text-lg text-foreground/80 font-medium mb-3 leading-relaxed max-w-2xl">
+                  Stop risking fines, delays, and rejected shipments.
+                </p>
+                <p className="text-sm text-muted-foreground leading-relaxed max-w-2xl">
+                  Instantly classify products, generate compliant labels, and identify required documents using official EU customs data. No legal expertise required.
+                </p>
+
+                <div className="mt-8 flex flex-col sm:flex-row gap-3 items-start">
+                  <div
+                    ref={magneticWrapRef}
+                    onPointerMove={handleMagneticMove}
+                    onPointerLeave={handleMagneticLeave}
+                    className="magnetic-wrap"
+                  >
+                    <Button size="lg" onClick={handleLoginClick} className="magnetic-target">
+                      Try for free <ArrowRight className="h-4 w-4" />
+                    </Button>
                   </div>
-                ))}
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="transition-all duration-300 ease-out hover:scale-[1.02] hover:bg-foreground hover:text-background hover:border-foreground"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      const element = document.getElementById("live-rulings");
+                      element?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}
+                  >
+                    Explore rulings
+                  </Button>
+                </div>
+
+                <div className="mt-6 flex flex-wrap gap-4 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2 rounded-full border border-border/50 bg-background/70 px-3 py-1.5 backdrop-blur">
+                    <Database className="h-3.5 w-3.5 text-primary" />
+                    70K+ EU BTI rulings indexed
+                  </div>
+              
+                  <div className="flex items-center gap-2 rounded-full border border-border/50 bg-background/70 px-3 py-1.5 backdrop-blur">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+                    Audit-ready reasoning
+                  </div>
+                </div>
+
+                <div className="mt-6 max-w-md">
+                  <div className="perspective-1000">
+                    <div className="teaser-tilt-card rounded-2xl border border-border/50 bg-background/80 backdrop-blur shadow-lg">
+                      <div className="px-5 pt-5 pb-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                              <Database className="h-4 w-4" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Rulings DB</p>
+                              <p className="text-sm font-semibold">Real BTI precedent</p>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="text-[10px]">
+                            Live
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <div className="px-5 pb-5">
+                        <div className="teaser-scroll-viewport">
+                          <ul className={`teaser-scroll-track ${prefersReducedMotion ? "" : "teaser-scroll"}`}>
+                            {(teaserLoading
+                              ? Array.from({ length: 3 }).map((_, idx) => ({
+                                  id: `placeholder-${idx}`,
+                                  market: "FI",
+                                  reference: "Loading…",
+                                  title: "Fetching official rulings",
+                                  body: "",
+                                  originalBody: "",
+                                  isTranslated: false,
+                                  category: null,
+                                  htsCode: null,
+                                  issuedAt: null,
+                                  justification: null,
+                                  originalJustification: null,
+                                }))
+                              : teaserRulings
+                            ).map((ruling) => (
+                              <li key={ruling.id} className="teaser-item">
+                                <div className="flex items-start gap-3">
+                                  <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-xl bg-muted text-sm">
+                                    <span aria-hidden="true">{toFlagEmoji(ruling.market)}</span>
+                                    <span className="sr-only">{ruling.market}</span>
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-medium text-foreground truncate">
+                                      {ruling.reference} {ruling.htsCode ? `• ${ruling.htsCode}` : ""}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground line-clamp-2">
+                                      {ruling.title}
+                                    </p>
+                                  </div>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div className="mt-3 flex items-center justify-between">
+                          <p className="text-[11px] text-muted-foreground">Evidence base examples</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const element = document.getElementById("live-rulings");
+                              element?.scrollIntoView({ behavior: "smooth", block: "start" });
+                            }}
+                            className="text-[11px] font-medium text-primary hover:underline"
+                          >
+                            View examples
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </ScrollAnimation>
+
+            <ScrollAnimation delay={200} className="relative">
+              <div className="mt-10 relative flex justify-center lg:justify-start">
+                <div className="relative z-10">
+                  <ResultPreview />
+                </div>
+              </div>
+            </ScrollAnimation>
+          </div>
+        </div>
+      </section>
+
+      {/* <section id="live-rulings" className="relative py-20">
+        <div className="container mx-auto max-w-7xl px-6">
+          <ScrollAnimation>
+            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-10">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                  LIVE BTI RULINGS
+                </p>
+                <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-2">
+                  Search real precedent in seconds
+                </h2>
+                <p className="text-sm text-muted-foreground italic max-w-2xl">
+                  This is a lightweight sample search. For deep research, open the full Ruling Database.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <Badge variant="secondary" className="rounded-full px-4 py-1.5">
+                  FI market default
+                </Badge>
+                <Badge variant="outline" className="rounded-full px-4 py-1.5">
+                  Debounced 300ms
+                </Badge>
               </div>
             </div>
           </ScrollAnimation>
-          
+
           <ScrollAnimation delay={200}>
-            <div className="flex justify-center lg:justify-start">
-              <ResultPreview />
+            <div className="rounded-3xl border border-border/60 bg-background/80 backdrop-blur shadow-sm overflow-hidden">
+              <div className="p-5 md:p-7 border-b border-border/50">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div className="relative w-full md:max-w-xl">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      ref={searchInputRef}
+                      value={rulingsQuery}
+                      onChange={(e) => setRulingsQuery(e.target.value)}
+                      onFocus={() => setRulingsTouched(true)}
+                      placeholder="Try: energy drink, 1905 90 60, electric vehicles…"
+                      className="pl-10 h-11 rounded-xl bg-background"
+                      aria-label="Search BTI rulings"
+                    />
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-primary" />
+                      Official EU records
+                    </div>
+                    <div className="hidden sm:flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-primary" />
+                      Evidence base
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {RULING_SUGGESTIONS.map((s) => (
+                    <Button
+                      key={s.query}
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="rounded-full"
+                      onClick={() => {
+                        setRulingsTouched(true);
+                        setRulingsQuery(s.query);
+                        searchInputRef.current?.focus();
+                      }}
+                    >
+                      {s.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-5 md:p-7">
+                {rulingsError ? (
+                  <div className="text-sm text-muted-foreground">{rulingsError}</div>
+                ) : rulingsLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Searching…
+                  </div>
+                ) : rulingsTouched && normalizedQuery.length > 0 && rulings.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">
+                    No results for <span className="font-medium text-foreground">{normalizedQuery}</span>.
+                  </div>
+                ) : rulings.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">
+                    Pick an example above or type a product / HS code to see precedent.
+                  </div>
+                ) : (
+                  <div
+                    className="grid gap-4"
+                    style={{
+                      gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+                    }}
+                  >
+                    {rulings.map((r) => (
+                      <Card key={r.id} className="group hover:bg-muted/40 transition-colors">
+                        <CardContent className="pt-6">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-lg" aria-hidden="true">
+                                  {toFlagEmoji(r.market)}
+                                </span>
+                                <span className="sr-only">{r.market}</span>
+                                <p className="text-xs text-muted-foreground truncate">{r.reference}</p>
+                              </div>
+                              <p className="font-serif font-semibold tracking-tight leading-snug line-clamp-2">
+                                {r.title}
+                              </p>
+                            </div>
+                            {r.category ? (
+                              <Badge variant="secondary" className="shrink-0">
+                                {r.category}
+                              </Badge>
+                            ) : null}
+                          </div>
+
+                          <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+                            <Calendar className="h-3.5 w-3.5" />
+                            {r.issuedAt ? new Date(r.issuedAt).toLocaleDateString() : "—"}
+                            {r.htsCode ? <span className="ml-2 font-mono">{r.htsCode}</span> : null}
+                          </div>
+
+                          <p className="mt-3 text-sm text-muted-foreground line-clamp-2">
+                            {r.body}
+                          </p>
+
+                          <div className="mt-4 flex items-center justify-between">
+                            <Button
+                              type="button"
+                              variant="link"
+                              className="px-0 text-primary"
+                              onClick={() => {
+                                setSelectedRuling(r);
+                                setDrawerShowOriginal(false);
+                                setDrawerOpen(true);
+                              }}
+                            >
+                              View details <ArrowRight className="h-4 w-4" />
+                            </Button>
+                            <span className="text-xs text-muted-foreground">{r.isTranslated ? "EN available" : "Original only"}</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <p className="text-xs text-muted-foreground">
+                    Results are informational and non-binding. Final decisions rest with EU customs authorities
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      router.push("/rulings");
+                    }}
+                  >
+                    Open full database
+                  </Button>
+                </div>
+              </div>
             </div>
           </ScrollAnimation>
         </div>
-      </section>
+      </section> */}
 
       {/* Problems & Solutions Section - Structured Document Style */}
       <section className="relative py-24 overflow-hidden bg-background">
@@ -366,7 +746,7 @@ export function LandingContent({ user }: LandingContentProps) {
           <ScrollAnimation>
             <div className="mb-16 text-center">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                THE VALUE EQUATION
+                FROM RISK TO READY
               </p>
               <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-2">
                 Stop Guessing. Start Shipping.
@@ -493,125 +873,242 @@ export function LandingContent({ user }: LandingContentProps) {
         </div>
       </section>
 
-      <section id="features" className="container mx-auto max-w-7xl scroll-mt-28 px-6 py-20">
+      {/* Features Section */}
+      <section id="features" className="container mx-auto max-w-7xl px-6 py-20">
         <ScrollAnimation>
-          <div className="mb-14">
+          <div className="mb-16">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
               PLATFORM
             </p>
             <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-3">
-              One Operating System for EU Import Compliance
+              Everything You Need to Prepare for EU Import Compliance
             </h2>
-            <p className="text-sm text-muted-foreground italic max-w-3xl">
-              Instead of disconnected tools, TulliCheck combines classification, documentation, labeling, and governance into one clear operating flow.
+            <p className="text-sm text-muted-foreground italic max-w-2xl">
+              A practical set of tools designed to help small and growing EU sellers reduce uncertainty and prepare compliant imports with confidence.
             </p>
           </div>
         </ScrollAnimation>
 
-        <div className="grid gap-6 md:grid-cols-3">
-          {platformPillars.map((pillar, index) => (
-            <ScrollAnimation key={pillar.title} delay={100 + index * 100}>
-              <div className="h-full rounded-2xl border border-border/40 bg-card p-6 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl hover:shadow-primary/5">
-                <div className="mb-4 inline-flex rounded-lg bg-primary/10 p-3 text-primary">
-                  <pillar.icon className="h-5 w-5" />
-                </div>
-                <h3 className="mb-2 text-xl font-serif font-semibold tracking-tight">{pillar.title}</h3>
-                <p className="mb-5 text-sm text-muted-foreground leading-relaxed">{pillar.description}</p>
-                <div className="space-y-2">
-                  {pillar.highlights.map((highlight) => (
-                    <div key={highlight} className="flex items-start gap-2">
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 text-primary shrink-0" />
-                      <p className="text-sm text-muted-foreground">{highlight}</p>
-                    </div>
-                  ))}
-                </div>
+        <div className="space-y-12">
+          <div className="stagger-fade-in group border-b border-border/30 pb-8 transition-all duration-500 ease-out hover:border-border/60 hover:pb-10 cursor-default" style={{ animationDelay: '0ms' }}>
+            <div className="flex items-start gap-6">
+              <div className="flex-shrink-0 transition-transform duration-500 ease-out group-hover:scale-110 group-hover:rotate-3">
+                <Search className="h-6 w-6 text-primary transition-all duration-500 group-hover:text-foreground" />
               </div>
-            </ScrollAnimation>
-          ))}
+              <div className="flex-1">
+                <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
+                  Automated Product Classification
+                </h3>
+                <p className="text-base text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
+                  Upload product descriptions and images to receive AI-assisted CN/TARIC classification suggestions based on product characteristics and official EU guidance.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="stagger-fade-in group border-b border-border/30 pb-8 transition-all duration-500 ease-out hover:border-border/60 hover:pb-10 cursor-default" style={{ animationDelay: '150ms' }}>
+            <div className="flex items-start gap-6">
+              <div className="flex-shrink-0 transition-transform duration-500 ease-out group-hover:scale-110 group-hover:rotate-3">
+                <Shield className="h-6 w-6 text-primary transition-all duration-500 group-hover:text-foreground" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
+                  Risk Monitoring & Alerts
+                </h3>
+                <p className="text-base text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
+                  Monitor your products against regulatory updates, classification changes, and enforcement trends that may increase customs risk.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="stagger-fade-in group border-b border-border/30 pb-8 transition-all duration-500 ease-out hover:border-border/60 hover:pb-10 cursor-default" style={{ animationDelay: '300ms' }}>
+            <div className="flex items-start gap-6">
+              <div className="flex-shrink-0 transition-transform duration-500 ease-out group-hover:scale-110 group-hover:rotate-3">
+                <FileCheck className="h-6 w-6 text-primary transition-all duration-500 group-hover:text-foreground" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
+                  Compliance Documentation Records
+                </h3>
+                <p className="text-base text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
+                  Maintain structured records explaining how classifications were determined, including referenced sources and timestamps, to demonstrate due diligence if questions arise.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="stagger-fade-in group border-b border-border/30 pb-8 transition-all duration-500 ease-out hover:border-border/60 hover:pb-10 cursor-default" style={{ animationDelay: '450ms' }}>
+            <div className="flex items-start gap-6">
+              <div className="flex-shrink-0 transition-transform duration-500 ease-out group-hover:scale-110 group-hover:rotate-3">
+                <Scale className="h-6 w-6 text-primary transition-all duration-500 group-hover:text-foreground" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
+                  Product Labeling for EU Markets
+                </h3>
+                <p className="text-base text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
+                  Create bilingual (FI/SE) labels with required EU food information, including ingredients, allergens, nutrition tables, and mandatory disclosures. Export-ready for print.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="stagger-fade-in group border-b border-border/30 pb-8 transition-all duration-500 ease-out hover:border-border/60 hover:pb-10 cursor-default" style={{ animationDelay: '600ms' }}>
+            <div className="flex items-start gap-6">
+              <div className="flex-shrink-0 transition-transform duration-500 ease-out group-hover:scale-110 group-hover:rotate-3">
+                <Lock className="h-6 w-6 text-primary transition-all duration-500 group-hover:text-foreground" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
+                  Compliance Vault
+                </h3>
+                <p className="text-base text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
+                  Request required compliance documents from suppliers with a simple, secure link. All documents are stored in an encrypted vault, ensuring your import documentation is organized, accessible, and protected for EU customs requirements.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section id="workflow" className="container mx-auto max-w-7xl scroll-mt-28 px-6 py-20">
+      {/* Data Sources Section */}
+      <section id="sources" className="container mx-auto max-w-7xl px-6 py-20">
         <ScrollAnimation>
-          <div className="mb-14">
+          <div className="mb-16">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-              GUIDED WORKFLOW
+              DATA SOURCES
             </p>
             <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-3">
-              From Product Intake to Audit Defense in One Guided Journey
+              Built on Official EU Regulatory Sources
             </h2>
-            <p className="text-sm text-muted-foreground italic max-w-3xl">
-              A visual step-by-step process keeps teams aligned from initial product upload through classification, labels, organization management, and shipment risk tracking.
+            <p className="text-sm text-muted-foreground italic max-w-2xl">
+              TulliCheck relies exclusively on authoritative public data maintained by EU institutions and national authorities.
             </p>
           </div>
         </ScrollAnimation>
 
-        <div className="relative">
-          <div className="pointer-events-none absolute left-0 right-0 top-4 hidden h-px bg-border lg:block" />
-          <div className="pointer-events-none absolute left-0 right-0 top-[calc(50%+20px)] hidden h-px bg-border lg:block" />
-          <div className="grid gap-x-6 gap-y-10 md:grid-cols-2 lg:grid-cols-4">
-            {workflowSteps.map((step, index) => (
-              <ScrollAnimation key={step.step} delay={80 + index * 60}>
-                <div className={`${index >= 4 ? "lg:pt-10" : ""}`}>
-                  <div className="mb-2 flex items-center gap-3">
-                    <span className="text-xs font-semibold text-primary tracking-[0.15em]">{step.step}</span>
-                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-primary/50 bg-background">
-                      <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                    </span>
-                    <step.icon className="h-4 w-4 text-primary/80" />
-                  </div>
-                  <h3 className="mb-1 text-lg font-serif font-semibold tracking-tight">{step.title}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{step.detail}</p>
-                </div>
-              </ScrollAnimation>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="sources" className="container mx-auto max-w-7xl scroll-mt-28 px-6 py-20">
-        <ScrollAnimation>
-          <div className="mb-14">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-              DATA SOURCES & TRUST
-            </p>
-            <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-3">
-              Authoritative Inputs, Transparent Outputs
-            </h2>
-            <p className="text-sm text-muted-foreground italic max-w-3xl">
-              Every recommendation is built on public regulatory sources and presented with traceable evidence so teams can act confidently.
-            </p>
-          </div>
-        </ScrollAnimation>
-
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="space-y-12">
           <ScrollAnimation delay={100}>
-            <div className="rounded-2xl border border-border/40 bg-card p-6">
-              <h3 className="mb-5 text-xl font-serif font-semibold tracking-tight">Source Layers</h3>
-              <div className="space-y-4">
-                {dataSourceLayers.map((source) => (
-                  <div key={source.name} className="rounded-xl border border-border/40 bg-background px-4 py-3">
-                    <p className="text-sm font-semibold">{source.name}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{source.description}</p>
-                  </div>
-                ))}
+            <div className="group border-l-4 border-primary/20 pl-6 transition-all duration-500 ease-out hover:border-primary/60 hover:pl-8 hover:bg-muted/30 -ml-2 py-2 rounded-r-md cursor-default">
+              <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
+                EU Combined Nomenclature (CN)
+              </h3>
+              <p className="text-sm text-muted-foreground italic transition-colors duration-500 group-hover:text-foreground/80">
+                Official tariff classification system maintained by the European Commission
+              </p>
+            </div>
+          </ScrollAnimation>
+
+          <ScrollAnimation delay={200}>
+            <div className="group border-l-4 border-primary/20 pl-6 transition-all duration-500 ease-out hover:border-primary/60 hover:pl-8 hover:bg-muted/30 -ml-2 py-2 rounded-r-md cursor-default">
+              <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
+                Binding Tariff Information (BTI) Rulings
+              </h3>
+              <p className="text-sm text-muted-foreground italic transition-colors duration-500 group-hover:text-foreground/80">
+                Legally binding classification decisions issued by EU customs authorities
+              </p>
+            </div>
+          </ScrollAnimation>
+
+          <ScrollAnimation delay={300}>
+            <div className="group border-l-4 border-primary/20 pl-6 transition-all duration-500 ease-out hover:border-primary/60 hover:pl-8 hover:bg-muted/30 -ml-2 py-2 rounded-r-md cursor-default">
+              <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
+                EU Court Decisions & Classification Guidance
+              </h3>
+              <p className="text-sm text-muted-foreground italic transition-colors duration-500 group-hover:text-foreground/80">
+                Judicial interpretations and historical classification cases
+              </p>
+            </div>
+          </ScrollAnimation>
+
+          <ScrollAnimation delay={400}>
+            <div className="group border-l-4 border-primary/20 pl-6 transition-all duration-500 ease-out hover:border-primary/60 hover:pl-8 hover:bg-muted/30 -ml-2 py-2 rounded-r-md cursor-default">
+              <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
+                Finnish Food Authority (Ruokavirasto)
+              </h3>
+              <p className="text-sm text-muted-foreground italic transition-colors duration-500 group-hover:text-foreground/80">
+                <a 
+                  href="https://www.ruokavirasto.fi/en/foodstuffs/food-sector/instructions-and-legislation/#labelling" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline transition-all duration-300"
+                >
+                  Official food labeling regulations and requirements
+                </a>
+              </p>
+            </div>
+          </ScrollAnimation>
+        </div>
+      </section>
+
+      {/* Reliability Section */}
+      <section id="reliability" className="container mx-auto max-w-7xl px-6 py-20">
+        <ScrollAnimation>
+          <div className="mb-16">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+              RELIABILITY
+            </p>
+            <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-3">
+              Continuously Updated, Always Current
+            </h2>
+            <p className="text-sm text-muted-foreground italic max-w-2xl">
+              Classifications and requirements are continuously checked against new rulings, regulatory updates, and published guidance.
+            </p>
+          </div>
+        </ScrollAnimation>
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <ScrollAnimation delay={100}>
+            <div className="group border border-border/30 rounded-lg p-6 bg-background transition-all duration-500 ease-out hover:border-primary/60 hover:shadow-lg hover:shadow-primary/5 cursor-default">
+              <div className="flex flex-col items-start gap-4">
+                <div className="p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors duration-500">
+                  <Shield className="h-6 w-6 text-primary transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:text-primary">
+                    Real-Time Regulatory Updates
+                  </h3>
+                  <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
+                    Automatic monitoring of changes to CN codes, tariffs, and EU food regulations that may impact your products.
+                  </p>
+                </div>
               </div>
             </div>
           </ScrollAnimation>
 
           <ScrollAnimation delay={200}>
-            <div className="rounded-2xl border border-border/40 bg-card p-6">
-              <h3 className="mb-5 text-xl font-serif font-semibold tracking-tight">Trust Controls</h3>
-              <div className="space-y-4">
-                {trustSignals.map((signal) => (
-                  <div key={signal.title} className="rounded-xl border border-border/40 bg-background px-4 py-3">
-                    <div className="mb-2 inline-flex rounded-md bg-primary/10 p-2 text-primary">
-                      <signal.icon className="h-4 w-4" />
-                    </div>
-                    <p className="text-sm font-semibold">{signal.title}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{signal.description}</p>
-                  </div>
-                ))}
+            <div className="group border border-border/30 rounded-lg p-6 bg-background transition-all duration-500 ease-out hover:border-primary/60 hover:shadow-lg hover:shadow-primary/5 cursor-default">
+              <div className="flex flex-col items-start gap-4">
+                <div className="p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors duration-500">
+                  <CheckCircle2 className="h-6 w-6 text-primary transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:text-primary">
+                    Confidence Indicators
+                  </h3>
+                  <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
+                    Each classification includes confidence signals based on data alignment, supporting guidance, and precedent strength.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </ScrollAnimation>
+
+          <ScrollAnimation delay={300}>
+            <div className="group border border-border/30 rounded-lg p-6 bg-background transition-all duration-500 ease-out hover:border-primary/60 hover:shadow-lg hover:shadow-primary/5 cursor-default md:col-span-2 lg:col-span-1">
+              <div className="flex flex-col items-start gap-4">
+                <div className="p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors duration-500">
+                  <Database className="h-6 w-6 text-primary transition-all duration-500 group-hover:scale-110 group-hover:rotate-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:text-primary">
+                    Transparent Audit Trail
+                  </h3>
+                  <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
+                    Every decision is logged with sources, reasoning, and timestamps to support internal review and compliance checks.
+                  </p>
+                </div>
               </div>
             </div>
           </ScrollAnimation>
@@ -660,6 +1157,102 @@ export function LandingContent({ user }: LandingContentProps) {
         </ScrollAnimation>
       </section>
 
+      <Dialog
+        open={drawerOpen}
+        onOpenChange={(open) => {
+          setDrawerOpen(open);
+          if (!open) setSelectedRuling(null);
+        }}
+      >
+        <DialogContent className="!fixed !right-0 !top-0 !left-auto !bottom-0 !translate-x-0 !translate-y-0 h-dvh w-full max-w-xl rounded-none border-l bg-background p-0 shadow-2xl data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right">
+          {selectedRuling ? (
+            <div className="flex h-dvh flex-col">
+              <div className="border-b border-border/60 p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                      <span className="text-base" aria-hidden="true">
+                        {toFlagEmoji(selectedRuling.market)}
+                      </span>
+                      <span className="sr-only">{selectedRuling.market}</span>
+                      <span className="truncate">{selectedRuling.reference}</span>
+                      {selectedRuling.htsCode ? <span className="font-mono">{selectedRuling.htsCode}</span> : null}
+                    </div>
+                    <DialogHeader>
+                      <DialogTitle className="font-serif leading-snug">
+                        {selectedRuling.title}
+                      </DialogTitle>
+                      <DialogDescription className="mt-1">
+                        {selectedRuling.issuedAt ? (
+                          <span className="inline-flex items-center gap-2">
+                            <Calendar className="h-4 w-4" />
+                            Issued {new Date(selectedRuling.issuedAt).toLocaleDateString()}
+                          </span>
+                        ) : (
+                          "Issued date not available"
+                        )}
+                      </DialogDescription>
+                    </DialogHeader>
+                  </div>
+                  {selectedRuling.isTranslated ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl"
+                      onClick={() => setDrawerShowOriginal((v) => !v)}
+                    >
+                      {drawerShowOriginal ? "View translation" : "View original"}
+                    </Button>
+                  ) : null}
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {selectedRuling.category ? <Badge variant="secondary">{selectedRuling.category}</Badge> : null}
+                  <Badge variant="outline">{selectedRuling.market}</Badge>
+                  <Badge variant="outline">{selectedRuling.isTranslated ? "EN available" : "Original only"}</Badge>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div>
+                  <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
+                    Description
+                  </h3>
+                  <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
+                    {drawerShowOriginal ? selectedRuling.originalBody : selectedRuling.body}
+                  </p>
+                </div>
+                {selectedRuling.justification ? (
+                  <div>
+                    <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
+                      Legal reasoning
+                    </h3>
+                    <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
+                      {drawerShowOriginal ? selectedRuling.originalJustification : selectedRuling.justification}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="border-t border-border/60 p-6 flex items-center justify-between gap-4">
+                <p className="text-xs text-muted-foreground">
+                  Informational and non-binding.
+                </p>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    router.push(`/rulings/${selectedRuling.id}`);
+                  }}
+                  className="rounded-xl"
+                >
+                  View in database <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
       {/* Footer */}
       <footer className="border-t bg-background">
         <div className="container mx-auto max-w-7xl px-6 py-12">
@@ -678,15 +1271,15 @@ export function LandingContent({ user }: LandingContentProps) {
               <h3 className="font-semibold mb-4 text-xs uppercase tracking-wider text-muted-foreground">Platform</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li><Link href="#features" className="hover:text-foreground transition-colors italic">HTS Classification</Link></li>
-                <li><Link href="#workflow" className="hover:text-foreground transition-colors italic">Workflow Guidance</Link></li>
-                <li><Link href="#sources" className="hover:text-foreground transition-colors italic">Audit Defense</Link></li>
+                <li><Link href="#sources" className="hover:text-foreground transition-colors italic">Risk Monitoring</Link></li>
+                <li><Link href="#reliability" className="hover:text-foreground transition-colors italic">Audit Defense</Link></li>
               </ul>
             </div>
             <div>
               <h3 className="font-semibold mb-4 text-xs uppercase tracking-wider text-muted-foreground">Resources</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li><Link href="#sources" className="hover:text-foreground transition-colors italic">Data Sources</Link></li>
-                <li><Link href="#sources" className="hover:text-foreground transition-colors italic">Reliability</Link></li>
+                <li><Link href="#reliability" className="hover:text-foreground transition-colors italic">Reliability</Link></li>
                 <li><Link href="/login?redirectTo=/dashboard" className="hover:text-foreground transition-colors italic">Documentation</Link></li>
               </ul>
             </div>

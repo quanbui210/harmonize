@@ -30,6 +30,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { CodeDisplay } from "@/components/classification/code-display";
+import { RulingsRecommendationsCard } from "@/components/dashboard/rulings-recommendations-card";
 
 function formatCNCode(cnCode: string): string {
   if (!cnCode || cnCode.length !== 8) return cnCode;
@@ -340,6 +341,7 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
         <div className="flex flex-col space-y-6 h-full">
+          <RulingsRecommendationsCard />
           <Card className="flex-1 flex flex-col">
             <CardHeader>
               <CardTitle>Recent Shipments</CardTitle>

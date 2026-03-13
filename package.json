@@ -48,6 +48,7 @@
     "clsx": "^2.1.1",
     "csv-parse": "^6.1.0",
     "esbuild": "^0.27.3",
+    "gsap": "^3.13.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.0.0",
     "langfuse": "^3.38.6",
