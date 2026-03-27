@@ -27,6 +27,82 @@ function mmToPoints(mm: number): number {
   return mm * 2.83465;
 }
 
+function drawTextPiecesWrapped(args: {
+  page: any;
+  pieces: Array<{
+    text: string;
+    font: any;
+    size: number;
+    color: any;
+  }>;
+  x: number;
+  y: number;
+  maxWidth: number;
+  lineHeight: number;
+}) {
+  const { page, pieces, x, y, maxWidth, lineHeight } = args;
+  let cx = x;
+  let cy = y;
+
+  for (const piece of pieces) {
+    const tokens = piece.text.split(/(\s+)/g).filter((t) => t.length > 0);
+    for (const token of tokens) {
+      const tokenWidth = piece.font.widthOfTextAtSize(token, piece.size);
+      const wouldOverflow = cx + tokenWidth > x + maxWidth;
+
+      if (wouldOverflow && token.trim().length > 0 && cx > x) {
+        cy -= lineHeight;
+        cx = x;
+      }
+
+      page.drawText(token, {
+        x: cx,
+        y: cy,
+        size: piece.size,
+        font: piece.font,
+        color: piece.color,
+      });
+      cx += tokenWidth;
+    }
+  }
+
+  return { x: cx, y: cy };
+}
+
+function buildIngredientPieces(args: {
+  ingredients: EnhancedLabelData["ingredients"];
+  language: "fi" | "sv";
+  helvetica: any;
+  helveticaBold: any;
+  fontSize: number;
+  normalColor: any;
+}) {
+  const { ingredients, language, helvetica, helveticaBold, fontSize, normalColor } = args;
+  const pieces: Array<{ text: string; font: any; size: number; color: any }> = [];
+
+  ingredients.forEach((ing, idx) => {
+    const name = ing.translations[language] || ing.name;
+    const percentage = ing.percentage != null ? ` (${ing.percentage}%)` : "";
+    const text = `${name}${percentage}`;
+    pieces.push({
+      text,
+      font: ing.isAllergen ? helveticaBold : helvetica,
+      size: fontSize,
+      color: ing.isAllergen ? rgb(0.7, 0, 0) : normalColor,
+    });
+    if (idx < ingredients.length - 1) {
+      pieces.push({
+        text: ", ",
+        font: helvetica,
+        size: fontSize,
+        color: normalColor,
+      });
+    }
+  });
+
+  return pieces;
+}
+
 /**
  * Generate PDF label - matches HTML preview structure exactly
  */
@@ -90,7 +166,7 @@ export async function generateLabelPDF(
 
   // 3. Ingredients (for food categories)
   if ((productCategory === "food" || productCategory === "meat" || productCategory === "supplements" || productCategory === "pet") && labelData.ingredients.length > 0) {
-    page.drawText("Ainesosat / Ingredienser:", {
+    page.drawText("Ainesosat:", {
       x: marginPoints,
       y: yPosition,
       size: bodySize + 1,
@@ -98,41 +174,50 @@ export async function generateLabelPDF(
     });
     yPosition -= lineHeight + 4;
 
-    for (const ing of labelData.ingredients) {
-      const fiName = ing.translations.fi || ing.name;
-      const svName = ing.translations.sv || ing.name;
-      let fiText = fiName;
-      if (ing.percentage) {
-        fiText += ` (${ing.percentage}%)`;
-      }
+    const fiPieces = buildIngredientPieces({
+      ingredients: labelData.ingredients,
+      language: "fi",
+      helvetica,
+      helveticaBold,
+      fontSize: bodySize - 1,
+      normalColor: rgb(0, 0, 0),
+    });
+    const fiDrawn = drawTextPiecesWrapped({
+      page,
+      pieces: fiPieces,
+      x: marginPoints,
+      y: yPosition,
+      maxWidth: contentWidth,
+      lineHeight: lineHeight - 2,
+    });
+    yPosition = fiDrawn.y - (lineHeight - 2) + 6;
 
-      // Finnish name (bold if allergen, red if allergen)
-      page.drawText(fiText, {
-        x: marginPoints,
-        y: yPosition,
-        size: bodySize - 1,
-        font: ing.isAllergen ? helveticaBold : helvetica,
-        color: ing.isAllergen ? rgb(0.7, 0, 0) : rgb(0, 0, 0),
-        maxWidth: contentWidth,
-      });
-      yPosition -= lineHeight - 2;
+    page.drawText("Ingredienser:", {
+      x: marginPoints,
+      y: yPosition,
+      size: bodySize + 1,
+      font: helveticaBold,
+      color: rgb(0, 0, 0),
+    });
+    yPosition -= lineHeight + 2;
 
-      // Swedish name below (smaller, gray)
-      if (svName !== fiName) {
-        page.drawText(svName, {
-          x: marginPoints + 8,
-          y: yPosition,
-          size: smallSize,
-          font: helvetica,
-          color: rgb(0.5, 0.5, 0.5),
-          maxWidth: contentWidth - 8,
-        });
-        yPosition -= lineHeight - 4;
-      } else {
-        yPosition -= 2;
-      }
-    }
-    yPosition -= sectionSpacing;
+    const svPieces = buildIngredientPieces({
+      ingredients: labelData.ingredients,
+      language: "sv",
+      helvetica,
+      helveticaBold,
+      fontSize: smallSize,
+      normalColor: rgb(0.35, 0.35, 0.35),
+    });
+    const svDrawn = drawTextPiecesWrapped({
+      page,
+      pieces: svPieces,
+      x: marginPoints,
+      y: yPosition,
+      maxWidth: contentWidth,
+      lineHeight: lineHeight - 4,
+    });
+    yPosition = svDrawn.y - (lineHeight - 4) + sectionSpacing;
   }
 
   // 4. Warnings (black-bordered boxes) - BEFORE nutrition table
@@ -410,6 +495,7 @@ export function generateLabelSVG(
   const widthPx = width * 3.7795;
   const heightPx = height * 3.7795;
   const marginPx = margin * 3.7795;
+  const contentWidthPx = widthPx - marginPx * 2;
 
   let svg = `<svg width="${width}mm" height="${height}mm" viewBox="0 0 ${widthPx} ${heightPx}" xmlns="http://www.w3.org/2000/svg">`;
   svg += `<defs><clipPath id="labelClip"><rect x="0" y="0" width="${widthPx}" height="${heightPx}"/></clipPath></defs>`;
@@ -442,26 +528,81 @@ export function generateLabelSVG(
 
   // 3. Ingredients (for food categories)
   if ((productCategory === "food" || productCategory === "meat" || productCategory === "supplements" || productCategory === "pet") && labelData.ingredients.length > 0) {
-    svg += `<text x="${marginPx}" y="${yPos}" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold" fill="#000">Ainesosat / Ingredienser:</text>`;
-    yPos += lineHeight + 6;
+    const approxWidth = (text: string, size: number) => text.length * size * 0.56;
 
-    for (const ing of labelData.ingredients) {
-      const fiName = escapeXml(ing.translations.fi || ing.name);
-      const svName = escapeXml(ing.translations.sv || ing.name);
-      const percentage = ing.percentage ? ` (${ing.percentage}%)` : "";
-      const fillColor = ing.isAllergen ? "#b91c1c" : "#000";
-      const fontWeight = ing.isAllergen ? "bold" : "normal";
+    const wrapPieces = (
+      pieces: Array<{ text: string; fill: string; weight: string }>,
+      size: number,
+    ) => {
+      const lines: Array<Array<{ text: string; fill: string; weight: string }>> = [];
+      let current: Array<{ text: string; fill: string; weight: string }> = [];
+      let currentWidth = 0;
 
-      svg += `<text x="${marginPx}" y="${yPos}" font-family="Arial, sans-serif" font-size="${fontSizeSmall}" font-weight="${fontWeight}" fill="${fillColor}">${fiName}${percentage}</text>`;
-      yPos += lineHeight - 2;
+      for (const piece of pieces) {
+        const tokens = piece.text.split(/(\s+)/g).filter((t) => t.length > 0);
+        for (const token of tokens) {
+          const tokenWidth = approxWidth(token, size);
+          const wouldOverflow = currentWidth + tokenWidth > contentWidthPx;
 
-      if (svName !== fiName) {
-        svg += `<text x="${marginPx + 8}" y="${yPos}" font-family="Arial, sans-serif" font-size="${fontSizeSmall * 0.85}" fill="#666">${svName}</text>`;
-        yPos += lineHeight - 4;
-      } else {
-        yPos += 2;
+          if (wouldOverflow && token.trim().length > 0 && current.length > 0) {
+            lines.push(current);
+            current = [];
+            currentWidth = 0;
+          }
+
+          current.push({ text: token, fill: piece.fill, weight: piece.weight });
+          currentWidth += tokenWidth;
+        }
       }
+
+      if (current.length > 0) lines.push(current);
+      return lines;
+    };
+
+    const buildSvgPieces = (language: "fi" | "sv") => {
+      const pieces: Array<{ text: string; fill: string; weight: string }> = [];
+      labelData.ingredients.forEach((ing, idx) => {
+        const name = escapeXml(ing.translations[language] || ing.name);
+        const percentage = ing.percentage != null ? ` (${ing.percentage}%)` : "";
+        pieces.push({
+          text: `${name}${percentage}`,
+          fill: ing.isAllergen ? "#b91c1c" : language === "sv" ? "#444" : "#000",
+          weight: ing.isAllergen ? "bold" : "normal",
+        });
+        if (idx < labelData.ingredients.length - 1) {
+          pieces.push({ text: ", ", fill: language === "sv" ? "#444" : "#000", weight: "normal" });
+        }
+      });
+      return pieces;
+    };
+
+    svg += `<text x="${marginPx}" y="${yPos}" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold" fill="#000">Ainesosat:</text>`;
+    yPos += lineHeight + 2;
+
+    const fiLines = wrapPieces(buildSvgPieces("fi"), fontSizeSmall);
+    for (const line of fiLines) {
+      svg += `<text x="${marginPx}" y="${yPos}" font-family="Arial, sans-serif" font-size="${fontSizeSmall}" fill="#000">`;
+      for (const t of line) {
+        svg += `<tspan font-weight="${t.weight}" fill="${t.fill}">${t.text}</tspan>`;
+      }
+      svg += `</text>`;
+      yPos += lineHeight - 4;
     }
+
+    yPos += 6;
+    svg += `<text x="${marginPx}" y="${yPos}" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold" fill="#000">Ingredienser:</text>`;
+    yPos += lineHeight + 2;
+
+    const svLines = wrapPieces(buildSvgPieces("sv"), fontSizeSmall * 0.9);
+    for (const line of svLines) {
+      svg += `<text x="${marginPx}" y="${yPos}" font-family="Arial, sans-serif" font-size="${fontSizeSmall * 0.9}" fill="#444">`;
+      for (const t of line) {
+        svg += `<tspan font-weight="${t.weight}" fill="${t.fill}">${t.text}</tspan>`;
+      }
+      svg += `</text>`;
+      yPos += lineHeight - 5;
+    }
+
     yPos += sectionSpacing;
   }
 

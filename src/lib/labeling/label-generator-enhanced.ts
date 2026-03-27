@@ -235,6 +235,7 @@ OUTPUT REQUIREMENTS:
 - Include requiredMarks object with ONLY marks that are explicitly required in the regulatory context
 - Include regulatorySources array citing where each requirement comes from
 - For food: Include nutrition table if nutrition data provided
+- For food QUID: Include ingredient percentages only when legally required (ingredient emphasized in product name, text, or imagery)
 - For electronics: Include CE marking ONLY if required in regulatory context
 - For toys: Include age warnings ONLY if required in regulatory context
 - All translations must be accurate Finnish and Swedish - PROPERLY TRANSLATED, not just repeated`;
@@ -413,4 +414,3 @@ function validateMarksAgainstSources(
 
   return validated;
 }
-

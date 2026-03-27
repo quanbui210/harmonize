@@ -86,16 +86,39 @@ function isEUAddress(address: string | undefined | null): boolean {
 /**
  * Check if product name contains ingredient that requires QUID
  */
-function requiresQUID(productName: string): boolean {
-  const foodIngredients = [
-    "mango", "apple", "banana", "orange", "strawberry", "berry",
-    "fruit", "vegetable", "nut", "almond", "walnut", "hazelnut",
-    "chocolate", "cocoa", "milk", "cream", "cheese", "yogurt",
-    "meat", "chicken", "beef", "pork", "fish", "salmon", "tuna"
-  ];
-  
-  const lower = productName.toLowerCase();
-  return foodIngredients.some(ing => lower.includes(ing));
+function normalizeForMatch(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[%.,/#!$^&*;:{}=\-_`~()'"[\]\\|?<>+]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getQUIDIngredientTargets(label: LabelData): Array<LabelData["ingredients"][number]> {
+  const productNameText = [
+    label.productName.original,
+    label.productName.translations.fi,
+    label.productName.translations.sv,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const normalizedProductName = ` ${normalizeForMatch(productNameText)} `;
+
+  return label.ingredients.filter((ingredient) => {
+    const candidates = [
+      ingredient.name,
+      ingredient.translations.fi,
+      ingredient.translations.sv,
+    ].filter(Boolean);
+
+    return candidates.some((candidate) => {
+      const normalizedCandidate = normalizeForMatch(candidate);
+      if (!normalizedCandidate || normalizedCandidate.length < 3) {
+        return false;
+      }
+      return normalizedProductName.includes(` ${normalizedCandidate} `);
+    });
+  });
 }
 
 /**
@@ -106,18 +129,19 @@ export function runComplianceChecks(label: LabelData, productType: RegulatoryPro
 
   // Only run food-specific checks for food products
   if (productType === "FOOD") {
-    // QUID check
-    if (requiresQUID(label.productName.original)) {
-      const hasQUID = label.ingredients.some(ing => ing.percentage !== undefined);
+    const quidTargets = getQUIDIngredientTargets(label);
+    if (quidTargets.length > 0) {
+      const missingQUID = quidTargets.filter((ing) => ing.percentage === undefined);
+      const missingNames = missingQUID.map((ing) => ing.translations.fi || ing.name).join(", ");
       results.push({
         ruleId: "quid-required",
         ruleName: "QUID Percentage Required",
         severity: "CRITICAL",
-        passed: hasQUID,
-        message: hasQUID
-          ? "QUID percentage found in ingredients"
-          : "Missing QUID: Product name contains ingredient, must show percentage in ingredients list",
-        source: "Ruokavirasto Guide 17068/2, Section 5.3",
+        passed: missingQUID.length === 0,
+        message: missingQUID.length === 0
+          ? "QUID percentage present for ingredients emphasized in product name"
+          : `Missing QUID for: ${missingNames}. Add percentage for emphasized ingredients`,
+        source: "Regulation (EU) No 1169/2011, Article 22; Ruokavirasto Guide 17068/2, Section 5.3",
       });
     }
 

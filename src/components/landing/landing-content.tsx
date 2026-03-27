@@ -72,6 +72,65 @@ const RULING_SUGGESTIONS = [
   { label: "Electric vehicles", query: "electric vehicles" },
 ] as const;
 
+const HARDCODED_TEASER_RULINGS: LandingRuling[] = [
+  {
+    id: "teaser-fi-2026-bti13",
+    market: "FI",
+    reference: "FIBTIFI001210-2026-BTI13",
+    title: "Modular DC Charging System for Electric Vehicles",
+    body: "Scalable DC charging system with dynamic power management for EV charging networks.",
+    originalBody: "Scalable DC charging system with dynamic power management for EV charging networks.",
+    isTranslated: true,
+    category: "Electronics",
+    htsCode: "85044060",
+    issuedAt: "2026-02-04",
+    justification: "Classified under combined nomenclature rules for electrical components.",
+    originalJustification: "Classified under combined nomenclature rules for electrical components.",
+  },
+  {
+    id: "teaser-fi-2025-bti20",
+    market: "FI",
+    reference: "FIBTIFI001210-2025-BTI20",
+    title: "Blueberry Flavored Energy Drink Concentrate",
+    body: "Dark red energy drink concentrate with blueberry flavor, diluted before consumption.",
+    originalBody: "Dark red energy drink concentrate with blueberry flavor, diluted before consumption.",
+    isTranslated: true,
+    category: "Food",
+    htsCode: "21069098",
+    issuedAt: "2025-03-07",
+    justification: "Follows combined nomenclature interpretation rules and relevant regulations.",
+    originalJustification: "Follows combined nomenclature interpretation rules and relevant regulations.",
+  },
+  {
+    id: "teaser-de-2025-1",
+    market: "DE",
+    reference: "DEBTI50249/25-1",
+    title: "Borosilicate Glass Teapot with Plastic Lid",
+    body: "Glass teapot for table or kitchen use, with handle, lid, and 1.5L capacity.",
+    originalBody: "Teekanne aus Borosilikatglas mit Kunststoffdeckel und Griff.",
+    isTranslated: false,
+    category: "Household",
+    htsCode: "70134200",
+    issuedAt: "2026-03-03",
+    justification: "Classified under HS heading notes and applicable interpretation rules.",
+    originalJustification: "AV 1 / AV 6 / AV 3 b.",
+  },
+  {
+    id: "teaser-fr-2025-08292",
+    market: "FR",
+    reference: "FRBTIFR-BTI-2025-08292",
+    title: "Frozen Stuffed Pasta Bites",
+    body: "Steamed and frozen pasta bites with chicken and vegetables, sold in retail packs.",
+    originalBody: "Pâtes alimentaires cuites à la vapeur et surgelées, sous forme de bouchées farcies.",
+    isTranslated: false,
+    category: "Food",
+    htsCode: "190209190",
+    issuedAt: "2026-03-03",
+    justification: "Position determined by chapter notes and wording of tariff subheadings.",
+    originalJustification: "Classement déterminé par notes de section et de chapitre.",
+  },
+];
+
 type UserData = {
   id: string;
   email: string | null;
@@ -96,9 +155,6 @@ export function LandingContent({ user }: LandingContentProps) {
   const searchAbortRef = useRef<AbortController | null>(null);
 
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-  const [teaserRulings, setTeaserRulings] = useState<LandingRuling[]>([]);
-  const [teaserLoading, setTeaserLoading] = useState(true);
-
   const [rulingsQuery, setRulingsQuery] = useState("");
   const [rulingsTouched, setRulingsTouched] = useState(false);
   const [rulingsLoading, setRulingsLoading] = useState(false);
@@ -169,48 +225,6 @@ export function LandingContent({ user }: LandingContentProps) {
       if (rafId) window.cancelAnimationFrame(rafId);
     };
   }, [prefersReducedMotion]);
-
-  useEffect(() => {
-    const supportsIdle =
-      typeof window !== "undefined" &&
-      "requestIdleCallback" in window &&
-      "cancelIdleCallback" in window;
-
-    let idleId: number | null = null;
-    let timeoutId: number | null = null;
-
-    const schedule = (cb: () => void) => {
-      if (supportsIdle) {
-        idleId = (window as any).requestIdleCallback(cb, { timeout: 1500 });
-        return;
-      }
-      timeoutId = window.setTimeout(cb, 700);
-    };
-
-    schedule(async () => {
-      try {
-        setTeaserLoading(true);
-        const res = await fetch("/api/rulings?market=FI&limit=3");
-        if (!res.ok) throw new Error("Failed to load rulings");
-        const data = await res.json();
-        const list = Array.isArray(data?.rulings) ? (data.rulings as LandingRuling[]) : [];
-        setTeaserRulings(list.slice(0, 3));
-      } catch {
-        setTeaserRulings([]);
-      } finally {
-        setTeaserLoading(false);
-      }
-    });
-
-    return () => {
-      if (idleId != null && supportsIdle) {
-        (window as any).cancelIdleCallback(idleId);
-      }
-      if (timeoutId != null) {
-        window.clearTimeout(timeoutId);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (!rulingsTouched) return;
@@ -289,6 +303,41 @@ export function LandingContent({ user }: LandingContentProps) {
     .toUpperCase() || 
     user?.email?.slice(0, 2).toUpperCase() || 
     "U";
+
+  const regulatorySources = [
+    {
+      title: "EU Combined Nomenclature (CN)",
+      detail: "Official tariff classification system maintained by the European Commission.",
+      scope: "Tariff taxonomy",
+      refresh: "Annual base + amendments",
+      icon: BookOpen,
+      href: undefined,
+    },
+    {
+      title: "Binding Tariff Information (BTI) Rulings",
+      detail: "Legally binding classification decisions issued by EU customs authorities.",
+      scope: "Case precedent",
+      refresh: "Continuous publication",
+      icon: FileText,
+      href: undefined,
+    },
+    {
+      title: "EU Court Decisions & Classification Guidance",
+      detail: "Judicial interpretations and historical classification cases.",
+      scope: "Interpretation logic",
+      refresh: "As published by courts",
+      icon: Scale,
+      href: undefined,
+    },
+    {
+      title: "Finnish Food Authority (Ruokavirasto)",
+      detail: "Official food labeling regulations and requirements.",
+      scope: "Food labeling rules",
+      refresh: "Authority updates",
+      icon: Globe,
+      href: "https://www.ruokavirasto.fi/en/foodstuffs/food-sector/instructions-and-legislation/#labelling",
+    },
+  ] as const;
 
   return (
     <div className="min-h-screen bg-background">
@@ -500,23 +549,7 @@ export function LandingContent({ user }: LandingContentProps) {
                       <div className="px-5 pb-5">
                         <div className="teaser-scroll-viewport">
                           <ul className={`teaser-scroll-track ${prefersReducedMotion ? "" : "teaser-scroll"}`}>
-                            {(teaserLoading
-                              ? Array.from({ length: 3 }).map((_, idx) => ({
-                                  id: `placeholder-${idx}`,
-                                  market: "FI",
-                                  reference: "Loading…",
-                                  title: "Fetching official rulings",
-                                  body: "",
-                                  originalBody: "",
-                                  isTranslated: false,
-                                  category: null,
-                                  htsCode: null,
-                                  issuedAt: null,
-                                  justification: null,
-                                  originalJustification: null,
-                                }))
-                              : teaserRulings
-                            ).map((ruling) => (
+                            {HARDCODED_TEASER_RULINGS.map((ruling) => (
                               <li key={ruling.id} className="teaser-item">
                                 <div className="flex items-start gap-3">
                                   <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-xl bg-muted text-sm">
@@ -988,55 +1021,65 @@ export function LandingContent({ user }: LandingContentProps) {
           </div>
         </ScrollAnimation>
 
-        <div className="space-y-12">
-          <ScrollAnimation delay={100}>
-            <div className="group border-l-4 border-primary/20 pl-6 transition-all duration-500 ease-out hover:border-primary/60 hover:pl-8 hover:bg-muted/30 -ml-2 py-2 rounded-r-md cursor-default">
-              <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                EU Combined Nomenclature (CN)
-              </h3>
-              <p className="text-sm text-muted-foreground italic transition-colors duration-500 group-hover:text-foreground/80">
-                Official tariff classification system maintained by the European Commission
-              </p>
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-start">
+          <div className="relative">
+            <div className="absolute left-4 top-1 bottom-1 w-px bg-gradient-to-b from-primary/50 via-border to-transparent" aria-hidden="true" />
+            <div className="space-y-7">
+              {regulatorySources.map((source, index) => {
+                const Icon = source.icon;
+                return (
+                  <ScrollAnimation key={source.title} delay={100 + index * 100}>
+                    <div className="group relative pl-14">
+                      <div className="absolute left-0 top-1.5 flex h-8 w-8 items-center justify-center rounded-full border border-border/60 bg-background text-primary transition-all duration-500 group-hover:scale-105 group-hover:border-primary/50">
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                        <span>{source.scope}</span>
+                        <span className="h-1 w-1 rounded-full bg-border" />
+                        <span>{source.refresh}</span>
+                      </div>
+                      <h3 className="mt-2 text-xl font-serif font-semibold tracking-tight transition-all duration-500 group-hover:translate-x-1">
+                        {source.title}
+                      </h3>
+                      <p className="mt-2 max-w-2xl text-sm italic text-muted-foreground transition-colors duration-500 group-hover:text-foreground/80">
+                        {source.href ? (
+                          <a href={source.href} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                            {source.detail}
+                          </a>
+                        ) : (
+                          source.detail
+                        )}
+                      </p>
+                    </div>
+                  </ScrollAnimation>
+                );
+              })}
             </div>
-          </ScrollAnimation>
+          </div>
 
-          <ScrollAnimation delay={200}>
-            <div className="group border-l-4 border-primary/20 pl-6 transition-all duration-500 ease-out hover:border-primary/60 hover:pl-8 hover:bg-muted/30 -ml-2 py-2 rounded-r-md cursor-default">
-              <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                Binding Tariff Information (BTI) Rulings
-              </h3>
-              <p className="text-sm text-muted-foreground italic transition-colors duration-500 group-hover:text-foreground/80">
-                Legally binding classification decisions issued by EU customs authorities
-              </p>
-            </div>
-          </ScrollAnimation>
-
-          <ScrollAnimation delay={300}>
-            <div className="group border-l-4 border-primary/20 pl-6 transition-all duration-500 ease-out hover:border-primary/60 hover:pl-8 hover:bg-muted/30 -ml-2 py-2 rounded-r-md cursor-default">
-              <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                EU Court Decisions & Classification Guidance
-              </h3>
-              <p className="text-sm text-muted-foreground italic transition-colors duration-500 group-hover:text-foreground/80">
-                Judicial interpretations and historical classification cases
-              </p>
-            </div>
-          </ScrollAnimation>
-
-          <ScrollAnimation delay={400}>
-            <div className="group border-l-4 border-primary/20 pl-6 transition-all duration-500 ease-out hover:border-primary/60 hover:pl-8 hover:bg-muted/30 -ml-2 py-2 rounded-r-md cursor-default">
-              <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                Finnish Food Authority (Ruokavirasto)
-              </h3>
-              <p className="text-sm text-muted-foreground italic transition-colors duration-500 group-hover:text-foreground/80">
-                <a 
-                  href="https://www.ruokavirasto.fi/en/foodstuffs/food-sector/instructions-and-legislation/#labelling" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline transition-all duration-300"
-                >
-                  Official food labeling regulations and requirements
-                </a>
-              </p>
+          <ScrollAnimation delay={250}>
+            <div className="relative overflow-hidden rounded-3xl border border-border/50 bg-gradient-to-br from-muted/40 via-background to-background p-7">
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_85%_0%,hsl(var(--primary)/0.16),transparent_45%)]" />
+              <p className="relative text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">How We Use Them</p>
+              <ul className="relative mt-6 space-y-4">
+                <li className="border-b border-border/40 pb-4">
+                  <p className="text-sm font-semibold">Cross-source consistency checks</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Classifications are validated against taxonomy, rulings, and guidance before suggestions are returned.</p>
+                </li>
+                <li className="border-b border-border/40 pb-4">
+                  <p className="text-sm font-semibold">Source-linked reasoning trail</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Each recommendation includes references so teams can understand and defend why a code was proposed.</p>
+                </li>
+                <li>
+                  <p className="text-sm font-semibold">Regulatory change sensitivity</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Signals are refreshed as official publications evolve, reducing the risk of stale compliance decisions.</p>
+                </li>
+              </ul>
+              <div className="relative mt-6 flex flex-wrap gap-2">
+                <Badge variant="outline" className="rounded-full bg-background/70">Official publications</Badge>
+                <Badge variant="outline" className="rounded-full bg-background/70">Binding decisions</Badge>
+                <Badge variant="outline" className="rounded-full bg-background/70">Court interpretation</Badge>
+              </div>
             </div>
           </ScrollAnimation>
         </div>

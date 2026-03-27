@@ -308,7 +308,7 @@
   }
 
   .teaser-scroll {
-    animation: teaserScroll 9s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+    animation: teaserScroll 10s cubic-bezier(0.16, 1, 0.3, 1) infinite;
   }
 
   @keyframes teaserScroll {

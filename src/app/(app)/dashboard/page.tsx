@@ -162,8 +162,9 @@ export default async function DashboardPage() {
         />
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-3 xl:items-stretch">
-        <Card className="xl:col-span-2 flex flex-col">
+      <section className="grid gap-6 xl:grid-cols-3">
+        <div className="xl:col-span-2 space-y-6">
+          <Card className="flex flex-col">
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <div>
               <CardTitle>Recent Classifications</CardTitle>
@@ -339,74 +340,77 @@ export default async function DashboardPage() {
               </Table>
             </div>
           </CardContent>
-        </Card>
-        <div className="flex flex-col space-y-6 h-full">
-          <RulingsRecommendationsCard />
-          <Card className="flex-1 flex flex-col">
-            <CardHeader>
-              <CardTitle>Recent Shipments</CardTitle>
-              <CardDescription>Latest active shipments.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 flex-1">
-              {data.recentShipments?.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  No active shipments yet. Create a shipment to get started.
-                </p>
-              )}
-              {data.recentShipments?.map((shipment: any) => (
-                <Link
-                  key={shipment.id}
-                  href={`/shipments/${shipment.id}`}
-                  className="block rounded-xl border p-3 hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate">{shipment.shipmentNumber}</p>
+          </Card>
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card className="flex flex-col">
+              <CardHeader>
+                <CardTitle>Recent Shipments</CardTitle>
+                <CardDescription>Latest active shipments.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {data.recentShipments?.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    No active shipments yet. Create a shipment to get started.
+                  </p>
+                )}
+                {data.recentShipments?.map((shipment: any) => (
+                  <Link
+                    key={shipment.id}
+                    href={`/shipments/${shipment.id}`}
+                    className="block rounded-xl border p-3 hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate">{shipment.shipmentNumber}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {shipment.items?.length ?? 0} item{(shipment.items?.length ?? 0) !== 1 ? "s" : ""} · {shipment.type}
+                        </p>
+                      </div>
+                      <Badge variant={shipment.status === "CLEARED" ? "default" : shipment.status === "IN_TRANSIT" ? "secondary" : "outline"}>
+                        {shipment.status.replace("_", " ")}
+                      </Badge>
+                    </div>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+            <Card className="flex flex-col">
+              <CardHeader>
+                <CardTitle>Active Imports Summary</CardTitle>
+                <CardDescription>Top shipments needing attention.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {data.activeImports.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    Classify a product to see shipment readiness here.
+                  </p>
+                )}
+                {data.activeImports.map((item) => (
+                  <div
+                    key={String(item.id)}
+                    className="flex items-center justify-between rounded-xl border p-3"
+                  >
+                    <div>
+                      <p className="font-medium">
+                        {item.product?.name ?? "Product"}
+                      </p>
                       <p className="text-xs text-muted-foreground">
-                        {shipment.items?.length ?? 0} item{(shipment.items?.length ?? 0) !== 1 ? "s" : ""} · {shipment.type}
+                        {String(item.market ?? "")} · {item.htsCode ? formatHTSCode(item.htsCode) : "HTS pending"}
                       </p>
                     </div>
-                    <Badge variant={shipment.status === "CLEARED" ? "default" : shipment.status === "IN_TRANSIT" ? "secondary" : "outline"}>
-                      {shipment.status.replace("_", " ")}
+                    <Badge
+                      variant={item.requiresReview ? "secondary" : "default"}
+                    >
+                      {item.requiresReview ? "Review" : "Audit Ready"}
                     </Badge>
                   </div>
-                </Link>
-              ))}
-            </CardContent>
-          </Card>
-          <Card className="flex-1 flex flex-col">
-            <CardHeader>
-              <CardTitle>Active Imports Summary</CardTitle>
-              <CardDescription>Top shipments needing attention.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 flex-1">
-              {data.activeImports.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  Classify a product to see shipment readiness here.
-                </p>
-              )}
-              {data.activeImports.map((item) => (
-                <div
-                  key={String(item.id)}
-                  className="flex items-center justify-between rounded-xl border p-3"
-                >
-                  <div>
-                    <p className="font-medium">
-                      {item.product?.name ?? "Product"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {String(item.market ?? "")} · {item.htsCode ? formatHTSCode(item.htsCode) : "HTS pending"}
-                    </p>
-                  </div>
-                  <Badge
-                    variant={item.requiresReview ? "secondary" : "default"}
-                  >
-                    {item.requiresReview ? "Review" : "Audit Ready"}
-                  </Badge>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+        <div className="xl:col-span-1">
+          <RulingsRecommendationsCard />
         </div>
       </section>
     </div>

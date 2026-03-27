@@ -68,31 +68,46 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
       {/* Ingredients */}
       {(productCategory === "food" || productCategory === "meat" || productCategory === "supplements" || productCategory === "pet") && labelData.ingredients && labelData.ingredients.length > 0 && (
         <div className="mb-3">
-          <div className="font-bold mb-2">Ainesosat / Ingredienser:</div>
-          <div className="space-y-1 text-sm">
+          <div className="font-bold mb-1">Ainesosat:</div>
+          <div className="text-sm leading-snug text-gray-900">
             {labelData.ingredients.map((ing, idx) => {
-              // Safely extract ingredient name
-              const ingNameFI = (ing.translations && typeof ing.translations === "object" && typeof ing.translations.fi === "string")
-                ? ing.translations.fi
-                : (typeof ing.name === "string" ? ing.name : "Ingredient");
-              const ingNameSV = (ing.translations && typeof ing.translations === "object" && typeof ing.translations.sv === "string")
-                ? ing.translations.sv
-                : null;
-              
+              const ingNameFI =
+                ing.translations && typeof ing.translations === "object" && typeof ing.translations.fi === "string"
+                  ? ing.translations.fi
+                  : typeof ing.name === "string"
+                    ? ing.name
+                    : "Ingredient";
+
               return (
-                <div key={idx} className="mb-1">
-                  <span
-                    className={ing.isAllergen ? "font-bold text-red-700" : ""}
-                  >
+                <span key={`fi-${idx}`}>
+                  <span className={ing.isAllergen ? "font-bold text-red-700" : ""}>
                     {ingNameFI}
-                    {ing.percentage && ` (${ing.percentage}%)`}
+                    {ing.percentage != null ? ` (${ing.percentage}%)` : ""}
                   </span>
-                  {ingNameSV && ingNameSV !== ingNameFI && (
-                    <div className="text-xs text-gray-500 ml-2">
-                      {ingNameSV}
-                    </div>
-                  )}
-                </div>
+                  {idx < labelData.ingredients.length - 1 ? ", " : ""}
+                </span>
+              );
+            })}
+          </div>
+
+          <div className="font-bold mt-2 mb-1">Ingredienser:</div>
+          <div className="text-xs leading-snug text-gray-700">
+            {labelData.ingredients.map((ing, idx) => {
+              const ingNameSV =
+                ing.translations && typeof ing.translations === "object" && typeof ing.translations.sv === "string"
+                  ? ing.translations.sv
+                  : typeof ing.name === "string"
+                    ? ing.name
+                    : "Ingredient";
+
+              return (
+                <span key={`sv-${idx}`}>
+                  <span className={ing.isAllergen ? "font-bold text-red-700" : ""}>
+                    {ingNameSV}
+                    {ing.percentage != null ? ` (${ing.percentage}%)` : ""}
+                  </span>
+                  {idx < labelData.ingredients.length - 1 ? ", " : ""}
+                </span>
               );
             })}
           </div>
