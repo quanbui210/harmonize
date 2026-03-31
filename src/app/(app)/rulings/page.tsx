@@ -30,7 +30,7 @@ export default async function RulingsPage({ searchParams }: Props) {
   const market = (searchParams.market as any) || "FI";
   const categories = market === "FI" ? await getRulingCategoriesAction(market) : [];
 
-  const { rulings, total } = await listRulingsAction({
+  const result = await listRulingsAction({
     market,
     htsCode: searchParams.htsCode,
     search: searchParams.search,
@@ -41,8 +41,13 @@ export default async function RulingsPage({ searchParams }: Props) {
 
   return (
     <RulingsPageClient
-      initialRulings={rulings}
-      total={total}
+      initialRulings={result.rulings}
+      total={result.total}
+      initialResultMeta={{
+        requestedMarket: result.requestedMarket,
+        effectiveMarket: result.effectiveMarket,
+        usedCrossMarketFallback: result.usedCrossMarketFallback,
+      }}
       currentPage={page}
       limit={limit}
       marketOptions={[...marketOptions]}

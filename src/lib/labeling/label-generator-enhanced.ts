@@ -88,6 +88,8 @@ interface ProductData {
   importerAddress?: string; // User-provided EU importer address
   bestBeforeDate?: string; // Best before date (YYYY-MM-DD)
   netQuantity?: string; // Net quantity in grams
+  quidIngredientName?: string;
+  quidPercentage?: number;
 }
 
 /**
@@ -250,7 +252,8 @@ Origin: ${product.originCountry || "Not specified"}
 CN Code: ${product.cnCode || "Not specified"}
 ${product.importerAddress ? `IMPORTER ADDRESS (USE THIS EXACT ADDRESS): ${product.importerAddress}` : "Importer Address: Generate a generic EU importer address"}
 ${product.bestBeforeDate ? `Best Before Date (USE THIS EXACT DATE): ${product.bestBeforeDate}` : "Best Before Date: Generate if required"}
-${product.netQuantity ? `Net Quantity (USE THIS EXACT QUANTITY): ${product.netQuantity}g` : "Net Quantity: Generate if required"}
+${product.netQuantity ? `Net Quantity (USE THIS EXACT QUANTITY): ${product.netQuantity}` : "Net Quantity: Generate if required"}
+${product.quidIngredientName && typeof product.quidPercentage === "number" ? `QUID MANDATORY INPUT: ${product.quidIngredientName} must be declared as ${product.quidPercentage}% in ingredients` : "QUID: If ingredient is emphasized in product name/text/image, include % in ingredient list"}
 Label Size: ${labelSize.width}mm x ${labelSize.height}mm
 
 CRITICAL TRANSLATION INSTRUCTIONS:

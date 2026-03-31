@@ -38,6 +38,8 @@ interface FormState {
   bestBeforeDate: string;
   netQuantity: string;
   netQuantityUnit: "g" | "kg";
+  quidIngredientName: string;
+  quidPercentage: string;
   importerAddress: {
     companyName: string;
     street: string;
@@ -66,6 +68,8 @@ const initialForm: FormState = {
   bestBeforeDate: "",
   netQuantity: "",
   netQuantityUnit: "g" as const,
+  quidIngredientName: "",
+  quidPercentage: "",
   importerAddress: {
     companyName: "",
     street: "",
@@ -75,6 +79,39 @@ const initialForm: FormState = {
   },
   nutrition: {},
 };
+
+function parseNumericNutritionValue(value: string | number | undefined, key: keyof FormState["nutrition"]): number | undefined {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : undefined;
+  }
+
+  const normalized = value.replace(",", ".");
+  if (key === "energy") {
+    const kcalMatch = normalized.match(/(\d+(?:\.\d+)?)\s*kcal/i);
+    if (kcalMatch) {
+      const parsed = Number(kcalMatch[1]);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+
+    const kjMatch = normalized.match(/(\d+(?:\.\d+)?)\s*kj/i);
+    if (kjMatch) {
+      const parsed = Number(kjMatch[1]);
+      if (Number.isFinite(parsed)) return Number((parsed / 4.184).toFixed(1));
+    }
+  }
+
+  const numberMatch = normalized.match(/(\d+(?:\.\d+)?)/);
+  if (!numberMatch) {
+    return undefined;
+  }
+
+  const parsed = Number(numberMatch[1]);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
 
 export default function NewLabelPage() {
   const [form, setForm] = useState<FormState>(initialForm);
@@ -242,11 +279,12 @@ export default function NewLabelPage() {
   };
 
   const handleNutritionChange = (key: keyof FormState["nutrition"], value: string) => {
+    const parsedValue = parseNumericNutritionValue(value, key);
     setForm((prev) => ({
       ...prev,
       nutrition: {
         ...prev.nutrition,
-        [key]: value ? Number(value) : undefined,
+        [key]: parsedValue,
       },
     }));
   };
@@ -335,20 +373,20 @@ export default function NewLabelPage() {
     try {
       // Merge missing fields data into nutrition/form data
       const mergedNutrition = { ...form.nutrition };
-      if (missingFieldsData["nutrition_energy"]) {
-        mergedNutrition.energy = Number(missingFieldsData["nutrition_energy"]);
+      if (missingFieldsData["nutrition_energy"] !== undefined) {
+        mergedNutrition.energy = parseNumericNutritionValue(missingFieldsData["nutrition_energy"], "energy");
       }
-      if (missingFieldsData["nutrition_fat"]) {
-        mergedNutrition.fat = Number(missingFieldsData["nutrition_fat"]);
+      if (missingFieldsData["nutrition_fat"] !== undefined) {
+        mergedNutrition.fat = parseNumericNutritionValue(missingFieldsData["nutrition_fat"], "fat");
       }
-      if (missingFieldsData["nutrition_carbs"]) {
-        mergedNutrition.carbs = Number(missingFieldsData["nutrition_carbs"]);
+      if (missingFieldsData["nutrition_carbs"] !== undefined) {
+        mergedNutrition.carbs = parseNumericNutritionValue(missingFieldsData["nutrition_carbs"], "carbs");
       }
-      if (missingFieldsData["nutrition_protein"]) {
-        mergedNutrition.protein = Number(missingFieldsData["nutrition_protein"]);
+      if (missingFieldsData["nutrition_protein"] !== undefined) {
+        mergedNutrition.protein = parseNumericNutritionValue(missingFieldsData["nutrition_protein"], "protein");
       }
-      if (missingFieldsData["nutrition_salt"]) {
-        mergedNutrition.salt = Number(missingFieldsData["nutrition_salt"]);
+      if (missingFieldsData["nutrition_salt"] !== undefined) {
+        mergedNutrition.salt = parseNumericNutritionValue(missingFieldsData["nutrition_salt"], "salt");
       }
 
       const result = await generateLabelAction({
@@ -367,6 +405,8 @@ export default function NewLabelPage() {
             : (missingFieldsData["importer_address"] as string | undefined),
         bestBeforeDate: form.bestBeforeDate || undefined,
         netQuantity: form.netQuantity ? `${form.netQuantity}${form.netQuantityUnit}` : undefined,
+        quidIngredientName: form.quidIngredientName.trim() || undefined,
+        quidPercentage: form.quidPercentage ? Number(form.quidPercentage) : undefined,
       });
 
       setGeneratedLabel(result.label);
@@ -463,7 +503,19 @@ export default function NewLabelPage() {
     }
     
     // Helper function to extract plain text from JSON
-    const extractTextFromJSON = (jsonString: string): { text: string; bestBeforeDate?: string; netQuantity?: string } | null => {
+    const extractTextFromJSON = (jsonString: string): { 
+      text: string; 
+      bestBeforeDate?: string; 
+      netQuantity?: string;
+      nutrition?: {
+        energyKJ?: number | null;
+        energyKcal?: number | null;
+        fat?: number | null;
+        carbs?: number | null;
+        protein?: number | null;
+        salt?: number | null;
+      }
+    } | null => {
       let trimmed = jsonString.trim();
       
       // Strip markdown code blocks if present (```json ... ``` or ``` ... ```)
@@ -478,6 +530,7 @@ export default function NewLabelPage() {
             text: parsed.text,
             bestBeforeDate: parsed.bestBeforeDate,
             netQuantity: parsed.netQuantity,
+            nutrition: parsed.nutrition,
           };
         }
       } catch (e) {
@@ -515,6 +568,13 @@ export default function NewLabelPage() {
           : prev.bestBeforeDate,
         netQuantity: netQuantityValue || prev.netQuantity,
         netQuantityUnit: netQuantityValue ? netQuantityUnit : prev.netQuantityUnit,
+        nutrition: extracted.nutrition ? {
+          energy: extracted.nutrition.energyKcal ?? extracted.nutrition.energyKJ ? Math.round((extracted.nutrition.energyKJ || 0) / 4.184) : prev.nutrition.energy,
+          fat: extracted.nutrition.fat ?? prev.nutrition.fat,
+          carbs: extracted.nutrition.carbs ?? prev.nutrition.carbs,
+          protein: extracted.nutrition.protein ?? prev.nutrition.protein,
+          salt: extracted.nutrition.salt ?? prev.nutrition.salt,
+        } : prev.nutrition,
       }));
       return; // Exit early - don't set the JSON string
     }
@@ -558,6 +618,13 @@ export default function NewLabelPage() {
               : prev.bestBeforeDate,
             netQuantity: netQuantityValue || prev.netQuantity,
             netQuantityUnit: netQuantityValue ? netQuantityUnit : prev.netQuantityUnit,
+            nutrition: parsed.nutrition ? {
+              energy: parsed.nutrition.energyKcal ?? parsed.nutrition.energyKJ ? Math.round((parsed.nutrition.energyKJ || 0) / 4.184) : prev.nutrition.energy,
+              fat: parsed.nutrition.fat ?? prev.nutrition.fat,
+              carbs: parsed.nutrition.carbs ?? prev.nutrition.carbs,
+              protein: parsed.nutrition.protein ?? prev.nutrition.protein,
+              salt: parsed.nutrition.salt ?? prev.nutrition.salt,
+            } : prev.nutrition,
           }));
           }
         } catch (e) {
@@ -626,7 +693,7 @@ export default function NewLabelPage() {
     if (!form.importerAddress.companyName?.trim()) missing.push("Importer Company Name");
     if (!form.importerAddress.street?.trim()) missing.push("Importer Street Address");
     if (!form.importerAddress.postalCode?.trim()) missing.push("Importer Postcode");
-    if (!form.importerAddress.city?.trim()) missing.push("Importer Post Office");
+    if (!form.importerAddress.city?.trim()) missing.push("Importer City");
     if (!form.importerAddress.country?.trim()) missing.push("Importer Country");
     
     return missing;
@@ -790,10 +857,13 @@ export default function NewLabelPage() {
 
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
-                <label className="text-sm font-medium">
+                <label className="text-sm font-medium" htmlFor="destination-country">
                   Destination country <span className="text-red-500">*</span>
                 </label>
                 <Input
+                  id="destination-country"
+                  name="country-name"
+                  autoComplete="country-name"
                   value={form.destinationCountry}
                   onChange={(e) => handleChange("destinationCountry", e.target.value)}
                   placeholder="e.g. Finland"
@@ -845,6 +915,44 @@ export default function NewLabelPage() {
               </div>
             </div>
 
+            {(form.productCategory === "food" ||
+              form.productCategory === "meat" ||
+              form.productCategory === "supplements" ||
+              form.productCategory === "pet") && (
+              <div className="space-y-3 rounded-md border bg-muted/20 p-4">
+                <div>
+                  <label className="text-sm font-medium">QUID helper (recommended for precise food labels)</label>
+                  <p className="text-xs text-muted-foreground">
+                    If an ingredient is highlighted in the product name, add it here with its percentage.
+                  </p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="quid-ingredient-name">Main ingredient name</label>
+                    <Input
+                      id="quid-ingredient-name"
+                      value={form.quidIngredientName}
+                      onChange={(e) => handleChange("quidIngredientName", e.target.value)}
+                      placeholder="e.g. Mango"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="quid-percentage">Main ingredient percentage (%)</label>
+                    <Input
+                      id="quid-percentage"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={form.quidPercentage}
+                      onChange={(e) => handleChange("quidPercentage", e.target.value)}
+                      placeholder="e.g. 95"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium">
@@ -857,20 +965,26 @@ export default function NewLabelPage() {
               
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">
+                  <label className="text-sm font-medium" htmlFor="importer-company-name">
                     Company Name <span className="text-red-500">*</span>
                   </label>
                   <Input
+                    id="importer-company-name"
+                    name="company"
+                    autoComplete="organization"
                     value={form.importerAddress.companyName}
                     onChange={(e) => handleChange("importerAddress", { ...form.importerAddress, companyName: e.target.value })}
                     placeholder="e.g. Company Name"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">
+                  <label className="text-sm font-medium" htmlFor="importer-street-address">
                     Street address <span className="text-red-500">*</span>
                   </label>
                   <Input
+                    id="importer-street-address"
+                    name="street-address"
+                    autoComplete="address-line1"
                     value={form.importerAddress.street}
                     onChange={(e) => handleChange("importerAddress", { ...form.importerAddress, street: e.target.value })}
                     placeholder="e.g. Opastinsilta 1"
@@ -880,20 +994,27 @@ export default function NewLabelPage() {
               
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">
+                  <label className="text-sm font-medium" htmlFor="importer-postal-code">
                     Postcode <span className="text-red-500">*</span>
                   </label>
                   <Input
+                    id="importer-postal-code"
+                    name="postal-code"
+                    autoComplete="postal-code"
+                    inputMode="numeric"
                     value={form.importerAddress.postalCode}
                     onChange={(e) => handleChange("importerAddress", { ...form.importerAddress, postalCode: e.target.value })}
                     placeholder="e.g. 00520"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">
-                    Post office <span className="text-red-500">*</span>
+                  <label className="text-sm font-medium" htmlFor="importer-city">
+                    City <span className="text-red-500">*</span>
                   </label>
                   <Input
+                    id="importer-city"
+                    name="address-level2"
+                    autoComplete="address-level2"
                     value={form.importerAddress.city}
                     onChange={(e) => handleChange("importerAddress", { ...form.importerAddress, city: e.target.value })}
                     placeholder="e.g. Helsinki"
@@ -902,10 +1023,13 @@ export default function NewLabelPage() {
               </div>
               
               <div className="space-y-2">
-                <label className="text-sm font-medium">
+                <label className="text-sm font-medium" htmlFor="importer-country">
                   Country <span className="text-red-500">*</span>
                 </label>
                 <Input
+                  id="importer-country"
+                  name="country-name"
+                  autoComplete="country-name"
                   value={form.importerAddress.country}
                   onChange={(e) => handleChange("importerAddress", { ...form.importerAddress, country: e.target.value })}
                   placeholder="e.g. Finland"
@@ -1104,14 +1228,36 @@ export default function NewLabelPage() {
 
       {/* Step 2: Compliance & Result */}
       {currentStep === 2 && generatedLabel && (
-        <div className="space-y-6">
+        <div className="space-y-6 pb-24">
           <div className="grid gap-6 lg:grid-cols-3">
             {/* Label Preview */}
             <Card className="lg:col-span-2">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Step 2: Compliance Analysis & Label Result</CardTitle>
-                  <div className="flex gap-2">
+              <CardHeader className="pb-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div className="space-y-1">
+                    <CardTitle className="text-2xl font-bold tracking-tight">Step 2: Compliance Analysis & Label Result</CardTitle>
+                    <p className="text-sm text-muted-foreground">Review your generated label and compliance analysis.</p>
+                  </div>
+                  <div className="flex items-center flex-wrap gap-3">
+                    <Button 
+                      onClick={handleSaveLabel} 
+                      disabled={isPending || isSaving}
+                      className="bg-primary hover:bg-primary/90 px-6"
+                      size="sm"
+                    >
+                      {isSaving ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="mr-2 h-4 w-4" />
+                          Finish & Save
+                        </>
+                      )}
+                    </Button>
+                    <div className="w-px h-8 bg-border mx-1" />
                     <Button variant="outline" size="sm" onClick={handleExportPDF}>
                       <Download className="mr-2 h-4 w-4" />
                       Export PDF
@@ -1159,12 +1305,12 @@ export default function NewLabelPage() {
             </Card>
           </div>
 
-          {/* Navigation & Save Actions */}
-          <Card>
-            <CardContent className="pt-6">
+          {/* Navigation & Save Actions - Sticky Bottom Bar */}
+          <Card className="sticky bottom-6 z-50 shadow-lg border-t-2 border-primary/20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+            <CardContent className="py-4">
               <div className="flex items-center justify-between">
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setCurrentStep(1)}>
+                  <Button variant="outline" onClick={() => setCurrentStep(1)} disabled={isPending || isSaving}>
                     <ChevronLeft className="mr-2 h-4 w-4" />
                     Back to Step 1
                   </Button>
@@ -1173,6 +1319,7 @@ export default function NewLabelPage() {
                   onClick={handleSaveLabel} 
                   disabled={isPending || isSaving}
                   size="lg"
+                  className="px-8 shadow-md"
                 >
                   {isSaving ? (
                     <>

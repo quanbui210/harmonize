@@ -308,7 +308,7 @@ export function LandingContent({ user }: LandingContentProps) {
     {
       title: "EU Combined Nomenclature (CN)",
       detail: "Official tariff classification system maintained by the European Commission.",
-      scope: "Tariff taxonomy",
+      scope: "Tariff codes",
       refresh: "Annual base + amendments",
       icon: BookOpen,
       href: undefined,
@@ -316,7 +316,7 @@ export function LandingContent({ user }: LandingContentProps) {
     {
       title: "Binding Tariff Information (BTI) Rulings",
       detail: "Legally binding classification decisions issued by EU customs authorities.",
-      scope: "Case precedent",
+      scope: "Customs decisions",
       refresh: "Continuous publication",
       icon: FileText,
       href: undefined,
@@ -324,7 +324,7 @@ export function LandingContent({ user }: LandingContentProps) {
     {
       title: "EU Court Decisions & Classification Guidance",
       detail: "Judicial interpretations and historical classification cases.",
-      scope: "Interpretation logic",
+      scope: "Court guidance",
       refresh: "As published by courts",
       icon: Scale,
       href: undefined,
@@ -475,9 +475,9 @@ export function LandingContent({ user }: LandingContentProps) {
                   EU IMPORT COMPLIANCE SOLVED
                 </p>
                 <h1 className="text-4xl md:text-5xl font-serif font-bold tracking-tight mb-4 leading-[1.05]">
-                  EU import decisions that feel{" "}
+                  Import to the EU with{" "}
                   <span className="relative inline-block">
-                    instant
+                    fewer surprises
                     <span className="absolute -bottom-1 left-0 h-[3px] w-full bg-primary/40 rounded-full" />
                   </span>
                   .
@@ -497,7 +497,7 @@ export function LandingContent({ user }: LandingContentProps) {
                     className="magnetic-wrap"
                   >
                     <Button size="lg" onClick={handleLoginClick} className="magnetic-target">
-                      Try for free <ArrowRight className="h-4 w-4" />
+                      Start free check <ArrowRight className="h-4 w-4" />
                     </Button>
                   </div>
                   <Button
@@ -778,8 +778,8 @@ export function LandingContent({ user }: LandingContentProps) {
         <div className="container mx-auto max-w-7xl px-6 relative z-10">
           <ScrollAnimation>
             <div className="mb-16 text-center">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                FROM RISK TO READY
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                WHY IMPORTERS USE TULLICHECK
               </p>
               <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-2">
                 Stop Guessing. Start Shipping.
@@ -796,7 +796,7 @@ export function LandingContent({ user }: LandingContentProps) {
             </div>
             <div className="pb-4 border-l-2 border-border pl-8 lg:pl-8">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-[0.15em]">
-                HARMONIZEAI ADVANTAGE
+                WHAT YOU GET
               </p>
             </div>
           </div>
@@ -809,10 +809,10 @@ export function LandingContent({ user }: LandingContentProps) {
                 {/* Risk Side */}
                 <div className="pr-8">
                   <h3 className="text-lg font-serif font-semibold tracking-tight text-foreground/60 mb-2 group-hover/item:text-foreground/70 transition-colors">
-                    Wrong CN / TARIC Classifications
+                    Wrong CN / TARIC code
                   </h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    Manual classification is error-prone. A single incorrect digit in your CN code can lead to wrong duty rates, customs holds, or rejected entries.
+                    One wrong digit can cause wrong duty, customs delays, or rejected entry.
                   </p>
                 </div>
 
@@ -834,20 +834,20 @@ export function LandingContent({ user }: LandingContentProps) {
                 {/* Risk Side */}
                 <div className="pr-8">
                   <h3 className="text-lg font-serif font-semibold tracking-tight text-foreground/60 mb-2 group-hover/item:text-foreground/70 transition-colors">
-                    Missing or Incomplete Documentation
+                    Missing documents
                   </h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    Incomplete invoices, certificates, or declarations can trigger inspections, delays, or refusal at EU customs.
+                    Missing invoices, certificates, or declarations can hold your shipment.
                   </p>
                 </div>
 
                 {/* Advantage Side */}
                 <div className="border-l-2 border-border pl-8 lg:pl-8">
                   <h3 className="text-lg font-serif font-semibold tracking-tight text-primary mb-2 group-hover/item:text-primary/90 transition-colors">
-                    Know Exact Document Requirements
+                    Clear document checklist
                   </h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    Eliminate the guesswork. Instantly see exactly which invoices, certificates, and declarations are required for your specific product and origin to clear customs smoothly.
+                    See exactly which documents are needed for your product type and origin.
                   </p>
                 </div>
               </div>
@@ -859,20 +859,20 @@ export function LandingContent({ user }: LandingContentProps) {
                 {/* Risk Side */}
                 <div className="pr-8">
                   <h3 className="text-lg font-serif font-semibold tracking-tight text-foreground/60 mb-2 group-hover/item:text-foreground/70 transition-colors">
-                    Non-Compliant Product Labels
+                    Label mistakes
                   </h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    Incorrect language, missing allergens, or improper formatting can cause your goods to be blocked at the border.
+                    Missing allergens, nutrition, or language can block goods at the border.
                   </p>
                 </div>
 
                 {/* Advantage Side */}
                 <div className="border-l-2 border-border pl-8 lg:pl-8">
                   <h3 className="text-lg font-serif font-semibold tracking-tight text-primary mb-2 group-hover/item:text-primary/90 transition-colors">
-                    One-Click Compliant Labels
+                    Label drafts with required fields
                   </h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    Skip the design work. Generate fully compliant, bilingual (Finnish/Swedish) labels with all mandatory EU elements (allergens, nutrition, etc.) in a single click.
+                    Create FI/SV-ready label content with key EU fields and export for print.
                   </p>
                 </div>
               </div>
@@ -887,17 +887,17 @@ export function LandingContent({ user }: LandingContentProps) {
                     Regulatory Changes
                   </h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    Updates to CN codes, tariffs, or EU food regulations can make existing classifications or labels outdated without warning.
+                    Rules can change, and older decisions may no longer be valid.
                   </p>
                 </div>
 
                 {/* Advantage Side */}
                 <div className="border-l-2 border-border pl-8 lg:pl-8">
                   <h3 className="text-lg font-serif font-semibold tracking-tight text-primary mb-2 group-hover/item:text-primary/90 transition-colors">
-                    Automated Regulatory Watchdog
+                    Automatic change alerts
                   </h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    Sleep soundly knowing we&apos;re watching the regulations for you. We automatically alert you if a tariff or requirement changes that impacts your specific products.
+                    Get notified when changes may affect your product codes, labels, or documents.
                   </p>
                 </div>
               </div>
@@ -914,10 +914,10 @@ export function LandingContent({ user }: LandingContentProps) {
               PLATFORM
             </p>
             <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-3">
-              Everything You Need to Prepare for EU Import Compliance
+              Tools that help you import with confidence
             </h2>
             <p className="text-sm text-muted-foreground italic max-w-2xl">
-              A practical set of tools designed to help small and growing EU sellers reduce uncertainty and prepare compliant imports with confidence.
+              A simple workflow for checking products before shipment.
             </p>
           </div>
         </ScrollAnimation>
@@ -930,10 +930,10 @@ export function LandingContent({ user }: LandingContentProps) {
               </div>
               <div className="flex-1">
                 <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                  Automated Product Classification
+                  Product code check
                 </h3>
                 <p className="text-base text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                  Upload product descriptions and images to receive AI-assisted CN/TARIC classification suggestions based on product characteristics and official EU guidance.
+                  Upload product details and get CN/TARIC suggestions with plain-language explanations.
                 </p>
               </div>
             </div>
@@ -946,10 +946,10 @@ export function LandingContent({ user }: LandingContentProps) {
               </div>
               <div className="flex-1">
                 <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                  Risk Monitoring & Alerts
+                  Risk alerts
                 </h3>
                 <p className="text-base text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                  Monitor your products against regulatory updates, classification changes, and enforcement trends that may increase customs risk.
+                  Get notified when rules or classifications change for your product type.
                 </p>
               </div>
             </div>
@@ -962,10 +962,10 @@ export function LandingContent({ user }: LandingContentProps) {
               </div>
               <div className="flex-1">
                 <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                  Compliance Documentation Records
+                  Compliance records
                 </h3>
                 <p className="text-base text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                  Maintain structured records explaining how classifications were determined, including referenced sources and timestamps, to demonstrate due diligence if questions arise.
+                  Keep source links and decision history in one place for later checks.
                 </p>
               </div>
             </div>
@@ -978,10 +978,10 @@ export function LandingContent({ user }: LandingContentProps) {
               </div>
               <div className="flex-1">
                 <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                  Product Labeling for EU Markets
+                  EU label builder
                 </h3>
                 <p className="text-base text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                  Create bilingual (FI/SE) labels with required EU food information, including ingredients, allergens, nutrition tables, and mandatory disclosures. Export-ready for print.
+                  Create bilingual labels (FI/SV) with required food information and print-ready export.
                 </p>
               </div>
             </div>
@@ -994,10 +994,10 @@ export function LandingContent({ user }: LandingContentProps) {
               </div>
               <div className="flex-1">
                 <h3 className="text-2xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:translate-x-1">
-                  Compliance Vault
+                  Supplier document vault
                 </h3>
                 <p className="text-base text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                  Request required compliance documents from suppliers with a simple, secure link. All documents are stored in an encrypted vault, ensuring your import documentation is organized, accessible, and protected for EU customs requirements.
+                  Request documents from suppliers with a secure link and keep files organized.
                 </p>
               </div>
             </div>
@@ -1013,10 +1013,10 @@ export function LandingContent({ user }: LandingContentProps) {
               DATA SOURCES
             </p>
             <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-3">
-              Built on Official EU Regulatory Sources
+              Based on official EU sources
             </h2>
             <p className="text-sm text-muted-foreground italic max-w-2xl">
-              TulliCheck relies exclusively on authoritative public data maintained by EU institutions and national authorities.
+              We use public data from EU institutions and national authorities.
             </p>
           </div>
         </ScrollAnimation>
@@ -1060,19 +1060,19 @@ export function LandingContent({ user }: LandingContentProps) {
           <ScrollAnimation delay={250}>
             <div className="relative overflow-hidden rounded-3xl border border-border/50 bg-gradient-to-br from-muted/40 via-background to-background p-7">
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_85%_0%,hsl(var(--primary)/0.16),transparent_45%)]" />
-              <p className="relative text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">How We Use Them</p>
+              <p className="relative text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">How we use data</p>
               <ul className="relative mt-6 space-y-4">
                 <li className="border-b border-border/40 pb-4">
-                  <p className="text-sm font-semibold">Cross-source consistency checks</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Classifications are validated against taxonomy, rulings, and guidance before suggestions are returned.</p>
+                  <p className="text-sm font-semibold">Cross-check across sources</p>
+                  <p className="mt-1 text-sm text-muted-foreground">We compare multiple official sources before showing a suggestion.</p>
                 </li>
                 <li className="border-b border-border/40 pb-4">
-                  <p className="text-sm font-semibold">Source-linked reasoning trail</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Each recommendation includes references so teams can understand and defend why a code was proposed.</p>
+                  <p className="text-sm font-semibold">Source links included</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Each suggestion includes references so you can see where it comes from.</p>
                 </li>
                 <li>
-                  <p className="text-sm font-semibold">Regulatory change sensitivity</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Signals are refreshed as official publications evolve, reducing the risk of stale compliance decisions.</p>
+                  <p className="text-sm font-semibold">Regular data refresh</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Data is refreshed as new publications come out.</p>
                 </li>
               </ul>
               <div className="relative mt-6 flex flex-wrap gap-2">
@@ -1093,10 +1093,10 @@ export function LandingContent({ user }: LandingContentProps) {
               RELIABILITY
             </p>
             <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-3">
-              Continuously Updated, Always Current
+              Built for real import work
             </h2>
             <p className="text-sm text-muted-foreground italic max-w-2xl">
-              Classifications and requirements are continuously checked against new rulings, regulatory updates, and published guidance.
+              Product checks are kept aligned with new rulings, updates, and guidance.
             </p>
           </div>
         </ScrollAnimation>
@@ -1110,10 +1110,10 @@ export function LandingContent({ user }: LandingContentProps) {
                 </div>
                 <div>
                   <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:text-primary">
-                    Real-Time Regulatory Updates
+                    Updated data
                   </h3>
                   <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                    Automatic monitoring of changes to CN codes, tariffs, and EU food regulations that may impact your products.
+                    We monitor changes to CN codes, tariffs, and food labeling requirements.
                   </p>
                 </div>
               </div>
@@ -1128,10 +1128,10 @@ export function LandingContent({ user }: LandingContentProps) {
                 </div>
                 <div>
                   <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:text-primary">
-                    Confidence Indicators
+                    Confidence signal
                   </h3>
                   <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                    Each classification includes confidence signals based on data alignment, supporting guidance, and precedent strength.
+                    Each result shows how strong the supporting data is.
                   </p>
                 </div>
               </div>
@@ -1146,10 +1146,10 @@ export function LandingContent({ user }: LandingContentProps) {
                 </div>
                 <div>
                   <h3 className="text-xl font-serif font-semibold tracking-tight mb-2 transition-all duration-500 group-hover:text-primary">
-                    Transparent Audit Trail
+                    Decision history
                   </h3>
                   <p className="text-sm text-muted-foreground italic leading-relaxed transition-colors duration-500 group-hover:text-foreground/80">
-                    Every decision is logged with sources, reasoning, and timestamps to support internal review and compliance checks.
+                    Every check is logged with source links, reasoning, and timestamps.
                   </p>
                 </div>
               </div>
@@ -1163,10 +1163,10 @@ export function LandingContent({ user }: LandingContentProps) {
         <div className="container mx-auto max-w-4xl px-6 text-center">
           <ScrollAnimation>
           <h2 className="text-4xl font-serif font-semibold tracking-tight mb-3">
-            Ready to prepare for EU import compliance?
+            Ready to check your next product?
           </h2>
           <p className="text-base text-muted-foreground italic mb-8">
-            Designed for small and growing EU sellers who want clarity before shipping, not after goods are stopped.
+            Start free and get a practical import check in minutes.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button 
@@ -1174,7 +1174,7 @@ export function LandingContent({ user }: LandingContentProps) {
               onClick={handleLoginClick}
               className="transition-all duration-300 ease-out hover:scale-105 hover:shadow-lg hover:shadow-foreground/10"
             >
-              Start Your Free Risk Scan
+              Start free check
             </Button>
             <Button 
               size="lg" 
@@ -1182,7 +1182,7 @@ export function LandingContent({ user }: LandingContentProps) {
               onClick={handleLoginClick}
               className="transition-all duration-300 ease-out hover:scale-105 hover:bg-foreground hover:text-background hover:border-foreground hover:shadow-lg hover:shadow-foreground/10"
             >
-              Talk to an Expert
+              Book a quick walkthrough
             </Button>
           </div>
           </ScrollAnimation>
@@ -1194,7 +1194,7 @@ export function LandingContent({ user }: LandingContentProps) {
         <ScrollAnimation>
           <div className="border-t border-border/50 pt-12">
             <p className="text-sm text-muted-foreground leading-relaxed text-center max-w-3xl mx-auto">
-              TulliCheck provides compliance support and decision assistance based on publicly available EU regulations and guidance. It does not replace customs authorities, Binding Tariff Information (BTI), or professional legal advice.
+              TulliCheck helps you prepare for EU import compliance using public official sources. Final decisions are made by customs authorities. For formal legal advice, consult a qualified professional.
             </p>
           </div>
         </ScrollAnimation>
@@ -1307,15 +1307,15 @@ export function LandingContent({ user }: LandingContentProps) {
                 </span>
               </Link>
               <p className="text-sm text-muted-foreground italic">
-                Legal certainty for the modern importer. Automated, defensible, and precise.
+                Clear compliance support for EU import teams.
               </p>
             </div>
             <div>
               <h3 className="font-semibold mb-4 text-xs uppercase tracking-wider text-muted-foreground">Platform</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><Link href="#features" className="hover:text-foreground transition-colors italic">HTS Classification</Link></li>
-                <li><Link href="#sources" className="hover:text-foreground transition-colors italic">Risk Monitoring</Link></li>
-                <li><Link href="#reliability" className="hover:text-foreground transition-colors italic">Audit Defense</Link></li>
+                <li><Link href="#features" className="hover:text-foreground transition-colors italic">Product Code Check</Link></li>
+                <li><Link href="#sources" className="hover:text-foreground transition-colors italic">Risk Alerts</Link></li>
+                <li><Link href="#reliability" className="hover:text-foreground transition-colors italic">Decision History</Link></li>
               </ul>
             </div>
             <div>

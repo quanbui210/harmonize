@@ -9,81 +9,108 @@ export async function listRulingsAction(input: {
   category?: string;
   limit?: number;
   offset?: number;
+  includeCrossMarketFallback?: boolean;
 }) {
-  const where: any = {};
+  const selectedMarket = input.market || "FI";
+  const includeCrossMarketFallback = input.includeCrossMarketFallback !== false;
+  const hasSearchConstraints = Boolean(input.htsCode || input.search);
 
-  // For now, BTI rulings store country as string ('FI', 'DE') instead of MarketCode enum
-  // So we filter by country if market is provided
-  if (input.market) {
-    if (input.market === 'all') {
-      // No filter needed for 'all', or maybe we want to filter to only valid BTI countries?
-      // For now, let 'all' return everything.
-    } else {
-      where.country = input.market;
+  const buildWhere = (market: string, includeCategory: boolean, htsCodeOverride?: string) => {
+    const where: any = {};
+
+    if (market !== "all") {
+      where.country = market;
     }
-  } else {
-    // Default to FI if no market specified
-    where.country = "FI";
-  }
 
-  if (input.category && input.category !== "all") {
-    where.category = input.category;
-  }
+    if (includeCategory && input.category && input.category !== "all") {
+      where.category = input.category;
+    }
 
-  if (input.htsCode) {
-    where.hsCode = {
-      startsWith: input.htsCode,
-    };
-  }
+    const codePrefix = htsCodeOverride ?? input.htsCode;
+    if (codePrefix) {
+      where.hsCode = {
+        startsWith: codePrefix,
+      };
+    }
 
-  if (input.search) {
-    where.OR = [
-      { reference: { contains: input.search, mode: "insensitive" } },
-      { description: { contains: input.search, mode: "insensitive" } },
-      { justification: { contains: input.search, mode: "insensitive" } },
-    ];
-  }
+    if (input.search) {
+      where.OR = [
+        { reference: { contains: input.search, mode: "insensitive" } },
+        { description: { contains: input.search, mode: "insensitive" } },
+        { justification: { contains: input.search, mode: "insensitive" } },
+      ];
+    }
 
-  // Query BtiRuling table instead of BindingRuling
-  const [rulings, total] = await Promise.all([
-    prisma.btiRuling.findMany({
-      where,
-      orderBy: { startDate: "desc" },
-      take: input.limit || 50,
-      skip: input.offset || 0,
-      select: {
-        id: true,
-        reference: true,
-        country: true,
-        hsCode: true,
-        description: true,
-        // @ts-ignore: New fields
-        descriptionEn: true,
-        // @ts-ignore: New fields
-        titleEn: true,
-        // @ts-ignore: New fields
-        category: true,
-        startDate: true,
-        createdAt: true,
-        updatedAt: true,
-      }
-    }),
-    prisma.btiRuling.count({ where }),
-  ]);
+    return where;
+  };
+
+  const queryRulings = async (where: any) => {
+    const [rulings, total] = await Promise.all([
+      prisma.btiRuling.findMany({
+        where,
+        orderBy: { startDate: "desc" },
+        take: input.limit || 50,
+        skip: input.offset || 0,
+        select: {
+          id: true,
+          reference: true,
+          country: true,
+          hsCode: true,
+          description: true,
+          // @ts-ignore: New fields
+          descriptionEn: true,
+          // @ts-ignore: New fields
+          titleEn: true,
+          // @ts-ignore: New fields
+          category: true,
+          startDate: true,
+          createdAt: true,
+          updatedAt: true,
+        }
+      }),
+      prisma.btiRuling.count({ where }),
+    ]);
+
+    return { rulings, total };
+  };
+
+  const primaryWhere = buildWhere(selectedMarket, true);
+  let { rulings, total } = await queryRulings(primaryWhere);
+
+  let effectiveMarket = selectedMarket;
+  let usedCrossMarketFallback = false;
+  let fallbackReason: "NO_RESULTS_IN_SELECTED_MARKET" | null = null;
+
+  if (
+    includeCrossMarketFallback &&
+    selectedMarket !== "all" &&
+    hasSearchConstraints &&
+    total === 0
+  ) {
+    const fallbackHtsPrefix = input.htsCode ? input.htsCode.slice(0, 4) : undefined;
+    const fallbackWhere = buildWhere("all", false, fallbackHtsPrefix);
+    const fallbackResult = await queryRulings(fallbackWhere);
+    if (fallbackResult.total > 0) {
+      rulings = fallbackResult.rulings;
+      total = fallbackResult.total;
+      effectiveMarket = "all";
+      usedCrossMarketFallback = true;
+      fallbackReason = "NO_RESULTS_IN_SELECTED_MARKET";
+    }
+  }
 
   return {
     rulings: rulings.map((r: any) => {
-      // Prefer AI title, then English description, then truncated description
       const displayDescription = r.descriptionEn || r.description;
       const title = r.titleEn || displayDescription.substring(0, 100) + (displayDescription.length > 100 ? "..." : "");
       
       return {
         id: r.id,
-        market: r.country, // Map country to market for UI compatibility
+        market: r.country,
         reference: r.reference,
         title: title,
         body: displayDescription,
-        originalBody: r.description, // Keep original for toggle
+        originalBody: r.description,
         isTranslated: !!r.descriptionEn,
         category: r.category,
         htsCode: r.hsCode,
@@ -93,6 +120,10 @@ export async function listRulingsAction(input: {
       };
     }),
     total,
+    requestedMarket: selectedMarket,
+    effectiveMarket,
+    usedCrossMarketFallback,
+    fallbackReason,
   };
 }
 

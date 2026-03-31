@@ -37,6 +37,47 @@ function getProductNameString(productName: any, language: "fi" | "sv" = "fi"): s
   return "Product";
 }
 
+function parseNutritionNumber(value: unknown): number {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value !== "string") {
+    return 0;
+  }
+
+  const normalized = value.replace(",", ".");
+  const match = normalized.match(/(\d+(?:\.\d+)?)/);
+  if (!match) return 0;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseEnergyKcal(value: unknown): number {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value !== "string") {
+    return 0;
+  }
+
+  const normalized = value.replace(",", ".");
+  const kcalMatch = normalized.match(/(\d+(?:\.\d+)?)\s*kcal/i);
+  if (kcalMatch) {
+    const parsed = Number(kcalMatch[1]);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+
+  const kjMatch = normalized.match(/(\d+(?:\.\d+)?)\s*kj/i);
+  if (kjMatch) {
+    const parsed = Number(kjMatch[1]);
+    if (Number.isFinite(parsed)) return Number((parsed / 4.184).toFixed(1));
+  }
+
+  return parseNutritionNumber(normalized);
+}
+
 export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) {
   const width = labelData.labelDimensions?.width || 100;
   const height = labelData.labelDimensions?.height || 150;
@@ -44,6 +85,11 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
   // Convert mm to pixels (assuming 96 DPI, 1mm = 3.7795px)
   const widthPx = width * 3.7795;
   const heightPx = height * 3.7795;
+  const energyKcal = parseEnergyKcal(labelData.nutritionInfo?.energy);
+  const fat = parseNutritionNumber(labelData.nutritionInfo?.fat);
+  const carbs = parseNutritionNumber(labelData.nutritionInfo?.carbs);
+  const protein = parseNutritionNumber(labelData.nutritionInfo?.protein);
+  const salt = parseNutritionNumber(labelData.nutritionInfo?.salt);
 
   return (
     <div
@@ -141,7 +187,7 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
                   <div className="text-xs text-gray-500">kJ / kcal</div>
                 </td>
                 <td className="text-right font-bold py-1">
-                  {Math.round((labelData.nutritionInfo.energy || 0) * 4.184)} kJ / {labelData.nutritionInfo.energy || 0} kcal
+                  {Math.round(energyKcal * 4.184)} kJ / {energyKcal} kcal
                 </td>
               </tr>
               <tr className="border-b border-gray-300">
@@ -149,7 +195,7 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
                   <div>Rasva / Fett</div>
                 </td>
                 <td className="text-right font-bold py-1">
-                  {labelData.nutritionInfo.fat || 0} g
+                  {fat} g
                 </td>
               </tr>
               <tr className="border-b border-gray-300">
@@ -157,7 +203,7 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
                   <div>Hiilihydraatit / Kolhydrat</div>
                 </td>
                 <td className="text-right font-bold py-1">
-                  {labelData.nutritionInfo.carbs || 0} g
+                  {carbs} g
                 </td>
               </tr>
               <tr className="border-b border-gray-300">
@@ -165,7 +211,7 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
                   <div>Proteiini / Protein</div>
                 </td>
                 <td className="text-right font-bold py-1">
-                  {labelData.nutritionInfo.protein || 0} g
+                  {protein} g
                 </td>
               </tr>
               <tr className="border-b border-gray-300">
@@ -173,7 +219,7 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
                   <div>Suola / Salt</div>
                 </td>
                 <td className="text-right font-bold py-1">
-                  {labelData.nutritionInfo.salt || 0} g
+                  {salt} g
                 </td>
               </tr>
             </tbody>

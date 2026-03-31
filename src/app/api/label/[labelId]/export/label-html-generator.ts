@@ -37,12 +37,58 @@ export function escapeHtml(text: string | number | null | undefined): string {
     .replace(/'/g, "&#039;");
 }
 
+function parseNutritionNumber(value: unknown): number {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value !== "string") {
+    return 0;
+  }
+
+  const normalized = value.replace(",", ".");
+  const match = normalized.match(/(\d+(?:\.\d+)?)/);
+  if (!match) return 0;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseEnergyKcal(value: unknown): number {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value !== "string") {
+    return 0;
+  }
+
+  const normalized = value.replace(",", ".");
+  const kcalMatch = normalized.match(/(\d+(?:\.\d+)?)\s*kcal/i);
+  if (kcalMatch) {
+    const parsed = Number(kcalMatch[1]);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+
+  const kjMatch = normalized.match(/(\d+(?:\.\d+)?)\s*kj/i);
+  if (kjMatch) {
+    const parsed = Number(kjMatch[1]);
+    if (Number.isFinite(parsed)) return Number((parsed / 4.184).toFixed(1));
+  }
+
+  return parseNutritionNumber(normalized);
+}
+
 export function generateLabelHTML(labelData: EnhancedLabelData, productCategory: string): string {
   const width = labelData.labelDimensions?.width || 100;
   const height = labelData.labelDimensions?.height || 150;
   const widthPx = width * 3.7795;
   const heightPx = height * 3.7795;
   const fontSize = labelData.fontSize || 10;
+  const energyKcal = parseEnergyKcal(labelData.nutritionInfo?.energy);
+  const fat = parseNutritionNumber(labelData.nutritionInfo?.fat);
+  const carbs = parseNutritionNumber(labelData.nutritionInfo?.carbs);
+  const protein = parseNutritionNumber(labelData.nutritionInfo?.protein);
+  const salt = parseNutritionNumber(labelData.nutritionInfo?.salt);
 
   let html = `
     <div style="width: ${widthPx}px; min-height: ${heightPx}px; font-size: ${fontSize}pt; padding: 16px; font-family: Arial, sans-serif; background: white; border: 2px solid #1f2937;">
@@ -118,24 +164,24 @@ export function generateLabelHTML(labelData: EnhancedLabelData, productCategory:
                 <div style="font-size: ${fontSize - 2}pt; color: #6b7280;">kJ / kcal</div>
               </td>
               <td style="text-align: right; font-weight: bold; padding: 4px 0;">
-                ${Math.round((labelData.nutritionInfo.energy || 0) * 4.184)} kJ / ${labelData.nutritionInfo.energy || 0} kcal
+                ${Math.round(energyKcal * 4.184)} kJ / ${energyKcal} kcal
               </td>
             </tr>
             <tr style="border-bottom: 1px solid #d1d5db;">
               <td style="padding: 4px 0;">Rasva / Fett</td>
-              <td style="text-align: right; font-weight: bold; padding: 4px 0;">${labelData.nutritionInfo.fat || 0} g</td>
+              <td style="text-align: right; font-weight: bold; padding: 4px 0;">${fat} g</td>
             </tr>
             <tr style="border-bottom: 1px solid #d1d5db;">
               <td style="padding: 4px 0;">Hiilihydraatit / Kolhydrat</td>
-              <td style="text-align: right; font-weight: bold; padding: 4px 0;">${labelData.nutritionInfo.carbs || 0} g</td>
+              <td style="text-align: right; font-weight: bold; padding: 4px 0;">${carbs} g</td>
             </tr>
             <tr style="border-bottom: 1px solid #d1d5db;">
               <td style="padding: 4px 0;">Proteiini / Protein</td>
-              <td style="text-align: right; font-weight: bold; padding: 4px 0;">${labelData.nutritionInfo.protein || 0} g</td>
+              <td style="text-align: right; font-weight: bold; padding: 4px 0;">${protein} g</td>
             </tr>
             <tr style="border-bottom: 1px solid #d1d5db;">
               <td style="padding: 4px 0;">Suola / Salt</td>
-              <td style="text-align: right; font-weight: bold; padding: 4px 0;">${labelData.nutritionInfo.salt || 0} g</td>
+              <td style="text-align: right; font-weight: bold; padding: 4px 0;">${salt} g</td>
             </tr>
           </tbody>
         </table>

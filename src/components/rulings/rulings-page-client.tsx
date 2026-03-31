@@ -50,6 +50,11 @@ type MarketOption = {
 type Props = {
   initialRulings: Ruling[];
   total: number;
+  initialResultMeta: {
+    requestedMarket: string;
+    effectiveMarket: string;
+    usedCrossMarketFallback: boolean;
+  };
   currentPage: number;
   limit: number;
   marketOptions: { value: string; label: string }[];
@@ -73,6 +78,7 @@ import { Info } from "lucide-react";
 export function RulingsPageClient({
   initialRulings,
   total,
+  initialResultMeta,
   currentPage,
   limit,
   marketOptions,
@@ -83,6 +89,8 @@ export function RulingsPageClient({
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [rulings, setRulings] = useState<Ruling[]>(initialRulings);
+  const [resultTotal, setResultTotal] = useState(total);
+  const [resultMeta, setResultMeta] = useState(initialResultMeta);
   const [search, setSearch] = useState(initialFilters.search || "");
   const [market, setMarket] = useState(initialFilters.market || "FI");
   const [category, setCategory] = useState(initialFilters.category || "all");
@@ -107,6 +115,10 @@ export function RulingsPageClient({
     }
   }, [market, availableCategories.length]);
 
+  const mergedMarketOptions: MarketOption[] = marketOptions.some((option) => option.value === "all")
+    ? [...marketOptions]
+    : [{ value: "all", label: "All countries" }, ...marketOptions];
+
   const handleSearch = () => {
     startTransition(async () => {
       const params = new URLSearchParams();
@@ -129,6 +141,12 @@ export function RulingsPageClient({
         offset: 0,
       });
       setRulings(result.rulings);
+      setResultTotal(result.total);
+      setResultMeta({
+        requestedMarket: result.requestedMarket,
+        effectiveMarket: result.effectiveMarket,
+        usedCrossMarketFallback: result.usedCrossMarketFallback,
+      });
     });
   };
 
@@ -146,6 +164,12 @@ export function RulingsPageClient({
         offset: 0 
       });
       setRulings(result.rulings);
+      setResultTotal(result.total);
+      setResultMeta({
+        requestedMarket: result.requestedMarket,
+        effectiveMarket: result.effectiveMarket,
+        usedCrossMarketFallback: result.usedCrossMarketFallback,
+      });
     });
   };
 
@@ -167,10 +191,16 @@ export function RulingsPageClient({
         offset: (newPage - 1) * limit,
       });
       setRulings(result.rulings);
+      setResultTotal(result.total);
+      setResultMeta({
+        requestedMarket: result.requestedMarket,
+        effectiveMarket: result.effectiveMarket,
+        usedCrossMarketFallback: result.usedCrossMarketFallback,
+      });
     });
   };
 
-  const totalPages = Math.ceil(total / limit);
+  const totalPages = Math.ceil(resultTotal / limit);
 
   return (
     <div className="space-y-6">
@@ -281,7 +311,7 @@ export function RulingsPageClient({
                     <SelectValue placeholder="Select market" />
                   </SelectTrigger>
                   <SelectContent>
-                    {marketOptions.map((option) => (
+                    {mergedMarketOptions.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
                       </SelectItem>
@@ -350,15 +380,20 @@ export function RulingsPageClient({
       <Card>
         <CardHeader>
           <CardTitle>
-            Rulings {total > 0 && `(${total})`}
+            Rulings {resultTotal > 0 && `(${resultTotal})`}
           </CardTitle>
           <CardDescription>
-            {total === 0
+            {resultTotal === 0
               ? "No rulings found. Rulings are official data from customs authorities and need to be ingested from official sources."
-              : `Showing ${rulings.length} of ${total} rulings`}
+              : `Showing ${rulings.length} of ${resultTotal} rulings`}
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {resultMeta.usedCrossMarketFallback && (
+            <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              No exact matches in {resultMeta.requestedMarket}. Showing best matches across all countries instead.
+            </div>
+          )}
           {rulings.length === 0 ? (
             <div className="py-12 text-center">
               <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />

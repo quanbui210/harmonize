@@ -37,6 +37,76 @@ export interface GenerateLabelInput {
   importerAddress?: string; // EU importer address provided by user
   bestBeforeDate?: string; // Best before date (YYYY-MM-DD)
   netQuantity?: string; // Net quantity in grams
+  quidIngredientName?: string;
+  quidPercentage?: number;
+}
+
+function parseNutritionValue(value: unknown): number | undefined {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : undefined;
+  }
+
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.replace(",", ".");
+  const match = normalized.match(/(\d+(?:\.\d+)?)/);
+  if (!match) {
+    return undefined;
+  }
+
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseEnergyKcal(value: unknown): number | undefined {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : undefined;
+  }
+
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.replace(",", ".");
+  const kcalMatch = normalized.match(/(\d+(?:\.\d+)?)\s*kcal/i);
+  if (kcalMatch) {
+    const parsed = Number(kcalMatch[1]);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  const kjMatch = normalized.match(/(\d+(?:\.\d+)?)\s*kj/i);
+  if (kjMatch) {
+    const parsed = Number(kjMatch[1]);
+    if (Number.isFinite(parsed)) {
+      return Number((parsed / 4.184).toFixed(1));
+    }
+  }
+
+  return parseNutritionValue(normalized);
+}
+
+function normalizeNutritionInfo(
+  generated: EnhancedLabelData["nutritionInfo"] | undefined,
+  input: GenerateLabelInput["nutrition"] | undefined,
+) {
+  // Prefer input values (from OCR/manual entry) over AI-generated values if they are provided and non-zero
+  const energy = (input?.energy !== undefined && input.energy !== 0) ? input.energy : (parseEnergyKcal(generated?.energy) || 0);
+  const fat = (input?.fat !== undefined && input.fat !== 0) ? input.fat : (parseNutritionValue(generated?.fat) || 0);
+  const carbs = (input?.carbs !== undefined && input.carbs !== 0) ? input.carbs : (parseNutritionValue(generated?.carbs) || 0);
+  const protein = (input?.protein !== undefined && input.protein !== 0) ? input.protein : (parseNutritionValue(generated?.protein) || 0);
+  const salt = (input?.salt !== undefined && input.salt !== 0) ? input.salt : (parseNutritionValue(generated?.salt) || 0);
+
+  return {
+    energy,
+    fat,
+    carbs,
+    protein,
+    salt,
+  };
 }
 
 export async function generateLabelAction(
@@ -64,9 +134,12 @@ export async function generateLabelAction(
       importerAddress: input.importerAddress, // Pass user-provided address
       bestBeforeDate: input.bestBeforeDate,
       netQuantity: input.netQuantity,
+      quidIngredientName: input.quidIngredientName,
+      quidPercentage: input.quidPercentage,
     },
     labelSize,
   );
+  label.nutritionInfo = normalizeNutritionInfo(label.nutritionInfo, input.nutrition);
 
   // Convert to LabelData for compliance checks
   const labelDataForChecks: LabelData = {
@@ -153,7 +226,7 @@ export async function extractLabelTextAction(imageBase64: string): Promise<strin
       {
         role: "system",
         content:
-          "You are an expert OCR assistant. Extract the full label text from the image and identify key information. Return a JSON object with: { text: 'full label text', bestBeforeDate: 'YYYY-MM-DD or empty string if not found', netQuantity: 'number with unit like 200g or empty string if not found' }.",
+          "You are an expert OCR assistant. Extract the full label text from the image and identify key information. Return a JSON object with: { text: 'full label text', bestBeforeDate: 'YYYY-MM-DD or empty string if not found', netQuantity: 'number with unit like 200g or empty string if not found', nutrition: { energyKJ: number or null, energyKcal: number or null, fat: number or null, carbs: number or null, protein: number or null, salt: number or null } }.",
       },
       {
         role: "user",
@@ -163,12 +236,24 @@ export async function extractLabelTextAction(imageBase64: string): Promise<strin
             text: `Extract all readable text from this label image. Also identify:
 1. Best Before Date: Look for "BEST BEFORE", "USE BY", "EXP", "EXPIRY", or similar. Extract the date and format as YYYY-MM-DD. If no date is found or only text like "BEST BEFORE:" without a date, return empty string.
 2. Net Quantity: Look for weight/volume like "200g", "500ml", "240g", "1kg", etc. Return the full value with unit (e.g., "240g"). If not found, return empty string.
+3. Nutrition Information: Look for a nutrition table or list. Extract values per 100g/100ml. 
+   - Energy: Extract both kJ and kcal if available.
+   - Fat, Carbohydrates (Carbs), Protein, Salt: Extract in grams.
+   - If a value is not found, use null.
 
 Return JSON only in this exact format:
 {
   "text": "full extracted text",
   "bestBeforeDate": "YYYY-MM-DD or empty string",
-  "netQuantity": "value with unit or empty string"
+  "netQuantity": "value with unit or empty string",
+  "nutrition": {
+    "energyKJ": number or null,
+    "energyKcal": number or null,
+    "fat": number or null,
+    "carbs": number or null,
+    "protein": number or null,
+    "salt": number or null
+  }
 }` 
           },
           {
@@ -198,15 +283,16 @@ Return JSON only in this exact format:
         text: parsed.text,
         bestBeforeDate: parsed.bestBeforeDate || "",
         netQuantity: parsed.netQuantity || "",
+        nutrition: parsed.nutrition || null,
       });
     }
   } catch {
     // If not JSON, return as plain text wrapped in JSON (backward compatibility)
-    return JSON.stringify({ text: content, bestBeforeDate: "", netQuantity: "" });
+    return JSON.stringify({ text: content, bestBeforeDate: "", netQuantity: "", nutrition: null });
   }
   
   // Fallback: return content as plain text wrapped in JSON
-  return JSON.stringify({ text: content, bestBeforeDate: "", netQuantity: "" });
+  return JSON.stringify({ text: content, bestBeforeDate: "", netQuantity: "", nutrition: null });
 }
 
 export interface SaveLabelInput {
@@ -335,4 +421,3 @@ export async function getProductImagesForClassificationAction(classificationId: 
 
   return imagesWithUrls.filter((img) => img.url !== null);
 }
-

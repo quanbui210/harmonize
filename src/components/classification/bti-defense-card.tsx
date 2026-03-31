@@ -87,7 +87,7 @@ export function BtiDefenseCard({ hsCode, description, className }: BtiDefenseCar
             While we couldn&apos;t find an exact match in our database of 1.2M rulings, you can search manually for broader precedents.
           </p>
           <Button variant="link" className="px-0 mt-2" asChild>
-            <Link href={`/rulings?htsCode=${hsCode.substring(0, 4)}`}>
+            <Link href={`/rulings?market=all&htsCode=${hsCode.substring(0, 4)}`}>
               Browse all rulings for Chapter {hsCode.substring(0, 2)} <ArrowRight className="ml-1 h-4 w-4" />
             </Link>
           </Button>
@@ -172,7 +172,7 @@ export function BtiDefenseCard({ hsCode, description, className }: BtiDefenseCar
           ))}
           
           <Button variant="outline" className="w-full mt-2" asChild>
-            <Link href={`/rulings?htsCode=${hsCode.substring(0, 4)}&search=${encodeURIComponent(description.substring(0, 20))}`}>
+            <Link href={`/rulings?market=all&htsCode=${hsCode.substring(0, 4)}&search=${encodeURIComponent(description.substring(0, 20))}`}>
               View all {rulings.length} precedents
             </Link>
           </Button>

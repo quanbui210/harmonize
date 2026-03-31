@@ -103,6 +103,54 @@ function buildIngredientPieces(args: {
   return pieces;
 }
 
+function parseNutritionNumber(value: unknown): number {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value !== "string") {
+    return 0;
+  }
+
+  const normalized = value.replace(",", ".");
+  const match = normalized.match(/(\d+(?:\.\d+)?)/);
+  if (!match) {
+    return 0;
+  }
+
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseEnergyKcal(value: unknown): number {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value !== "string") {
+    return 0;
+  }
+
+  const normalized = value.replace(",", ".");
+  const kcalMatch = normalized.match(/(\d+(?:\.\d+)?)\s*kcal/i);
+  if (kcalMatch) {
+    const parsed = Number(kcalMatch[1]);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  const kjMatch = normalized.match(/(\d+(?:\.\d+)?)\s*kj/i);
+  if (kjMatch) {
+    const parsed = Number(kjMatch[1]);
+    if (Number.isFinite(parsed)) {
+      return Number((parsed / 4.184).toFixed(1));
+    }
+  }
+
+  return parseNutritionNumber(normalized);
+}
+
 /**
  * Generate PDF label - matches HTML preview structure exactly
  */
@@ -288,17 +336,22 @@ export async function generateLabelPDF(
     });
 
     const nutrition = labelData.nutritionInfo;
+    const energyKcal = parseEnergyKcal(nutrition.energy);
+    const fat = parseNutritionNumber(nutrition.fat);
+    const carbs = parseNutritionNumber(nutrition.carbs);
+    const protein = parseNutritionNumber(nutrition.protein);
+    const salt = parseNutritionNumber(nutrition.salt);
     const rows = [
       {
         labelFI: "Energia",
         labelSV: "Energi",
         sublabel: "kJ / kcal",
-        value: `${Math.round((nutrition.energy || 0) * 4.184)} kJ / ${nutrition.energy || 0} kcal`,
+        value: `${Math.round(energyKcal * 4.184)} kJ / ${energyKcal} kcal`,
       },
-      { labelFI: "Rasva", labelSV: "Fett", value: `${nutrition.fat || 0} g` },
-      { labelFI: "Hiilihydraatit", labelSV: "Kolhydrat", value: `${nutrition.carbs || 0} g` },
-      { labelFI: "Proteiini", labelSV: "Protein", value: `${nutrition.protein || 0} g` },
-      { labelFI: "Suola", labelSV: "Salt", value: `${nutrition.salt || 0} g` },
+      { labelFI: "Rasva", labelSV: "Fett", value: `${fat} g` },
+      { labelFI: "Hiilihydraatit", labelSV: "Kolhydrat", value: `${carbs} g` },
+      { labelFI: "Proteiini", labelSV: "Protein", value: `${protein} g` },
+      { labelFI: "Suola", labelSV: "Salt", value: `${salt} g` },
     ];
 
     for (let i = 0; i < rows.length; i++) {
@@ -642,17 +695,22 @@ export function generateLabelSVG(
     svg += `<rect x="${tableX}" y="${tableStartY - rowHeight * 5}" width="${tableWidth}" height="${rowHeight * 5}" fill="none" stroke="#ccc" stroke-width="1"/>`;
 
     const nutrition = labelData.nutritionInfo;
+    const energyKcal = parseEnergyKcal(nutrition.energy);
+    const fat = parseNutritionNumber(nutrition.fat);
+    const carbs = parseNutritionNumber(nutrition.carbs);
+    const protein = parseNutritionNumber(nutrition.protein);
+    const salt = parseNutritionNumber(nutrition.salt);
     const rows = [
       {
         labelFI: "Energia",
         labelSV: "Energi",
         sublabel: "kJ / kcal",
-        value: `${Math.round((nutrition.energy || 0) * 4.184)} kJ / ${nutrition.energy || 0} kcal`,
+        value: `${Math.round(energyKcal * 4.184)} kJ / ${energyKcal} kcal`,
       },
-      { labelFI: "Rasva", labelSV: "Fett", value: `${nutrition.fat || 0} g` },
-      { labelFI: "Hiilihydraatit", labelSV: "Kolhydrat", value: `${nutrition.carbs || 0} g` },
-      { labelFI: "Proteiini", labelSV: "Protein", value: `${nutrition.protein || 0} g` },
-      { labelFI: "Suola", labelSV: "Salt", value: `${nutrition.salt || 0} g` },
+      { labelFI: "Rasva", labelSV: "Fett", value: `${fat} g` },
+      { labelFI: "Hiilihydraatit", labelSV: "Kolhydrat", value: `${carbs} g` },
+      { labelFI: "Proteiini", labelSV: "Protein", value: `${protein} g` },
+      { labelFI: "Suola", labelSV: "Salt", value: `${salt} g` },
     ];
 
     for (let i = 0; i < rows.length; i++) {

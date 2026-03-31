@@ -94,6 +94,49 @@ function normalizeForMatch(value: string): string {
     .trim();
 }
 
+const QUID_STOP_WORDS = new Set([
+  "and",
+  "with",
+  "without",
+  "from",
+  "for",
+  "the",
+  "a",
+  "an",
+  "in",
+  "of",
+  "style",
+  "flavor",
+  "flavour",
+  "natural",
+  "organic",
+  "fresh",
+  "dried",
+  "slice",
+  "slices",
+  "piece",
+  "pieces",
+  "mix",
+  "blend",
+]);
+
+function extractMatchTokens(value: string): string[] {
+  return normalizeForMatch(value)
+    .split(" ")
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 4 && !QUID_STOP_WORDS.has(token));
+}
+
+function canonicalizeToken(token: string): string {
+  if (token.endsWith("es") && token.length > 4) {
+    return token.slice(0, -2);
+  }
+  if (token.endsWith("s") && token.length > 4) {
+    return token.slice(0, -1);
+  }
+  return token;
+}
+
 function getQUIDIngredientTargets(label: LabelData): Array<LabelData["ingredients"][number]> {
   const productNameText = [
     label.productName.original,
@@ -103,6 +146,7 @@ function getQUIDIngredientTargets(label: LabelData): Array<LabelData["ingredient
     .filter(Boolean)
     .join(" ");
   const normalizedProductName = ` ${normalizeForMatch(productNameText)} `;
+  const productNameTokens = new Set(extractMatchTokens(productNameText).map(canonicalizeToken));
 
   return label.ingredients.filter((ingredient) => {
     const candidates = [
@@ -116,7 +160,12 @@ function getQUIDIngredientTargets(label: LabelData): Array<LabelData["ingredient
       if (!normalizedCandidate || normalizedCandidate.length < 3) {
         return false;
       }
-      return normalizedProductName.includes(` ${normalizedCandidate} `);
+      if (normalizedProductName.includes(` ${normalizedCandidate} `)) {
+        return true;
+      }
+
+      const candidateTokens = extractMatchTokens(candidate).map(canonicalizeToken);
+      return candidateTokens.some((token) => productNameTokens.has(token));
     });
   });
 }
@@ -131,7 +180,9 @@ export function runComplianceChecks(label: LabelData, productType: RegulatoryPro
   if (productType === "FOOD") {
     const quidTargets = getQUIDIngredientTargets(label);
     if (quidTargets.length > 0) {
-      const missingQUID = quidTargets.filter((ing) => ing.percentage === undefined);
+      const missingQUID = quidTargets.filter(
+        (ing) => typeof ing.percentage !== "number" || Number.isNaN(ing.percentage)
+      );
       const missingNames = missingQUID.map((ing) => ing.translations.fi || ing.name).join(", ");
       results.push({
         ruleId: "quid-required",
