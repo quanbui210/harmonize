@@ -4,14 +4,12 @@
  */
 
 import type { RegulatoryProductType } from "@/lib/regulatory/product-type";
+import { resolveEUMarketProfile } from "@/lib/labeling/eu-market";
 
 export interface LabelData {
   productName: {
     original: string;
-    translations: {
-      fi: string;
-      sv: string;
-    };
+    translations: Record<string, string | undefined>;
   };
   ingredients: Array<{
     name: string;
@@ -20,10 +18,7 @@ export interface LabelData {
     functionalClass?: string;
     isAllergen: boolean;
     isHighlighted: boolean;
-    translations: {
-      fi: string;
-      sv: string;
-    };
+    translations: Record<string, string | undefined>;
   }>;
   nutritionInfo: {
     energy: number;
@@ -50,6 +45,8 @@ export interface ComplianceResult {
   message: string;
   source: string;
 }
+
+export type LabelEndUse = "B2C" | "B2B" | "internal";
 
 /**
  * Calculate x-height in mm from font size (pt) and label dimensions
@@ -140,10 +137,9 @@ function canonicalizeToken(token: string): string {
 function getQUIDIngredientTargets(label: LabelData): Array<LabelData["ingredients"][number]> {
   const productNameText = [
     label.productName.original,
-    label.productName.translations.fi,
-    label.productName.translations.sv,
+    ...Object.values(label.productName.translations || {}),
   ]
-    .filter(Boolean)
+    .filter((value): value is string => typeof value === "string" && value.length > 0)
     .join(" ");
   const normalizedProductName = ` ${normalizeForMatch(productNameText)} `;
   const productNameTokens = new Set(extractMatchTokens(productNameText).map(canonicalizeToken));
@@ -151,9 +147,8 @@ function getQUIDIngredientTargets(label: LabelData): Array<LabelData["ingredient
   return label.ingredients.filter((ingredient) => {
     const candidates = [
       ingredient.name,
-      ingredient.translations.fi,
-      ingredient.translations.sv,
-    ].filter(Boolean);
+      ...Object.values(ingredient.translations || {}),
+    ].filter((value): value is string => typeof value === "string" && value.length > 0);
 
     return candidates.some((candidate) => {
       const normalizedCandidate = normalizeForMatch(candidate);
@@ -173,17 +168,34 @@ function getQUIDIngredientTargets(label: LabelData): Array<LabelData["ingredient
 /**
  * Run all compliance checks
  */
-export function runComplianceChecks(label: LabelData, productType: RegulatoryProductType): ComplianceResult[] {
+export function runComplianceChecks(
+  label: LabelData,
+  productType: RegulatoryProductType,
+  options?: { destinationCountry?: string; requiredLocales?: string[]; endUse?: LabelEndUse }
+): ComplianceResult[] {
   const results: ComplianceResult[] = [];
+  const market = resolveEUMarketProfile(options?.destinationCountry);
+  const endUse = options?.endUse ?? "B2C";
+  const requiredLocales = (options?.requiredLocales && options.requiredLocales.length > 0)
+    ? options.requiredLocales
+    : market.requiredLocales;
 
   // Only run food-specific checks for food products
-  if (productType === "FOOD") {
+  if (productType === "FOOD" && endUse === "B2C") {
     const quidTargets = getQUIDIngredientTargets(label);
     if (quidTargets.length > 0) {
       const missingQUID = quidTargets.filter(
         (ing) => typeof ing.percentage !== "number" || Number.isNaN(ing.percentage)
       );
-      const missingNames = missingQUID.map((ing) => ing.translations.fi || ing.name).join(", ");
+      const missingNames = missingQUID
+        .map((ing) => {
+          for (const locale of requiredLocales) {
+            const value = ing.translations?.[locale];
+            if (typeof value === "string" && value.length > 0) return value;
+          }
+          return ing.name;
+        })
+        .join(", ");
       results.push({
         ruleId: "quid-required",
         ruleName: "QUID Percentage Required",
@@ -196,8 +208,7 @@ export function runComplianceChecks(label: LabelData, productType: RegulatoryPro
       });
     }
 
-    // High salt warning (Finland-specific)
-    if (label.nutritionInfo.salt > 1.2) {
+    if (market.countryCode === "FI" && label.nutritionInfo.salt > 1.2) {
       const hasWarning = label.warnings.some(w =>
         w.includes("Voimakassuolainen") || w.includes("Kraftigt saltad")
       );
@@ -212,21 +223,45 @@ export function runComplianceChecks(label: LabelData, productType: RegulatoryPro
         source: "Ruokavirasto Guide 17068/2, Section 9.2",
       });
     }
+  } else if (productType === "FOOD" && endUse !== "B2C") {
+    results.push({
+      ruleId: "quid-required",
+      ruleName: "QUID Percentage Required",
+      severity: "INFO",
+      passed: true,
+      message: `Skipped for ${endUse} workflow. Ensure trade documents contain composition details where required.`,
+      source: "Regulation (EU) No 1169/2011, Article 22",
+    });
   }
 
-  // Language requirement (all products)
-  const hasFinnish = label.productName.translations.fi && label.productName.translations.fi.length > 0;
-  const hasSwedish = label.productName.translations.sv && label.productName.translations.sv.length > 0;
-  results.push({
-    ruleId: "finnish-swedish-languages",
-    ruleName: "Finnish and Swedish Required",
-    severity: "CRITICAL",
-    passed: Boolean(hasFinnish) && Boolean(hasSwedish),
-    message: hasFinnish && hasSwedish
-      ? "Both Finnish and Swedish translations present"
-      : `Missing ${!hasFinnish ? "Finnish" : ""} ${!hasSwedish ? "Swedish" : ""} translation. Required by Finnish Product Safety Act 184/2025`,
-    source: "Finnish Product Safety Act 184/2025, Section 3",
-  });
+  if (endUse === "internal") {
+    results.push({
+      ruleId: "required-market-languages",
+      ruleName: "Required Market Languages",
+      severity: "INFO",
+      passed: true,
+      message: "Skipped for internal workflow.",
+      source: "Regulation (EU) No 1169/2011, Article 15",
+    });
+  } else {
+    const missingLocales = requiredLocales.filter((locale) => {
+      const value = label.productName.translations?.[locale];
+      return !(typeof value === "string" && value.trim().length > 0);
+    });
+    const isB2B = endUse === "B2B";
+    results.push({
+      ruleId: "required-market-languages",
+      ruleName: "Required Market Languages",
+      severity: isB2B ? "WARNING" : "CRITICAL",
+      passed: missingLocales.length === 0,
+      message: missingLocales.length === 0
+        ? `Required locales present: ${requiredLocales.join(", ")}`
+        : isB2B
+          ? `Missing locales on pack (${missingLocales.join(", ")}). For B2B, provide these in accompanying trade documentation.`
+          : `Missing translations for required locales: ${missingLocales.join(", ")}`,
+      source: "Regulation (EU) No 1169/2011, Article 15",
+    });
+  }
 
   // Font size check
   const xHeight = calculateXHeight(label.fontSize, label.labelDimensions);
@@ -238,7 +273,7 @@ export function runComplianceChecks(label: LabelData, productType: RegulatoryPro
     message: xHeight >= 1.2
       ? `Font size compliant (x-height: ${xHeight.toFixed(2)}mm)`
       : `Font too small (x-height: ${xHeight.toFixed(2)}mm). Minimum required: 1.2mm`,
-    source: "Ruokavirasto Guide 17068/2, Section 2.1",
+    source: "Regulation (EU) No 1169/2011, Article 13",
   });
 
   const allergens = label.ingredients.filter(ing => ing.isAllergen);
@@ -252,20 +287,31 @@ export function runComplianceChecks(label: LabelData, productType: RegulatoryPro
       message: allHighlighted
         ? "All allergens properly highlighted"
         : "Allergens must be visually distinct (bold, italic, or CAPS)",
-      source: "Ruokavirasto Guide 17068/2, Section 2.3",
+      source: "Regulation (EU) No 1169/2011, Article 21",
     });
   }
 
-  results.push({
-    ruleId: "eu-importer-address",
-    ruleName: "EU Importer Address Required",
-    severity: "CRITICAL",
-    passed: isEUAddress(label.importerAddress),
-    message: isEUAddress(label.importerAddress)
-      ? "EU importer address found"
-      : "Must include EU-based importer address. Original Asian address is not sufficient",
-    source: "Ruokavirasto Guide 17068/2, Section 1.1",
-  });
+  if (endUse === "internal") {
+    results.push({
+      ruleId: "eu-importer-address",
+      ruleName: "EU Importer Address Required",
+      severity: "INFO",
+      passed: true,
+      message: "Skipped for internal workflow.",
+      source: "Regulation (EU) No 1169/2011, Article 8",
+    });
+  } else {
+    results.push({
+      ruleId: "eu-importer-address",
+      ruleName: "EU Importer Address Required",
+      severity: "CRITICAL",
+      passed: isEUAddress(label.importerAddress),
+      message: isEUAddress(label.importerAddress)
+        ? "EU importer address found"
+        : "Must include EU-based importer address. Original non-EU address is not sufficient",
+      source: "Regulation (EU) No 1169/2011, Article 8",
+    });
+  }
 
   // E-code functional classes
   const eCodes = label.ingredients.filter(ing => ing.code?.startsWith("E"));

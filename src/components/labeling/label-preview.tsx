@@ -2,36 +2,27 @@
 
 import type { EnhancedLabelData } from "@/lib/labeling/label-generator-enhanced";
 import { Badge } from "@/components/ui/badge";
+import { getLabelText, getRenderLocales, resolveEUMarketProfile } from "@/lib/labeling/eu-market";
 
 interface LabelPreviewProps {
   labelData: EnhancedLabelData;
   productCategory: string;
 }
 
-// Helper to safely extract product name string - handles all possible structures
-function getProductNameString(productName: any, language: "fi" | "sv" = "fi"): string {
+function getProductNameString(productName: any, language: string): string {
   if (!productName) return "Product";
   if (typeof productName === "string") return productName;
   if (typeof productName !== "object") return "Product";
   
-  // Handle standard structure: {original: string, translations: {fi: string, sv: string}}
   if (productName.translations && typeof productName.translations === "object") {
     const trans = productName.translations;
-    if (language === "fi" && typeof trans.fi === "string") return trans.fi;
-    if (language === "sv" && typeof trans.sv === "string") return trans.sv;
-    // Fallback to other language or original
-    if (language === "fi" && typeof trans.sv === "string") return trans.sv;
-    if (language === "sv" && typeof trans.fi === "string") return trans.fi;
+    if (typeof trans[language] === "string") return trans[language];
+    const firstTranslation = Object.values(trans).find((value) => typeof value === "string");
+    if (typeof firstTranslation === "string") return firstTranslation;
     if (typeof productName.original === "string") return productName.original;
   }
   
-  // Handle edge case: direct {fi: string, sv: string} structure
-  if (language === "fi" && typeof productName.fi === "string") return productName.fi;
-  if (language === "sv" && typeof productName.sv === "string") return productName.sv;
-  if (language === "fi" && typeof productName.sv === "string") return productName.sv;
-  if (language === "sv" && typeof productName.fi === "string") return productName.fi;
-  
-  // Final fallback
+  if (typeof productName[language] === "string") return productName[language];
   if (typeof productName.original === "string") return productName.original;
   
   return "Product";
@@ -90,6 +81,15 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
   const carbs = parseNutritionNumber(labelData.nutritionInfo?.carbs);
   const protein = parseNutritionNumber(labelData.nutritionInfo?.protein);
   const salt = parseNutritionNumber(labelData.nutritionInfo?.salt);
+  const market = resolveEUMarketProfile(labelData.market?.destinationCountry);
+  const requiredLocales = labelData.market?.requiredLocales?.length
+    ? labelData.market.requiredLocales
+    : market.requiredLocales;
+  const renderLocales = labelData.market?.renderLocales?.length
+    ? labelData.market.renderLocales
+    : getRenderLocales(requiredLocales);
+  const primaryLocale = renderLocales[0] || "en";
+  const secondaryLocale = renderLocales[1];
 
   return (
     <div
@@ -103,23 +103,25 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
       {/* Product Name */}
       <div className="mb-3">
         <div className="text-2xl font-bold mb-1">
-          {getProductNameString(labelData.productName, "fi")}
+          {getProductNameString(labelData.productName, primaryLocale)}
         </div>
-        <div className="text-lg text-gray-600">
-          {getProductNameString(labelData.productName, "sv")}
-        </div>
+        {secondaryLocale && (
+          <div className="text-lg text-gray-600">
+            {getProductNameString(labelData.productName, secondaryLocale)}
+          </div>
+        )}
       </div>
       <div className="border-t border-gray-300 my-3"></div>
 
       {/* Ingredients */}
       {(productCategory === "food" || productCategory === "meat" || productCategory === "supplements" || productCategory === "pet") && labelData.ingredients && labelData.ingredients.length > 0 && (
         <div className="mb-3">
-          <div className="font-bold mb-1">Ainesosat:</div>
+          <div className="font-bold mb-1">{getLabelText(renderLocales, "ingredients")}:</div>
           <div className="text-sm leading-snug text-gray-900">
             {labelData.ingredients.map((ing, idx) => {
-              const ingNameFI =
-                ing.translations && typeof ing.translations === "object" && typeof ing.translations.fi === "string"
-                  ? ing.translations.fi
+              const ingNamePrimary =
+                ing.translations && typeof ing.translations === "object" && typeof ing.translations[primaryLocale] === "string"
+                  ? ing.translations[primaryLocale]
                   : typeof ing.name === "string"
                     ? ing.name
                     : "Ingredient";
@@ -127,7 +129,7 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
               return (
                 <span key={`fi-${idx}`}>
                   <span className={ing.isAllergen ? "font-bold text-red-700" : ""}>
-                    {ingNameFI}
+                    {ingNamePrimary}
                     {ing.percentage != null ? ` (${ing.percentage}%)` : ""}
                   </span>
                   {idx < labelData.ingredients.length - 1 ? ", " : ""}
@@ -136,27 +138,31 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
             })}
           </div>
 
-          <div className="font-bold mt-2 mb-1">Ingredienser:</div>
-          <div className="text-xs leading-snug text-gray-700">
-            {labelData.ingredients.map((ing, idx) => {
-              const ingNameSV =
-                ing.translations && typeof ing.translations === "object" && typeof ing.translations.sv === "string"
-                  ? ing.translations.sv
-                  : typeof ing.name === "string"
-                    ? ing.name
-                    : "Ingredient";
+          {secondaryLocale && (
+            <>
+              <div className="font-bold mt-2 mb-1">{getLabelText([secondaryLocale], "ingredients")}:</div>
+              <div className="text-xs leading-snug text-gray-700">
+                {labelData.ingredients.map((ing, idx) => {
+                  const ingNameSecondary =
+                    ing.translations && typeof ing.translations === "object" && typeof ing.translations[secondaryLocale] === "string"
+                      ? ing.translations[secondaryLocale]
+                      : typeof ing.name === "string"
+                        ? ing.name
+                        : "Ingredient";
 
-              return (
-                <span key={`sv-${idx}`}>
-                  <span className={ing.isAllergen ? "font-bold text-red-700" : ""}>
-                    {ingNameSV}
-                    {ing.percentage != null ? ` (${ing.percentage}%)` : ""}
-                  </span>
-                  {idx < labelData.ingredients.length - 1 ? ", " : ""}
-                </span>
-              );
-            })}
-          </div>
+                  return (
+                    <span key={`secondary-${idx}`}>
+                      <span className={ing.isAllergen ? "font-bold text-red-700" : ""}>
+                        {ingNameSecondary}
+                        {ing.percentage != null ? ` (${ing.percentage}%)` : ""}
+                      </span>
+                      {idx < labelData.ingredients.length - 1 ? ", " : ""}
+                    </span>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -177,13 +183,13 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
       {/* Nutrition Table */}
       {labelData.nutritionInfo && (
         <div className="mb-3">
-          <div className="font-bold mb-2">Ravintoarvot / Näringsvärde</div>
+          <div className="font-bold mb-2">{getLabelText(renderLocales, "nutrition")}</div>
           <div className="text-xs mb-1">100g</div>
           <table className="w-full text-sm border-collapse">
             <tbody>
               <tr className="border-b border-gray-300">
                 <td className="py-1">
-                  <div>Energia / Energi</div>
+                  <div>{getLabelText(renderLocales, "energy")}</div>
                   <div className="text-xs text-gray-500">kJ / kcal</div>
                 </td>
                 <td className="text-right font-bold py-1">
@@ -192,7 +198,7 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
               </tr>
               <tr className="border-b border-gray-300">
                 <td className="py-1">
-                  <div>Rasva / Fett</div>
+                  <div>{getLabelText(renderLocales, "fat")}</div>
                 </td>
                 <td className="text-right font-bold py-1">
                   {fat} g
@@ -200,7 +206,7 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
               </tr>
               <tr className="border-b border-gray-300">
                 <td className="py-1">
-                  <div>Hiilihydraatit / Kolhydrat</div>
+                  <div>{getLabelText(renderLocales, "carbs")}</div>
                 </td>
                 <td className="text-right font-bold py-1">
                   {carbs} g
@@ -208,7 +214,7 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
               </tr>
               <tr className="border-b border-gray-300">
                 <td className="py-1">
-                  <div>Proteiini / Protein</div>
+                  <div>{getLabelText(renderLocales, "protein")}</div>
                 </td>
                 <td className="text-right font-bold py-1">
                   {protein} g
@@ -216,7 +222,7 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
               </tr>
               <tr className="border-b border-gray-300">
                 <td className="py-1">
-                  <div>Suola / Salt</div>
+                  <div>{getLabelText(renderLocales, "salt")}</div>
                 </td>
                 <td className="text-right font-bold py-1">
                   {salt} g
@@ -230,17 +236,17 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
       <div className="mb-3 text-sm space-y-1">
         {labelData.bestBeforeDate && (
           <div>
-            <span className="font-medium">Parasta ennen / Bäst före:</span> {labelData.bestBeforeDate}
+            <span className="font-medium">{getLabelText(renderLocales, "bestBefore")}:</span> {labelData.bestBeforeDate}
           </div>
         )}
         {labelData.batchNumber && (
           <div>
-            <span className="font-medium">Erä / Parti:</span> {labelData.batchNumber}
+            <span className="font-medium">{getLabelText(renderLocales, "batch")}:</span> {labelData.batchNumber}
           </div>
         )}
         {labelData.netQuantity && (
           <div>
-            <span className="font-medium">Nettomäärä / Nettovikt:</span> {labelData.netQuantity}
+            <span className="font-medium">{getLabelText(renderLocales, "netQuantity")}:</span> {labelData.netQuantity}
           </div>
         )}
       </div>
@@ -248,23 +254,22 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
       {/* Origin Country */}
       {labelData.originCountry && (
         <div className="mb-3 text-sm">
-          <span className="font-medium">Alkuperämaa / Ursprungsland:</span> {labelData.originCountry}
+          <span className="font-medium">{getLabelText(renderLocales, "originCountry")}:</span> {labelData.originCountry}
         </div>
       )}
 
       {/* Importer Address */}
       <div className="mb-3 text-sm">
-        <div className="font-medium mb-1">Maahantuoja / Importör:</div>
+        <div className="font-medium mb-1">{getLabelText(renderLocales, "importer")}:</div>
         <div>{labelData.importerAddress}</div>
       </div>
 
       {/* Storage Instructions */}
       {labelData.storageInstructions && (
         <div className="text-sm">
-          <span className="font-medium">Säilytys / Förvaring:</span> {labelData.storageInstructions}
+          <span className="font-medium">{getLabelText(renderLocales, "storage")}:</span> {labelData.storageInstructions}
         </div>
       )}
     </div>
   );
 }
-

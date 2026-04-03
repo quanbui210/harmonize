@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -10,9 +10,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { generateDossierAction } from "@/server/actions/dossier";
-import { Loader2, FileText, Download, Eye, Printer } from "lucide-react";
+import { FileText, Download, Eye, Printer } from "lucide-react";
 import type { Classification, Product, ClassificationSource, DutySummary, Dossier } from "@prisma/client";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type Props = {
   classification: Classification & {
@@ -23,8 +23,6 @@ type Props = {
     dutySummary: DutySummary | null;
     dossier: Dossier | null;
   };
-  organizationId: string;
-  userId: string;
 };
 
 // Helper to safely extract product name string - handles all possible structures
@@ -51,30 +49,23 @@ function getProductNameString(productName: any): string {
   return "Product";
 }
 
-export function DossierGenerator({ classification, organizationId, userId }: Props) {
-  const [isPending, startTransition] = useTransition();
-  const [dossierUrl, setDossierUrl] = useState<string | null>(
+export function DossierGenerator({ classification }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [dossierUrl] = useState<string | null>(
     classification.dossier ? `/api/dossier/${classification.dossier.id}/preview` : null,
   );
   const [showPreview, setShowPreview] = useState(false);
 
-  const handleGenerate = () => {
-    startTransition(async () => {
-      try {
-        const result = await generateDossierAction({
-          classificationId: classification.id,
-          organizationId,
-          userId,
-        });
+  useEffect(() => {
+    const dossierError = searchParams.get("dossierError");
+    if (!dossierError) return;
+    alert(decodeURIComponent(dossierError));
+    router.replace(`/classify/${classification.id}/dossier`);
+  }, [classification.id, router, searchParams]);
 
-        if (result.dossierUrl) {
-          setDossierUrl(result.dossierUrl);
-        }
-      } catch (error) {
-        console.error("Dossier generation error:", error);
-        alert("Failed to generate dossier. Please try again.");
-      }
-    });
+  const handleGenerate = () => {
+    router.push(`/classify/dossier/loading?classificationId=${encodeURIComponent(classification.id)}`);
   };
 
   return (
@@ -188,20 +179,10 @@ export function DossierGenerator({ classification, organizationId, userId }: Pro
               </div>
               <Button
                 onClick={handleGenerate}
-                disabled={isPending}
                 className="w-full bg-blue-600 text-white hover:bg-blue-700"
               >
-                {isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generating Dossier...
-                  </>
-                ) : (
-                  <>
-                    <FileText className="mr-2 h-4 w-4" />
-                    Generate Defense Dossier
-                  </>
-                )}
+                <FileText className="mr-2 h-4 w-4" />
+                Generate Defense Dossier
               </Button>
               <p className="text-xs text-muted-foreground text-center">
                 This will create a comprehensive PDF document ready for customs audit

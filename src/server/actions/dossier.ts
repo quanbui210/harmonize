@@ -19,19 +19,17 @@ marked.setOptions({
 
 export async function generateDossierAction(input: {
   classificationId: string;
-  organizationId: string;
-  userId: string;
 }) {
   const user = await requireAuthenticatedUser();
   const membership = await getPrimaryMembership(user.id);
-  if (!membership || membership.organizationId !== input.organizationId) {
+  if (!membership) {
     throw new Error("Unauthorized");
   }
 
   const classification = await prisma.classification.findFirst({
     where: {
       id: input.classificationId,
-      organizationId: input.organizationId,
+      organizationId: membership.organizationId,
     },
     include: {
       product: {
@@ -201,7 +199,7 @@ export async function generateDossierAction(input: {
   const htmlBuffer = Buffer.from(htmlContent, "utf-8");
   const sha256 = createHash("sha256").update(htmlBuffer).digest("hex");
 
-  const storagePath = `${input.organizationId}/${input.classificationId}/${Date.now()}.html`;
+  const storagePath = `${membership.organizationId}/${input.classificationId}/${Date.now()}.html`;
 
   const supabase = getSupabaseAdminClient();
   const { error: uploadError } = await supabase.storage
@@ -219,7 +217,7 @@ export async function generateDossierAction(input: {
   const dossier = await prisma.dossier.create({
     data: {
       classificationId: classification.id,
-      generatedById: input.userId,
+      generatedById: user.id,
       storagePath,
       sha256,
     },
@@ -227,8 +225,8 @@ export async function generateDossierAction(input: {
 
   // Log audit entry
   await createAuditLogEntry({
-    organizationId: input.organizationId,
-    userId: input.userId,
+    organizationId: membership.organizationId,
+    userId: user.id,
     entityType: "DOSSIER",
     entityId: dossier.id,
     action: "GENERATE",

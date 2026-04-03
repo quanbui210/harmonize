@@ -475,9 +475,9 @@ export function LandingContent({ user }: LandingContentProps) {
                   EU IMPORT COMPLIANCE SOLVED
                 </p>
                 <h1 className="text-4xl md:text-5xl font-serif font-bold tracking-tight mb-4 leading-[1.05]">
-                  Import to the EU with{" "}
+                 Import into the EU with{" "}
                   <span className="relative inline-block">
-                    fewer surprises
+                    confidence
                     <span className="absolute -bottom-1 left-0 h-[3px] w-full bg-primary/40 rounded-full" />
                   </span>
                   .

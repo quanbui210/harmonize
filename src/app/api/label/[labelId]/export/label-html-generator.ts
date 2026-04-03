@@ -1,24 +1,21 @@
 import type { EnhancedLabelData } from "@/lib/labeling/label-generator-enhanced";
+import { getLabelText, getRenderLocales, resolveEUMarketProfile } from "@/lib/labeling/eu-market";
 
 // Helper to safely extract product name string
-export function getProductNameString(productName: any, language: "fi" | "sv" = "fi"): string {
+export function getProductNameString(productName: any, language: string): string {
   if (!productName) return "Product";
   if (typeof productName === "string") return productName;
   if (typeof productName !== "object") return "Product";
   
   if (productName.translations && typeof productName.translations === "object") {
     const trans = productName.translations;
-    if (language === "fi" && typeof trans.fi === "string") return trans.fi;
-    if (language === "sv" && typeof trans.sv === "string") return trans.sv;
-    if (language === "fi" && typeof trans.sv === "string") return trans.sv;
-    if (language === "sv" && typeof trans.fi === "string") return trans.fi;
+    if (typeof trans[language] === "string") return trans[language];
+    const firstTranslation = Object.values(trans).find((value) => typeof value === "string");
+    if (typeof firstTranslation === "string") return firstTranslation;
     if (typeof productName.original === "string") return productName.original;
   }
   
-  if (language === "fi" && typeof productName.fi === "string") return productName.fi;
-  if (language === "sv" && typeof productName.sv === "string") return productName.sv;
-  if (language === "fi" && typeof productName.sv === "string") return productName.sv;
-  if (language === "sv" && typeof productName.fi === "string") return productName.fi;
+  if (typeof productName[language] === "string") return productName[language];
   
   if (typeof productName.original === "string") return productName.original;
   
@@ -89,17 +86,26 @@ export function generateLabelHTML(labelData: EnhancedLabelData, productCategory:
   const carbs = parseNutritionNumber(labelData.nutritionInfo?.carbs);
   const protein = parseNutritionNumber(labelData.nutritionInfo?.protein);
   const salt = parseNutritionNumber(labelData.nutritionInfo?.salt);
+  const market = resolveEUMarketProfile(labelData.market?.destinationCountry);
+  const requiredLocales = labelData.market?.requiredLocales?.length
+    ? labelData.market.requiredLocales
+    : market.requiredLocales;
+  const renderLocales = labelData.market?.renderLocales?.length
+    ? labelData.market.renderLocales
+    : getRenderLocales(requiredLocales);
+  const primaryLocale = renderLocales[0] || "en";
+  const secondaryLocale = renderLocales[1];
 
   let html = `
     <div style="width: ${widthPx}px; min-height: ${heightPx}px; font-size: ${fontSize}pt; padding: 16px; font-family: Arial, sans-serif; background: white; border: 2px solid #1f2937;">
       <!-- Product Name -->
       <div style="margin-bottom: 12px;">
         <div style="font-size: 24px; font-weight: bold; margin-bottom: 4px;">
-          ${escapeHtml(getProductNameString(labelData.productName, "fi"))}
+          ${escapeHtml(getProductNameString(labelData.productName, primaryLocale))}
         </div>
-        <div style="font-size: 18px; color: #4b5563;">
-          ${escapeHtml(getProductNameString(labelData.productName, "sv"))}
-        </div>
+        ${secondaryLocale ? `<div style="font-size: 18px; color: #4b5563;">
+          ${escapeHtml(getProductNameString(labelData.productName, secondaryLocale))}
+        </div>` : ""}
       </div>
       <div style="border-top: 1px solid #d1d5db; margin: 12px 0;"></div>
   `;
@@ -108,26 +114,26 @@ export function generateLabelHTML(labelData: EnhancedLabelData, productCategory:
   if ((productCategory === "food" || productCategory === "meat" || productCategory === "supplements" || productCategory === "pet") && labelData.ingredients && labelData.ingredients.length > 0) {
     html += `
       <div style="margin-bottom: 12px;">
-        <div style="font-weight: bold; margin-bottom: 8px;">Ainesosat / Ingredienser:</div>
+        <div style="font-weight: bold; margin-bottom: 8px;">${escapeHtml(getLabelText(renderLocales, "ingredients"))}:</div>
         <div style="font-size: ${fontSize - 1}pt;">
     `;
     labelData.ingredients.forEach((ing) => {
-      const ingNameFI = (ing.translations && typeof ing.translations === "object" && typeof ing.translations.fi === "string")
-        ? ing.translations.fi
+      const ingNamePrimary = (ing.translations && typeof ing.translations === "object" && typeof ing.translations[primaryLocale] === "string")
+        ? ing.translations[primaryLocale]
         : (typeof ing.name === "string" ? ing.name : "Ingredient");
-      const ingNameSV = (ing.translations && typeof ing.translations === "object" && typeof ing.translations.sv === "string")
-        ? ing.translations.sv
+      const ingNameSecondary = (secondaryLocale && ing.translations && typeof ing.translations === "object" && typeof ing.translations[secondaryLocale] === "string")
+        ? ing.translations[secondaryLocale]
         : null;
       
       html += `
         <div style="margin-bottom: 4px;">
           <span style="${ing.isAllergen ? "font-weight: bold; color: #b91c1c;" : ""}">
-            ${escapeHtml(ingNameFI)}
+            ${escapeHtml(ingNamePrimary)}
             ${ing.percentage ? ` (${escapeHtml(ing.percentage)}%)` : ""}
           </span>
-          ${ingNameSV && ingNameSV !== ingNameFI ? `
+          ${ingNameSecondary && ingNameSecondary !== ingNamePrimary ? `
             <div style="font-size: ${fontSize - 2}pt; color: #6b7280; margin-left: 8px;">
-              ${escapeHtml(ingNameSV)}
+              ${escapeHtml(ingNameSecondary)}
             </div>
           ` : ""}
         </div>
@@ -154,13 +160,13 @@ export function generateLabelHTML(labelData: EnhancedLabelData, productCategory:
   if (labelData.nutritionInfo) {
     html += `
       <div style="margin-bottom: 12px;">
-        <div style="font-weight: bold; margin-bottom: 8px;">Ravintoarvot / Näringsvärde</div>
+        <div style="font-weight: bold; margin-bottom: 8px;">${escapeHtml(getLabelText(renderLocales, "nutrition"))}</div>
         <div style="font-size: ${fontSize - 2}pt; margin-bottom: 4px;">100g</div>
         <table style="width: 100%; font-size: ${fontSize - 1}pt; border-collapse: collapse;">
           <tbody>
             <tr style="border-bottom: 1px solid #d1d5db;">
               <td style="padding: 4px 0;">
-                <div>Energia / Energi</div>
+                <div>${escapeHtml(getLabelText(renderLocales, "energy"))}</div>
                 <div style="font-size: ${fontSize - 2}pt; color: #6b7280;">kJ / kcal</div>
               </td>
               <td style="text-align: right; font-weight: bold; padding: 4px 0;">
@@ -168,19 +174,19 @@ export function generateLabelHTML(labelData: EnhancedLabelData, productCategory:
               </td>
             </tr>
             <tr style="border-bottom: 1px solid #d1d5db;">
-              <td style="padding: 4px 0;">Rasva / Fett</td>
+              <td style="padding: 4px 0;">${escapeHtml(getLabelText(renderLocales, "fat"))}</td>
               <td style="text-align: right; font-weight: bold; padding: 4px 0;">${fat} g</td>
             </tr>
             <tr style="border-bottom: 1px solid #d1d5db;">
-              <td style="padding: 4px 0;">Hiilihydraatit / Kolhydrat</td>
+              <td style="padding: 4px 0;">${escapeHtml(getLabelText(renderLocales, "carbs"))}</td>
               <td style="text-align: right; font-weight: bold; padding: 4px 0;">${carbs} g</td>
             </tr>
             <tr style="border-bottom: 1px solid #d1d5db;">
-              <td style="padding: 4px 0;">Proteiini / Protein</td>
+              <td style="padding: 4px 0;">${escapeHtml(getLabelText(renderLocales, "protein"))}</td>
               <td style="text-align: right; font-weight: bold; padding: 4px 0;">${protein} g</td>
             </tr>
             <tr style="border-bottom: 1px solid #d1d5db;">
-              <td style="padding: 4px 0;">Suola / Salt</td>
+              <td style="padding: 4px 0;">${escapeHtml(getLabelText(renderLocales, "salt"))}</td>
               <td style="text-align: right; font-weight: bold; padding: 4px 0;">${salt} g</td>
             </tr>
           </tbody>
@@ -197,21 +203,21 @@ export function generateLabelHTML(labelData: EnhancedLabelData, productCategory:
   if (labelData.bestBeforeDate) {
     html += `
         <div style="margin-bottom: 4px;">
-          <span style="font-weight: 500;">Parasta ennen / Bäst före:</span> ${escapeHtml(labelData.bestBeforeDate)}
+          <span style="font-weight: 500;">${escapeHtml(getLabelText(renderLocales, "bestBefore"))}:</span> ${escapeHtml(labelData.bestBeforeDate)}
         </div>
     `;
   }
   if (labelData.batchNumber) {
     html += `
         <div style="margin-bottom: 4px;">
-          <span style="font-weight: 500;">Erä / Parti:</span> ${escapeHtml(labelData.batchNumber)}
+          <span style="font-weight: 500;">${escapeHtml(getLabelText(renderLocales, "batch"))}:</span> ${escapeHtml(labelData.batchNumber)}
         </div>
     `;
   }
   if (labelData.netQuantity) {
     html += `
         <div style="margin-bottom: 4px;">
-          <span style="font-weight: 500;">Nettomäärä / Nettovikt:</span> ${escapeHtml(labelData.netQuantity)}
+          <span style="font-weight: 500;">${escapeHtml(getLabelText(renderLocales, "netQuantity"))}:</span> ${escapeHtml(labelData.netQuantity)}
         </div>
     `;
   }
@@ -222,7 +228,7 @@ export function generateLabelHTML(labelData: EnhancedLabelData, productCategory:
   if (labelData.originCountry) {
     html += `
       <div style="font-size: ${fontSize - 1}pt; margin-bottom: 12px;">
-        <span style="font-weight: 500;">Alkuperämaa / Ursprungsland:</span> ${escapeHtml(labelData.originCountry)}
+        <span style="font-weight: 500;">${escapeHtml(getLabelText(renderLocales, "originCountry"))}:</span> ${escapeHtml(labelData.originCountry)}
       </div>
     `;
   }
@@ -230,7 +236,7 @@ export function generateLabelHTML(labelData: EnhancedLabelData, productCategory:
   // Importer Address
   html += `
       <div style="font-size: ${fontSize - 1}pt; margin-bottom: 12px;">
-        <div style="font-weight: 500; margin-bottom: 4px;">Maahantuoja / Importör:</div>
+        <div style="font-weight: 500; margin-bottom: 4px;">${escapeHtml(getLabelText(renderLocales, "importer"))}:</div>
         <div>${escapeHtml(labelData.importerAddress || "")}</div>
       </div>
   `;
@@ -239,7 +245,7 @@ export function generateLabelHTML(labelData: EnhancedLabelData, productCategory:
   if (labelData.storageInstructions) {
     html += `
       <div style="font-size: ${fontSize - 1}pt;">
-        <span style="font-weight: 500;">Säilytys / Förvaring:</span> ${escapeHtml(labelData.storageInstructions)}
+        <span style="font-weight: 500;">${escapeHtml(getLabelText(renderLocales, "storage"))}:</span> ${escapeHtml(labelData.storageInstructions)}
       </div>
     `;
   }

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { generateLabelAction, exportLabelPDFAction, exportLabelSVGAction, saveLabelAction } from "@/server/actions/labels";
+import { exportLabelPDFAction, exportLabelSVGAction, saveLabelAction } from "@/server/actions/labels";
 import { analyzeLabelAction } from "@/server/actions/label-analysis";
 import { getClassificationsForLabelAction, getClassificationAction } from "@/server/actions/classifications";
 import {
@@ -21,9 +21,18 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ShieldCheck, ShieldAlert, Download, FileText, AlertCircle, CheckCircle2, ChevronRight, ChevronLeft, Save } from "lucide-react";
+import { Loader2, ShieldCheck, ShieldAlert, Download, FileText, AlertCircle, CheckCircle2, ChevronRight, ChevronLeft, Save, Info } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 
 interface FormState {
@@ -34,6 +43,7 @@ interface FormState {
   cnCode: string;
   originalLabelText: string;
   productCategory: string;
+  endUse: "B2C" | "B2B" | "internal";
   labelSize: LabelSize;
   bestBeforeDate: string;
   netQuantity: string;
@@ -64,6 +74,7 @@ const initialForm: FormState = {
   cnCode: "",
   originalLabelText: "",
   productCategory: "food",
+  endUse: "B2C",
   labelSize: LABEL_SIZES[2], // Standard 100×150mm
   bestBeforeDate: "",
   netQuantity: "",
@@ -115,7 +126,6 @@ function parseNumericNutritionValue(value: string | number | undefined, key: key
 
 export default function NewLabelPage() {
   const [form, setForm] = useState<FormState>(initialForm);
-  const [isPending, startTransition] = useTransition();
   const [complianceScore, setComplianceScore] = useState<number | null>(null);
   const [complianceResults, setComplianceResults] = useState<ComplianceResult[]>([]);
   const [generatedLabel, setGeneratedLabel] = useState<any>(null);
@@ -128,6 +138,7 @@ export default function NewLabelPage() {
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
   const [showNutritionForm, setShowNutritionForm] = useState(false);
   const [selectedClassificationId, setSelectedClassificationId] = useState<string>("");
+  const [isNavigatingToGenerate, setIsNavigatingToGenerate] = useState(false);
   const [classifications, setClassifications] = useState<Array<{
     id: string;
     productName: string;
@@ -141,6 +152,8 @@ export default function NewLabelPage() {
   
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  const isPending = isNavigatingToGenerate;
 
   // Load classifications and handle query param on mount
   useEffect(() => {
@@ -177,6 +190,51 @@ export default function NewLabelPage() {
     
     loadClassifications();
   }, [searchParams]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const labelGenerationError = searchParams.get("labelGenerationError");
+    if (labelGenerationError) {
+      setIsNavigatingToGenerate(false);
+      setError(decodeURIComponent(labelGenerationError));
+      router.replace("/labels/new");
+      return;
+    }
+
+    const generationResultKey = searchParams.get("labelGenerationResultKey");
+    if (!generationResultKey) return;
+
+    const rawResult = window.sessionStorage.getItem(generationResultKey);
+    window.sessionStorage.removeItem(generationResultKey);
+    setIsNavigatingToGenerate(false);
+
+    if (!rawResult) {
+      setError("Label generation result expired. Please generate again.");
+      router.replace("/labels/new");
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(rawResult) as {
+        label: any;
+        complianceScore: number;
+        complianceResults: ComplianceResult[];
+        labelAnalysis?: LabelAnalysis | null;
+      };
+
+      setGeneratedLabel(parsed.label);
+      setComplianceScore(parsed.complianceScore);
+      setComplianceResults(parsed.complianceResults || []);
+      setLabelAnalysis(parsed.labelAnalysis || null);
+      setCurrentStep(2);
+      setError(null);
+    } catch {
+      setError("Failed to read generated label result. Please try again.");
+    } finally {
+      router.replace("/labels/new");
+    }
+  }, [router, searchParams]);
 
   const handleClassificationChange = async (classificationId: string) => {
     setSelectedClassificationId(classificationId);
@@ -348,74 +406,29 @@ export default function NewLabelPage() {
       
       setError(null);
       
-      startTransition(async () => {
-        try {
-          // Analyze label if we have label text
-          if (form.originalLabelText) {
-            await handleAnalyzeLabel();
-          }
-          
-          // Generate label - this will set the generatedLabel state
-          await handleGenerateLabel();
-          
-          // Only move to Step 2 after label is generated
-          setCurrentStep(2);
-        } catch (err: any) {
-          setError(err?.message || "Failed to generate label");
-        }
-      });
+      await handleGenerateLabel();
     }
   };
 
   const handleGenerateLabel = async () => {
     setError(null);
-    
+
     try {
-      // Merge missing fields data into nutrition/form data
-      const mergedNutrition = { ...form.nutrition };
-      if (missingFieldsData["nutrition_energy"] !== undefined) {
-        mergedNutrition.energy = parseNumericNutritionValue(missingFieldsData["nutrition_energy"], "energy");
-      }
-      if (missingFieldsData["nutrition_fat"] !== undefined) {
-        mergedNutrition.fat = parseNumericNutritionValue(missingFieldsData["nutrition_fat"], "fat");
-      }
-      if (missingFieldsData["nutrition_carbs"] !== undefined) {
-        mergedNutrition.carbs = parseNumericNutritionValue(missingFieldsData["nutrition_carbs"], "carbs");
-      }
-      if (missingFieldsData["nutrition_protein"] !== undefined) {
-        mergedNutrition.protein = parseNumericNutritionValue(missingFieldsData["nutrition_protein"], "protein");
-      }
-      if (missingFieldsData["nutrition_salt"] !== undefined) {
-        mergedNutrition.salt = parseNumericNutritionValue(missingFieldsData["nutrition_salt"], "salt");
+      const payloadKey = `label_generation_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      if (typeof window !== "undefined") {
+        window.sessionStorage.setItem(
+          payloadKey,
+          JSON.stringify({
+            form,
+            missingFieldsData,
+          }),
+        );
       }
 
-      const result = await generateLabelAction({
-        productName: form.productName,
-        description: form.description,
-        originCountry: form.originCountry,
-        destinationCountry: form.destinationCountry,
-        cnCode: form.cnCode || undefined,
-        originalLabelText: form.originalLabelText || undefined,
-        productCategory: form.productCategory,
-        labelSize: form.labelSize,
-        nutrition: mergedNutrition,
-        importerAddress: 
-          form.importerAddress.companyName && form.importerAddress.street && form.importerAddress.city
-            ? `${form.importerAddress.companyName}, ${form.importerAddress.street}, ${form.importerAddress.postalCode}, ${form.importerAddress.city}, ${form.importerAddress.country}`
-            : (missingFieldsData["importer_address"] as string | undefined),
-        bestBeforeDate: form.bestBeforeDate || undefined,
-        netQuantity: form.netQuantity ? `${form.netQuantity}${form.netQuantityUnit}` : undefined,
-        quidIngredientName: form.quidIngredientName.trim() || undefined,
-        quidPercentage: form.quidPercentage ? Number(form.quidPercentage) : undefined,
-      });
-
-      setGeneratedLabel(result.label);
-      setComplianceResults(result.complianceResults);
-      setComplianceScore(result.complianceScore);
-      setShowMissingFieldsForm(false);
+      setIsNavigatingToGenerate(true);
+      router.push(`/labels/loading?payloadKey=${encodeURIComponent(payloadKey)}`);
     } catch (err: any) {
       setError(err?.message || "Failed to generate label");
-      throw err; // Re-throw so handleNextStep can catch it
     }
   };
 
@@ -688,6 +701,7 @@ export default function NewLabelPage() {
     if (!form.productName?.trim()) missing.push("Product name");
     // Origin country is optional - removed from required fields
     if (!form.destinationCountry?.trim()) missing.push("Destination country");
+    if (!form.endUse?.trim()) missing.push("End use");
     if (!form.bestBeforeDate?.trim()) missing.push("Best Before Date");
     if (!form.netQuantity?.trim()) missing.push("Net Quantity");
     if (!form.importerAddress.companyName?.trim()) missing.push("Importer Company Name");
@@ -815,6 +829,66 @@ export default function NewLabelPage() {
                   <option value="other">Other / general</option>
                 </select>
               </div>
+            </div>
+
+            <div className="space-y-2 rounded-md border bg-muted/20 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium">End use <span className="text-red-500">*</span></label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label="End use requirements info"
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <Info className="h-4 w-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      B2C requires full consumer-ready label content (EU 1169/2011). B2B can rely on trade documents for some details.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button type="button" variant="link" className="h-auto p-0 text-xs">
+                      When should I choose each?
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Choose The Correct End Use</DialogTitle>
+                      <DialogDescription>
+                        This affects the compliance checks and what information the generated output prioritizes.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3 text-sm">
+                      <p><strong>B2C (Retail consumer):</strong> Full consumer label checks, including market language and food-specific QUID rules.</p>
+                      <p><strong>B2B (Business only):</strong> Focuses on trade/commercial context. Consumer pack checks are relaxed and should be supported by accompanying documents.</p>
+                      <p><strong>Internal:</strong> Draft/internal workflow only. Consumer market checks are skipped and output is for internal review.</p>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+              <Select
+                value={form.endUse}
+                onValueChange={(value) => handleChange("endUse", value as FormState["endUse"])}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select end use" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="B2C">B2C - Final consumer retail</SelectItem>
+                  <SelectItem value="B2B">B2B - Food service / ingredient processing</SelectItem>
+                  <SelectItem value="internal">Internal - Not for market placement</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {form.endUse === "B2C" && "Runs full consumer compliance checks for destination market labeling."}
+                {form.endUse === "B2B" && "Prioritizes trade/commercial output and relaxes some consumer-pack checks."}
+                {form.endUse === "internal" && "For internal drafts only; market-facing legal checks are skipped."}
+              </p>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -1194,13 +1268,13 @@ export default function NewLabelPage() {
                   );
                 }
                 
-                if (isPending || isAnalyzing) {
+                if (isPending) {
                   return (
                     <div className="rounded-md border border-blue-500/50 bg-blue-50 dark:bg-blue-900/10 p-3 text-sm">
                       <div className="flex items-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
                         <span className="text-blue-800 dark:text-blue-200">
-                          {isAnalyzing ? "Analyzing label..." : "Generating label..."}
+                          Redirecting to generation screen...
                         </span>
                       </div>
                     </div>
@@ -1216,7 +1290,6 @@ export default function NewLabelPage() {
                   disabled={isGenerateButtonDisabled()}
                   size="lg"
                 >
-                  {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Generate Label
                   <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>

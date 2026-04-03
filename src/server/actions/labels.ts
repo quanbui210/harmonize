@@ -30,6 +30,7 @@ export interface GenerateLabelInput {
     salt?: number;
   };
   productCategory?: string; // user-selected category (e.g., food, electronics, textiles)
+  endUse: "B2C" | "B2B" | "internal";
   labelSize?: {
     width: number; // mm
     height: number; // mm
@@ -136,6 +137,8 @@ export async function generateLabelAction(
       netQuantity: input.netQuantity,
       quidIngredientName: input.quidIngredientName,
       quidPercentage: input.quidPercentage,
+      destinationCountry: input.destinationCountry,
+      endUse: input.endUse,
     },
     labelSize,
   );
@@ -159,7 +162,11 @@ export async function generateLabelAction(
     fontSize: label.fontSize,
   };
 
-  const complianceResults = runComplianceChecks(labelDataForChecks, productType);
+  const complianceResults = runComplianceChecks(labelDataForChecks, productType, {
+    destinationCountry: input.destinationCountry,
+    requiredLocales: label.market?.requiredLocales,
+    endUse: input.endUse,
+  });
   const complianceScore = calculateComplianceScore(complianceResults);
 
   return {

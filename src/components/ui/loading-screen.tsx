@@ -6,13 +6,18 @@ import { useEffect, useState } from "react";
 type LoadingScreenProps = {
   message?: string;
   subMessage?: string;
+  variant?: "fullscreen" | "overlay";
+  steps?: string[];
 };
 
 export function LoadingScreen({ 
   message = "Loading", 
-  subMessage 
+  subMessage,
+  variant = "fullscreen",
+  steps = [],
 }: LoadingScreenProps = {}) {
   const [progress, setProgress] = useState(0);
+  const [activeStepIndex, setActiveStepIndex] = useState(0);
 
   useEffect(() => {
     // Simulate progress animation
@@ -26,8 +31,21 @@ export function LoadingScreen({
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (!steps.length) return;
+    const interval = setInterval(() => {
+      setActiveStepIndex((prev) => (prev + 1) % steps.length);
+    }, 1800);
+    return () => clearInterval(interval);
+  }, [steps]);
+
+  const containerClassName =
+    variant === "overlay"
+      ? "fixed inset-0 z-50 bg-background/90 backdrop-blur-sm flex items-center justify-center"
+      : "min-h-screen bg-background flex items-center justify-center";
+
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
+    <div className={containerClassName}>
       <div className="flex flex-col items-center gap-6">
         {/* Minimal Icon Animation */}
         <div className="relative">
@@ -48,6 +66,11 @@ export function LoadingScreen({
           {subMessage && (
             <p className="text-xs text-muted-foreground/60">
               {subMessage}
+            </p>
+          )}
+          {steps.length > 0 && (
+            <p className="text-xs text-muted-foreground/80">
+              {steps[activeStepIndex]}
             </p>
           )}
         </div>

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,7 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { searchAndClassifyAction } from "@/server/actions/classification-search";
 import { MarketCode } from "@prisma/client";
-import { Loader2, Sparkles, FileText, Camera } from "lucide-react";
+import { Sparkles, FileText, Camera } from "lucide-react";
 import { ImageUploadSection } from "./image-upload-section";
 import { ProductScanSection } from "./product-scan-section";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -30,7 +30,7 @@ type Props = {
 
 export function ClassificationSearchForm({ organizationId, userId }: Props) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const searchParams = useSearchParams();
   const [result, setResult] = useState<ClassificationResult | null>(null);
   const [refinementAnswer, setRefinementAnswer] = useState<string>("");
   const [showMaterials, setShowMaterials] = useState(false);
@@ -44,71 +44,73 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
     originCountry: "",
   });
 
+  useEffect(() => {
+    const refinementKey = searchParams.get("refinementKey");
+    if (refinementKey && typeof window !== "undefined") {
+      const raw = window.sessionStorage.getItem(refinementKey);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw) as ClassificationResult;
+          setResult(parsed);
+          window.sessionStorage.removeItem(refinementKey);
+        } catch (error) {
+          console.error("Failed to parse refinement payload:", error);
+        }
+      }
+      router.replace("/classify");
+    }
+
+    const classificationError = searchParams.get("classificationError");
+    if (classificationError) {
+      alert(decodeURIComponent(classificationError));
+      router.replace("/classify");
+    }
+  }, [router, searchParams]);
+
   const handleSubmit = async (formData: FormData) => {
-    startTransition(async () => {
-      try {
-        const productName = String(formData.get("productName") || "").trim();
-        const description = String(formData.get("description") || "").trim();
+    const productName = String(formData.get("productName") || "").trim();
+    const description = String(formData.get("description") || "").trim();
+    const market = String(formData.get("market") || MarketCode.EU) as MarketCode;
+    const originCountry = String(formData.get("originCountry") || "").trim();
+    const endUse = String(formData.get("endUse") || "").trim();
+    const endUseOther = String(formData.get("endUseOther") || "").trim();
+    const compositionText = String(formData.get("compositionText") || "").trim();
 
-        const market = String(formData.get("market") || MarketCode.EU) as MarketCode;
-        const originCountry = String(formData.get("originCountry") || "").trim();
+    const intendedUse =
+      endUse === "OTHER" ? (endUseOther || undefined) : (endUse || undefined);
 
-        const endUse = String(formData.get("endUse") || "").trim();
-        const endUseOther = String(formData.get("endUseOther") || "").trim();
-        const compositionText = String(formData.get("compositionText") || "").trim();
-
-        const intendedUse =
-          endUse === "OTHER" ? (endUseOther || undefined) : (endUse || undefined);
-
-        const res = await searchAndClassifyAction({
+    const payloadKey = `classify_manual_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem(
+        payloadKey,
+        JSON.stringify({
           productName,
           description,
           intendedUse,
           originCountry: originCountry || undefined,
           compositionText: compositionText || undefined,
           market,
-        });
+        }),
+      );
+    }
 
-        setResult(res);
-        
-        // Debug: Log result to check if refinement question exists
-        console.log("[UI] Classification result:", {
-          hasRefinementQuestion: !!res.refinementQuestion,
-          refinementQuestion: res.refinementQuestion,
-          needsRefinement: res.needsRefinement,
-        });
-
-        if (!res.needsRefinement) {
-          router.push(`/classify/${res.classificationId}`);
-        }
-      } catch (error) {
-        console.error("Classification error:", error);
-        alert(error instanceof Error ? error.message : "Failed to classify product. Please try again.");
-      }
-    });
+    router.push(`/classify/loading?flow=manual&payloadKey=${encodeURIComponent(payloadKey)}`);
   };
 
   const handleRefinementAnswer = async (answer: string) => {
     if (!result) return;
-
-    startTransition(async () => {
-      try {
-        const { answerRefinementQuestionAction } = await import(
-          "@/server/actions/classification-search"
-        );
-        
-        const updated = await answerRefinementQuestionAction({
+    const payloadKey = `classify_refine_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem(
+        payloadKey,
+        JSON.stringify({
           classificationId: result.classificationId,
           answer,
           field: result.refinementQuestion?.field || "intendedUse",
-        });
-
-        router.push(`/classify/${updated.classificationId}`);
-      } catch (error) {
-        console.error("Refinement error:", error);
-        alert("Failed to process refinement. Please try again.");
-      }
-    });
+        }),
+      );
+    }
+    router.push(`/classify/loading?flow=refinement&payloadKey=${encodeURIComponent(payloadKey)}`);
   };
 
   const handleDataExtracted = (data: {
@@ -168,7 +170,6 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
   };
 
   const [mode, setMode] = useState<"manual" | "scan">("scan");
-
   return (
     <div className="space-y-6">
       <Card>
@@ -196,7 +197,7 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
                 organizationId={organizationId}
                 userId={userId}
                 market={MarketCode.EU}
-                disabled={isPending}
+                disabled={false}
               />
             </TabsContent>
 
@@ -210,7 +211,7 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
               >
                 <ImageUploadSection
                   onDataExtracted={handleDataExtracted}
-                  disabled={isPending}
+                  disabled={false}
                 />
 
             <div className="grid gap-4 md:grid-cols-3">
@@ -221,7 +222,7 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
                   name="market"
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
                   defaultValue={MarketCode.EU}
-                  disabled={isPending}
+                  disabled={false}
                 >
                   <option value={MarketCode.EU}>EU (CN / TARIC)</option>
                   <option value={MarketCode.US} disabled>
@@ -236,7 +237,7 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
                   id="originCountry"
                   name="originCountry"
                   placeholder="e.g. China, Vietnam"
-                  disabled={isPending}
+                  disabled={false}
                 />
               </div>
 
@@ -246,7 +247,7 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
                   id="destinationCountry"
                   name="destinationCountry"
                   placeholder="e.g. Finland, Germany"
-                  disabled={isPending}
+                  disabled={false}
                 />
                 <p className="text-xs text-muted-foreground">For VAT calculation</p>
               </div>
@@ -259,7 +260,7 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
                 name="productName"
                 placeholder="e.g. Electric neck massager with lithium battery"
                 required
-                disabled={isPending}
+                disabled={false}
                 defaultValue={formData.productName}
               />
             </div>
@@ -272,7 +273,7 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
                 placeholder="Detailed product description..."
                 rows={4}
                 required
-                disabled={isPending}
+                disabled={false}
                 defaultValue={formData.description}
               />
             </div>
@@ -285,7 +286,7 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
                   name="endUse"
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
                   defaultValue="COMMERCIAL_GENERAL"
-                  disabled={isPending}
+                  disabled={false}
                 >
                   <option value="COMMERCIAL_GENERAL">Commercial / General</option>
                   <option value="INDUSTRIAL">Industrial</option>
@@ -302,7 +303,7 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
                   id="endUseOther"
                   name="endUseOther"
                   placeholder="e.g. laboratory calibration equipment"
-                  disabled={isPending}
+                  disabled={false}
                 />
               </div>
             </div>
@@ -320,7 +321,7 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
                   variant="outline"
                   size="sm"
                   onClick={() => setShowMaterials((v) => !v)}
-                  disabled={isPending}
+                  disabled={false}
                 >
                   {showMaterials ? "Hide" : "Add"}
                 </Button>
@@ -334,24 +335,15 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
                     name="compositionText"
                     placeholder='e.g. 70% cotton, 30% polyester; or "stainless steel housing, lithium battery, PCB"'
                     rows={3}
-                    disabled={isPending}
+                    disabled={false}
                   />
                 </div>
               )}
             </div>
 
-                <Button type="submit" disabled={isPending} className="w-full">
-                  {isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Classifying...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      Classify
-                    </>
-                  )}
+                <Button type="submit" className="w-full">
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Classify
                 </Button>
               </form>
             </TabsContent>
@@ -394,7 +386,7 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
                     variant="outline"
                     className="w-full justify-start bg-white"
                     onClick={() => handleRefinementAnswer(option.value)}
-                    disabled={isPending}
+                    disabled={false}
                   >
                     {option.label || option.value}
                   </Button>
@@ -413,13 +405,13 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
                     value={refinementAnswer}
                     onChange={(e) => setRefinementAnswer(e.target.value)}
                     placeholder="Type details…"
-                    disabled={isPending}
+                    disabled={false}
                   />
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => handleRefinementAnswer(refinementAnswer)}
-                    disabled={isPending || refinementAnswer.trim().length === 0}
+                    disabled={refinementAnswer.trim().length === 0}
                   >
                     Submit
                   </Button>

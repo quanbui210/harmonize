@@ -4,7 +4,6 @@ import { useState, useRef } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { uploadProductImageAction } from "@/server/actions/product-images";
-import { searchAndClassifyAction } from "@/server/actions/classification-search";
 import { MarketCode } from "@prisma/client";
 import { Loader2, Upload, X, CheckCircle2, Sparkles, Image as ImageIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -40,7 +39,6 @@ export function ProductScanSection({
 }: ProductScanSectionProps) {
   const router = useRouter();
   const [images, setImages] = useState<UploadedImage[]>([]);
-  const [isClassifying, setIsClassifying] = useState(false);
   const [classificationError, setClassificationError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -165,32 +163,35 @@ export function ProductScanSection({
       return;
     }
 
-    setIsClassifying(true);
     setClassificationError(null);
-
     try {
-      const result = await searchAndClassifyAction({
-        productName: mergedData.productName || "Product from image",
-        description: mergedData.description || mergedData.productName || "Product identified from image",
-        intendedUse: mergedData.intendedUse,
-        compositionText: mergedData.compositionText,
-        originCountry: mergedData.originCountry,
-        materials: mergedData.materials?.map((m) => ({
-          material: m.name,
-          percentage: m.percentage || 0,
-        })),
-        market: selectedMarket,
-      });
-
-      // Navigate to classification result
-      if (result.classificationId) {
-        router.push(`/classify/${result.classificationId}`);
+      const payloadKey = `classify_scan_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      if (typeof window !== "undefined") {
+        window.sessionStorage.setItem(
+          payloadKey,
+          JSON.stringify({
+            productName: mergedData.productName || "Product from image",
+            description:
+              mergedData.description ||
+              mergedData.productName ||
+              "Product identified from image",
+            intendedUse: mergedData.intendedUse,
+            compositionText: mergedData.compositionText || undefined,
+            originCountry: originCountry || mergedData.originCountry || undefined,
+            destinationCountry: destinationCountry || undefined,
+            materials: mergedData.materials?.map((m) => ({
+              material: m.name,
+              percentage: m.percentage || 0,
+            })),
+            market: selectedMarket,
+          }),
+        );
       }
+
+      router.push(`/classify/loading?flow=scan&payloadKey=${encodeURIComponent(payloadKey)}`);
     } catch (error: any) {
-      console.error("Classification error:", error);
-      setClassificationError(error.message || "Failed to classify product. Please try again.");
-    } finally {
-      setIsClassifying(false);
+      console.error("Failed to start classify flow:", error);
+      setClassificationError("Failed to start classification. Please try again.");
     }
   };
 
@@ -349,21 +350,12 @@ export function ProductScanSection({
             <Button
               type="button"
               onClick={handleQuickClassify}
-              disabled={disabled || isClassifying || !hasExtractedData}
+              disabled={disabled || !hasExtractedData}
               className="w-full"
               size="lg"
             >
-              {isClassifying ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Classifying...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  Quick Classify from Images
-                </>
-              )}
+              <Sparkles className="mr-2 h-4 w-4" />
+              Quick Classify from Images
             </Button>
 
             {classificationError && (
