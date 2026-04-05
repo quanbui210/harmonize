@@ -34,6 +34,17 @@ function formatHTSCode(htsCode: string): string {
   return `${htsCode.substring(0, 4)}.${htsCode.substring(4, 6)}.${htsCode.substring(6, 8)}.${htsCode.substring(8, 10)}`;
 }
 
+function digitsOnly(value: string | null | undefined): string {
+  return (value || "").replace(/\D/g, "");
+}
+
+function extractCnCodeFromSummary(summary: string | null | undefined): string {
+  if (!summary) return "";
+  const match = summary.match(/CN\s*Code[:\s]+(\d[\d\s.]*)/i);
+  if (!match?.[1]) return "";
+  return digitsOnly(match[1]).slice(0, 8);
+}
+
 // Helper to safely extract product name string - handles all possible structures
 function getProductNameString(productName: any): string {
   if (!productName) return "Product";
@@ -98,15 +109,22 @@ export default async function ClassificationDetailPage({ params }: Props) {
     redirect("/classify");
   }
 
-  const hsCode = (classification as { hsCode?: string | null }).hsCode || classification.htsCode?.substring(0, 6) || "";
-  const cnCode = classification.htsCode?.substring(0, 8) || "";
-  const htsCode = classification.htsCode || "";
-  const hasValidCode = htsCode && htsCode !== "0000000000";
+  const rawHsCode = digitsOnly((classification as { hsCode?: string | null }).hsCode || "");
+  const rawHtsCode = digitsOnly(classification.htsCode || "");
+  const summaryCnCode = extractCnCodeFromSummary(classification.summary);
+
+  const hsCode = rawHsCode || rawHtsCode.substring(0, 6) || "";
+  const cnCode = rawHtsCode.substring(0, 8) || summaryCnCode || "";
+  const htsCode = rawHtsCode || (summaryCnCode ? summaryCnCode.padEnd(10, "0") : "");
+
+  const hasValidHsCode = hsCode.length === 6 && hsCode !== "000000";
+  const hasValidCnCode = cnCode.length === 8 && cnCode !== "00000000";
+  const hasValidHtsCode = htsCode.length === 10 && htsCode !== "0000000000";
   
   // Determine if this is a food/beverage product (for label generation)
   const isFoodProduct = cnCode ? getRegulatoryProductType(cnCode) === "FOOD" : false;
 
-  const cnMeta = hasValidCode
+  const cnMeta = hasValidCnCode
     ? await prisma.cnCodeDescription.findUnique({
         where: { cnCode },
         select: { description: true, source: true, fetchedAt: true },
@@ -186,6 +204,11 @@ export default async function ClassificationDetailPage({ params }: Props) {
           <Button variant="outline" asChild>
             <Link href="/classify">Back to Search</Link>
           </Button>
+          {(!hasValidHsCode || !hasValidCnCode || !hasValidHtsCode) && (
+            <Button variant="outline" asChild>
+              <Link href="/classify#search">Retry Classification</Link>
+            </Button>
+          )}
           {classification.labels && classification.labels.length > 0 && (
             <Button className="bg-green-600 text-white hover:bg-green-700" asChild>
               <Link href={`/labels/${classification.labels[0].id}`}>
@@ -209,7 +232,7 @@ export default async function ClassificationDetailPage({ params }: Props) {
                   Generate Dossier
                 </Link>
               </Button>
-              {hasValidCode && (
+              {hasValidCnCode && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground">
@@ -266,7 +289,7 @@ export default async function ClassificationDetailPage({ params }: Props) {
 
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-1">HS CODE (International Base)</p>
-              {hasValidCode && hsCode ? (
+              {hasValidHsCode ? (
                 <p className="font-mono text-xl font-semibold">
                   {formatHSCode(hsCode)}
                 </p>
@@ -276,7 +299,7 @@ export default async function ClassificationDetailPage({ params }: Props) {
             </div>
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-1">CN CODE (EU)</p>
-              {hasValidCode ? (
+              {hasValidCnCode ? (
                 <p className="font-mono text-xl font-semibold">
                   {formatCNCode(cnCode)}
                 </p>
@@ -296,7 +319,7 @@ export default async function ClassificationDetailPage({ params }: Props) {
             </div>
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-1">HTS CODE (USA)</p>
-              {hasValidCode ? (
+              {hasValidHtsCode ? (
                 <p className="font-mono text-xl font-semibold">
                   {formatHTSCode(htsCode)}
                 </p>
@@ -435,7 +458,7 @@ export default async function ClassificationDetailPage({ params }: Props) {
       )}
 
       {/* BTI Defense Card */}
-      {hasValidCode && (
+      {hasValidCnCode && (
         <BtiDefenseCard 
           hsCode={cnCode || htsCode} 
           description={classification.product.description} 
@@ -554,4 +577,3 @@ export default async function ClassificationDetailPage({ params }: Props) {
     </div>
   );
 }
-

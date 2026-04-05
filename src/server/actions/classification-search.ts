@@ -218,6 +218,20 @@ interface AlternativeClassification {
   tradeOffs?: string;
 }
 
+function normalizeCodeDigits(value: string | null | undefined): string {
+  return (value || "").replace(/\D/g, "");
+}
+
+function isValidCnCode(code: string | null | undefined): boolean {
+  const normalized = normalizeCodeDigits(code);
+  return normalized.length === 8 && normalized !== "00000000";
+}
+
+function isValidHtsCode(code: string | null | undefined): boolean {
+  const normalized = normalizeCodeDigits(code);
+  return normalized.length === 10 && normalized !== "0000000000";
+}
+
 export async function searchAndClassifyAction(input: {
   productName: string;
   description: string;
@@ -337,7 +351,7 @@ export async function searchAndClassifyAction(input: {
     let normalizedAiCode = topSuggestion.cnCode || "";
     if (normalizedAiCode) {
       // Remove all non-digit characters
-      const digitsOnly = normalizedAiCode.replace(/\D/g, "");
+      const digitsOnly = normalizeCodeDigits(normalizedAiCode);
       if (digitsOnly.length >= 8) {
         normalizedAiCode = digitsOnly.substring(0, 8);
       } else if (digitsOnly.length >= 6) {
@@ -348,7 +362,7 @@ export async function searchAndClassifyAction(input: {
       console.log(`[Classification] Normalized AI CN code: "${topSuggestion.cnCode}" → "${normalizedAiCode}"`);
     }
     
-    if (normalizedAiCode && normalizedAiCode.length === 8 && normalizedAiCode !== "00000000") {
+    if (isValidCnCode(normalizedAiCode)) {
       validatedCnCode = normalizedAiCode;
       console.log(`[Classification] Using AI-provided CN code (not found in document): ${validatedCnCode}`);
         classificationResult = {
@@ -437,25 +451,14 @@ export async function searchAndClassifyAction(input: {
   // Note: RAG search removed - was causing latency and most codes were rejected
   
   // Final validation - ensure we have a valid CN code
-  if (!validatedCnCode || validatedCnCode.length !== 8 || validatedCnCode === "00000000" || validatedCnCode === "00" || (validatedCnCode.startsWith("00") && validatedCnCode.length <= 2)) {
+  if (!isValidCnCode(validatedCnCode)) {
     console.error(`[Classification] CRITICAL: No valid CN code found.`);
     console.error(`[Classification] validatedCnCode: "${validatedCnCode}" (length: ${validatedCnCode?.length || 0})`);
     console.error(`[Classification] AI suggestions:`, JSON.stringify(aiAnalysis.suggestedChapters, null, 2));
     console.error(`[Classification] GRI result:`, classificationResult.cnCode);
-    
-    // Last resort: try to use the first AI suggestion's chapter to construct a basic code
-    if (aiAnalysis.suggestedChapters.length > 0 && aiAnalysis.suggestedChapters[0].chapter) {
-      const fallbackChapter = aiAnalysis.suggestedChapters[0].chapter;
-      if (fallbackChapter > 0 && fallbackChapter <= 97) {
-        validatedCnCode = `${fallbackChapter.toString().padStart(2, "0")}000000`.substring(0, 8);
-        console.warn(`[Classification] Using fallback code from chapter only: ${validatedCnCode}`);
-      classificationResult.cnCode = validatedCnCode as CNCode;
-      } else {
-        throw new Error(`Classification failed: Unable to determine valid CN code. The AI did not provide a valid classification code. Please try again or provide more product details.`);
-      }
-    } else {
-      throw new Error(`Classification failed: Unable to determine valid CN code. The AI did not provide a valid classification code. Please try again or provide more product details.`);
-    }
+    throw new Error(
+      "Unable to determine a valid tariff code from the provided data. Please add clearer product composition and intended use, then retry."
+    );
   }
 
   // Update classificationResult with validated code
@@ -572,6 +575,12 @@ export async function searchAndClassifyAction(input: {
 
   const candidates: ClassificationCandidate[] = [primaryCandidate, ...alternativeCandidates];
 
+  const candidate = candidates[0];
+  if (!candidate || !isValidHtsCode(candidate.htsCode)) {
+    console.error(`[Classification] CRITICAL: Invalid candidate HTS code: ${candidate?.htsCode}`);
+    throw new Error(`Classification failed: Invalid HTS code generated. Please try again.`);
+  }
+
   const product = await prisma.product.create({
     data: {
       organizationId: membership.organizationId,
@@ -598,13 +607,6 @@ export async function searchAndClassifyAction(input: {
         : {}),
     },
   });
-
-  // Use the normalized codes from candidates
-  const candidate = candidates[0];
-  if (!candidate || !candidate.htsCode || candidate.htsCode === "0000000000") {
-    console.error(`[Classification] CRITICAL: Invalid candidate HTS code: ${candidate?.htsCode}`);
-    throw new Error(`Classification failed: Invalid HTS code generated. Please try again.`);
-  }
 
   const classification = await prisma.classification.create({
     data: {
@@ -807,6 +809,44 @@ export async function answerRefinementQuestionAction(input: {
     });
   }
 
+  const compositionFromMetadata = (nextMetadata as any)?.compositionText || (classification.product.metadata as any)?.compositionText;
+  const productAttributes: EUProductAttributes = {
+    name: classification.product.name,
+    description: classification.product.description,
+    intendedUse: classification.product.intendedUse || undefined,
+    materials: [],
+    technicalSpecs: {
+      ...(input.field === "compositionText" ? { compositionText: input.answer } : {}),
+      ...(compositionFromMetadata ? { compositionText: compositionFromMetadata } : {}),
+      refinementField: input.field,
+      refinementAnswer: input.answer,
+    },
+  };
+
+  const updatedResult = await euClassificationEngine.classifyProduct(
+    productAttributes,
+  );
+
+  const normalizedUpdatedCnCode = normalizeCodeDigits(updatedResult.cnCode).substring(0, 8);
+  const existingCnCode = normalizeCodeDigits(classification.htsCode).substring(0, 8);
+
+  let finalCnCode = normalizedUpdatedCnCode;
+  let usedFallbackExistingCode = false;
+
+  if (!isValidCnCode(finalCnCode) && isValidCnCode(existingCnCode)) {
+    // Refinement can improve rationale/confidence while keeping previously valid code.
+    finalCnCode = existingCnCode;
+    usedFallbackExistingCode = true;
+  }
+
+  if (!isValidCnCode(finalCnCode)) {
+    throw new Error(
+      "Unable to finalize classification from your answer. Please provide more specific details and try again."
+    );
+  }
+  const hsCode = finalCnCode.substring(0, 6);
+  const htsCode = finalCnCode.padEnd(10, "0");
+  
   await prisma.classification.update({
     where: { id: classification.id },
     data: {
@@ -815,48 +855,31 @@ export async function answerRefinementQuestionAction(input: {
         answer: input.answer,
         answeredAt: new Date().toISOString(),
       }),
-      refinementQuestion: null, // Clear the question after it's answered
-      status: "DRAFT",
-    } as any,
-  });
-
-  const productAttributes: EUProductAttributes = {
-    name: classification.product.name,
-    description: classification.product.description,
-    intendedUse: classification.product.intendedUse || undefined,
-    materials: [],
-    technicalSpecs:
-      input.field === "compositionText"
-        ? { compositionText: input.answer }
-        : (classification.product.metadata as any)?.compositionText
-          ? { compositionText: (classification.product.metadata as any).compositionText }
-          : undefined,
-  };
-
-  const updatedResult = await euClassificationEngine.classifyProduct(
-    productAttributes,
-  );
-
-  const hsCode = updatedResult.cnCode.substring(0, 6);
-  const htsCode = updatedResult.cnCode.padEnd(10, "0");
-  
-  await prisma.classification.update({
-    where: { id: classification.id },
-    data: {
+      refinementQuestion: null,
       hsCode: hsCode,
       htsCode: htsCode,
-      confidence: updatedResult.confidence,
-      summary: `CN Code: ${updatedResult.cnCode}`,
-      reasoningTrail: updatedResult.reasoningTrail as any,
-      requiresReview: updatedResult.confidence < 0.8,
-      status: updatedResult.confidence < 0.8 ? "NEEDS_REVIEW" : "DRAFT",
+      confidence: usedFallbackExistingCode
+        ? classification.confidence
+        : updatedResult.confidence,
+      summary: `CN Code: ${finalCnCode}`,
+      reasoningTrail: usedFallbackExistingCode
+        ? classification.reasoningTrail
+        : (updatedResult.reasoningTrail as any),
+      requiresReview: usedFallbackExistingCode
+        ? classification.requiresReview
+        : updatedResult.confidence < 0.8,
+      status: usedFallbackExistingCode
+        ? classification.status
+        : updatedResult.confidence < 0.8
+          ? "NEEDS_REVIEW"
+          : "DRAFT",
     },
   });
 
   return {
     classificationId: classification.id,
-    updatedHtsCode: updatedResult.cnCode.padEnd(10, "0"),
-    confidence: updatedResult.confidence,
+    updatedHtsCode: finalCnCode.padEnd(10, "0"),
+    confidence: usedFallbackExistingCode ? classification.confidence : updatedResult.confidence,
   };
 }
 

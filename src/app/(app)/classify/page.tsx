@@ -31,6 +31,17 @@ import {
 import { DeleteClassificationButton } from "@/components/classification/delete-classification-button";
 import { CodeDisplay } from "@/components/classification/code-display";
 
+function digitsOnly(value: string | null | undefined): string {
+  return (value || "").replace(/\D/g, "");
+}
+
+function extractCnCodeFromSummary(summary: string | null | undefined): string {
+  if (!summary) return "";
+  const match = summary.match(/CN\s*Code[:\s]+(\d[\d\s.]*)/i);
+  if (!match?.[1]) return "";
+  return digitsOnly(match[1]).slice(0, 8);
+}
+
 export default async function ClassifyPage() {
   const user = await requireAuthenticatedUser();
   const membership = await getPrimaryMembership(user.id);
@@ -119,9 +130,16 @@ export default async function ClassifyPage() {
                 </TableRow>
               )}
               {classifications.map((item) => {
-                const hasValidCode = item.htsCode && item.htsCode !== "0000000000";
-                const hsCode = (item as { hsCode?: string | null }).hsCode || item.htsCode?.substring(0, 6) || "";
-                const cnCode = item.htsCode?.substring(0, 8) || "";
+                const rawHsCode = digitsOnly((item as { hsCode?: string | null }).hsCode || "");
+                const rawHtsCode = digitsOnly(item.htsCode || "");
+                const summaryCnCode = extractCnCodeFromSummary(item.summary);
+                const hsCode = rawHsCode || rawHtsCode.substring(0, 6) || "";
+                const cnCode = rawHtsCode.substring(0, 8) || summaryCnCode || "";
+                const htsCode = rawHtsCode || (summaryCnCode ? summaryCnCode.padEnd(10, "0") : "");
+                const hasValidHsCode = hsCode.length === 6 && hsCode !== "000000";
+                const hasValidCnCode = cnCode.length === 8 && cnCode !== "00000000";
+                const hasValidHtsCode = htsCode.length === 10 && htsCode !== "0000000000";
+                const hasValidCode = hasValidHsCode || hasValidCnCode || hasValidHtsCode;
                 const hasLegalRationale = !!(item as any).legalRationale;
 
                 return (
@@ -155,7 +173,7 @@ export default async function ClassifyPage() {
                         <CodeDisplay
                           cnCode={cnCode}
                           hsCode={hsCode}
-                          htsCode={item.htsCode || ""}
+                          htsCode={htsCode}
                         />
                       ) : (
                         <Link href={`/classify/${item.id}`} className="block">

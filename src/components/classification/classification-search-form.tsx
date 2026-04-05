@@ -34,6 +34,7 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
   const [result, setResult] = useState<ClassificationResult | null>(null);
   const [refinementAnswer, setRefinementAnswer] = useState<string>("");
   const [showMaterials, setShowMaterials] = useState(false);
+  const [classificationError, setClassificationError] = useState<string | null>(null);
   
   // Form state for auto-fill
   const [formData, setFormData] = useState({
@@ -62,7 +63,7 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
 
     const classificationError = searchParams.get("classificationError");
     if (classificationError) {
-      alert(decodeURIComponent(classificationError));
+      setClassificationError(decodeURIComponent(classificationError));
       router.replace("/classify");
     }
   }, [router, searchParams]);
@@ -172,6 +173,21 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
   const [mode, setMode] = useState<"manual" | "scan">("scan");
   return (
     <div className="space-y-6">
+      {classificationError ? (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-destructive">Classification failed</CardTitle>
+            <CardDescription className="text-foreground/80">
+              {classificationError}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <p className="text-xs text-muted-foreground">
+              Tip: add clearer composition and intended use, then retry.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
       <Card>
         <CardHeader>
           <CardTitle>Product Classification</CardTitle>
