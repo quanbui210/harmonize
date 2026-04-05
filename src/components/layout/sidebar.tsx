@@ -17,6 +17,9 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { MembershipRole } from "@prisma/client"
+import { UserMenu } from "./user-menu"
+import { OrganizationSwitcher } from "@/components/organizations/organization-switcher"
 
 const primaryNav = [
   {
@@ -75,15 +78,35 @@ const secondaryNav = [
 ]
 
 type SidebarProps = {
+  organizationId: string
   organizationName: string
   organizationLogoUrl?: string | null
+  userName?: string | null
+  userEmail?: string | null
+  avatarUrl?: string | null
+  memberships: Array<{
+    id: string
+    role: MembershipRole
+    organization: {
+      id: string
+      name: string
+    }
+  }>
 }
 
-export function Sidebar({ organizationName, organizationLogoUrl }: SidebarProps) {
+export function Sidebar({
+  organizationId,
+  organizationName,
+  organizationLogoUrl,
+  userName,
+  userEmail,
+  avatarUrl,
+  memberships,
+}: SidebarProps) {
   const pathname = usePathname()
 
   return (
-    <aside className="hidden w-72 flex-col border-r bg-white px-4 py-6 lg:flex">
+    <aside className="sticky top-0 hidden h-screen w-72 flex-col border-r bg-white px-4 py-6 lg:flex">
       <div className="flex items-center gap-3 px-2">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white">
           <Home className="h-5 w-5" />
@@ -108,83 +131,99 @@ export function Sidebar({ organizationName, organizationLogoUrl }: SidebarProps)
           </div>
         </div>
       </div>
-      <div className="mt-8 space-y-6">
-        <nav className="space-y-1">
-          {primaryNav.map((item) => {
-            const active = pathname.startsWith(item.href)
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition",
-                  active
-                    ? "bg-blue-50 text-blue-600"
-                    : "text-muted-foreground hover:bg-muted",
-                )}
+      <div className="mt-6 flex min-h-0 flex-1 flex-col">
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          <nav className="space-y-1">
+            {primaryNav.map((item) => {
+              const active = pathname.startsWith(item.href)
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition",
+                    active
+                      ? "bg-blue-50 text-blue-600"
+                      : "text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  <item.icon className="h-4 w-4" />
+                  {item.label}
+                </Link>
+              )
+            })}
+          </nav>
+          <div className="mt-6">
+            <p className="px-3 text-xs font-semibold uppercase text-muted-foreground">
+              Quick actions
+            </p>
+            <div className="mt-3 space-y-2">
+              <Button 
+                className="w-full justify-start gap-2"
+                asChild
               >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </Link>
-            )
-          })}
-        </nav>
-        <div>
-          <p className="px-3 text-xs font-semibold uppercase text-muted-foreground">
-            Quick actions
-          </p>
-          <div className="mt-3 space-y-2">
-            <Button 
-              className="w-full justify-start gap-2"
-              asChild
-            >
-              <Link href="/classify">
-                <FlaskConical className="h-4 w-4" />
-                New Classification
-              </Link>
-            </Button>
-            <Button 
-              variant="secondary" 
-              className="w-full justify-start gap-2 bg-slate-600 text-white hover:bg-slate-500"
-              asChild
-            >
-              <Link href="/labels/new">
-                <Waypoints className="h-4 w-4" />
-                New Label
-              </Link>
-            </Button>
-            <Button 
-              variant="outline" 
-              className="w-full justify-start gap-2"
-              asChild
-            >
-              <Link href="/vault">
-              <FileText className="h-4 w-4" />
-              Request Docs
-              </Link>
-            </Button>
+                <Link href="/classify">
+                  <FlaskConical className="h-4 w-4" />
+                  New Classification
+                </Link>
+              </Button>
+              <Button 
+                variant="secondary" 
+                className="w-full justify-start gap-2 bg-slate-600 text-white hover:bg-slate-500"
+                asChild
+              >
+                <Link href="/labels/new">
+                  <Waypoints className="h-4 w-4" />
+                  New Label
+                </Link>
+              </Button>
+              <Button 
+                variant="outline" 
+                className="w-full justify-start gap-2"
+                asChild
+              >
+                <Link href="/vault">
+                  <FileText className="h-4 w-4" />
+                  Request Docs
+                </Link>
+              </Button>
+            </div>
+          </div>
+          <nav className="mt-6 space-y-1 border-t pt-4">
+            {secondaryNav.map((item) => {
+              const active = pathname.startsWith(item.href)
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition",
+                    active
+                      ? "bg-slate-100 text-slate-900"
+                      : "text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  <item.icon className="h-4 w-4" />
+                  {item.label}
+                </Link>
+              )
+            })}
+          </nav>
+        </div>
+        <div className="border-t bg-white pt-4">
+          <div className="space-y-2 px-1">
+            <OrganizationSwitcher
+              currentOrganizationId={organizationId}
+              memberships={memberships}
+            />
+            <UserMenu
+              userName={userName}
+              userEmail={userEmail}
+              organizationName={organizationName}
+              avatarUrl={avatarUrl}
+            />
           </div>
         </div>
-        <nav className="space-y-1 border-t pt-4">
-          {secondaryNav.map((item) => {
-            const active = pathname.startsWith(item.href)
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition",
-                  active
-                    ? "bg-slate-100 text-slate-900"
-                    : "text-muted-foreground hover:bg-muted",
-                )}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </Link>
-            )
-          })}
-        </nav>
       </div>
     </aside>
   )

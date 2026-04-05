@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/tooltip";
 import { DeleteClassificationButton } from "@/components/classification/delete-classification-button";
 import { CodeDisplay } from "@/components/classification/code-display";
+import { ClassificationPageSearch } from "@/components/classification/classification-page-search";
 
 function digitsOnly(value: string | null | undefined): string {
   return (value || "").replace(/\D/g, "");
@@ -42,7 +43,13 @@ function extractCnCodeFromSummary(summary: string | null | undefined): string {
   return digitsOnly(match[1]).slice(0, 8);
 }
 
-export default async function ClassifyPage() {
+type ClassifyPageProps = {
+  searchParams?: {
+    search?: string;
+  };
+};
+
+export default async function ClassifyPage({ searchParams }: ClassifyPageProps) {
   const user = await requireAuthenticatedUser();
   const membership = await getPrimaryMembership(user.id);
 
@@ -50,10 +57,39 @@ export default async function ClassifyPage() {
     redirect("/login?error=organization");
   }
 
+  const searchQuery = (searchParams?.search || "").trim();
+
   // Get all classifications for this organization
   const classifications = await prisma.classification.findMany({
     where: {
       organizationId: membership.organizationId,
+      ...(searchQuery
+        ? {
+            OR: [
+              { htsCode: { contains: searchQuery, mode: "insensitive" } },
+              { hsCode: { contains: searchQuery, mode: "insensitive" } },
+              { summary: { contains: searchQuery, mode: "insensitive" } },
+              {
+                product: {
+                  is: {
+                    OR: [
+                      { id: { contains: searchQuery } },
+                      { name: { contains: searchQuery, mode: "insensitive" } },
+                      { description: { contains: searchQuery, mode: "insensitive" } },
+                    ],
+                  },
+                },
+              },
+              {
+                dossier: {
+                  is: {
+                    id: { contains: searchQuery },
+                  },
+                },
+              },
+            ],
+          }
+        : {}),
     },
     include: {
       product: true,
@@ -82,8 +118,11 @@ export default async function ClassifyPage() {
             All Classifications
           </h1>
           <p className="text-sm text-muted-foreground">
-            View and manage all product classifications ({classifications.length} total)
+            {searchQuery
+              ? `Search results for "${searchQuery}" (${classifications.length} found)`
+              : `View and manage all product classifications (${classifications.length} total)`}
           </p>
+          <ClassificationPageSearch initialSearch={searchQuery} />
         </div>
      
       </div>
