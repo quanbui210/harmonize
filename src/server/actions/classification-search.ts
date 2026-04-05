@@ -218,6 +218,59 @@ interface AlternativeClassification {
   tradeOffs?: string;
 }
 
+function hasSufficientProductDetail(input: {
+  description?: string;
+  intendedUse?: string;
+  compositionText?: string;
+  materials?: Array<{ material: string; percentage: number }>;
+}): boolean {
+  const descriptionLength = (input.description || "").trim().length;
+  const intendedUseLength = (input.intendedUse || "").trim().length;
+  const compositionLength = (input.compositionText || "").trim().length;
+  const hasMaterials = Array.isArray(input.materials) && input.materials.length > 0;
+
+  const detailSignals = [
+    descriptionLength >= 120,
+    intendedUseLength >= 20,
+    compositionLength >= 20,
+    hasMaterials,
+  ].filter(Boolean).length;
+
+  return detailSignals >= 2;
+}
+
+function shouldUseAiRefinementQuestion(params: {
+  aiRefinementQuestion: RefinementQuestion | null;
+  suggestedChapters: Array<{ chapter: number; confidence: number }>;
+  alternativeClassificationsCount: number;
+  hasSufficientDetail: boolean;
+}): boolean {
+  const { aiRefinementQuestion, suggestedChapters, alternativeClassificationsCount, hasSufficientDetail } = params;
+
+  if (!aiRefinementQuestion) return false;
+  if (!aiRefinementQuestion.question?.trim()) return false;
+  if (!aiRefinementQuestion.options || aiRefinementQuestion.options.length < 2) return false;
+
+  const topConfidence = suggestedChapters[0]?.confidence ?? 0;
+  const secondConfidence = suggestedChapters[1]?.confidence ?? 0;
+  const confidenceGap = topConfidence - secondConfidence;
+  const hasMultipleChapterCandidates = suggestedChapters.length > 1;
+  const hasAlternatives = alternativeClassificationsCount > 0;
+  const hasRealAmbiguity =
+    hasAlternatives ||
+    (hasMultipleChapterCandidates && (topConfidence < 0.88 || confidenceGap < 0.12));
+
+  if (hasRealAmbiguity) return true;
+
+  // Skip unnecessary follow-up when model is confident and user already gave enough detail.
+  if (hasSufficientDetail && topConfidence >= 0.85) {
+    return false;
+  }
+
+  // Allow refinement for borderline confidence cases even with a single chapter.
+  return topConfidence < 0.82;
+}
+
 function normalizeCodeDigits(value: string | null | undefined): string {
   return (value || "").replace(/\D/g, "");
 }
@@ -276,6 +329,12 @@ export async function searchAndClassifyAction(input: {
   const needsChapterRefinement =
     aiAnalysis.suggestedChapters.length > 1 &&
     aiAnalysis.suggestedChapters[0]?.confidence < 0.85;
+  const hasSufficientDetail = hasSufficientProductDetail({
+    description: input.description,
+    intendedUse: input.intendedUse,
+    compositionText: input.compositionText,
+    materials: input.materials,
+  });
 
   const shouldAskComposition = shouldAskForComposition(
     input.description,
@@ -322,7 +381,17 @@ export async function searchAndClassifyAction(input: {
       ],
       field: "compositionText",
     };
-  } else if (aiRefinementQuestion) {
+  } else if (
+    shouldUseAiRefinementQuestion({
+      aiRefinementQuestion,
+      suggestedChapters: aiAnalysis.suggestedChapters.map((ch) => ({
+        chapter: ch.chapter,
+        confidence: ch.confidence || 0,
+      })),
+      alternativeClassificationsCount: aiAnalysis.alternativeClassifications?.length || 0,
+      hasSufficientDetail,
+    })
+  ) {
     refinementQuestion = aiRefinementQuestion;
   } else if (needsChapterRefinement) {
     const topChapters = aiAnalysis.suggestedChapters.slice(0, 2);
@@ -680,7 +749,13 @@ export async function searchAndClassifyAction(input: {
       field: refinementQuestion.field,
     });
   } else {
-    console.log("[Classification] No refinement question generated");
+    console.log("[Classification] No refinement question generated", {
+      topConfidence: aiAnalysis.suggestedChapters[0]?.confidence || 0,
+      suggestionsCount: aiAnalysis.suggestedChapters.length,
+      alternativesCount: aiAnalysis.alternativeClassifications?.length || 0,
+      hasSufficientDetail,
+      shouldAskComposition,
+    });
   }
 
   return {

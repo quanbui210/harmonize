@@ -10,9 +10,16 @@ type UserMenuProps = {
   userEmail?: string | null;
   organizationName: string;
   avatarUrl?: string | null;
+  direction?: "up" | "down";
 };
 
-export function UserMenu({ userName, userEmail, organizationName, avatarUrl }: UserMenuProps) {
+export function UserMenu({
+  userName,
+  userEmail,
+  organizationName,
+  avatarUrl,
+  direction = "down",
+}: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const initials =
     userName
@@ -54,7 +61,11 @@ export function UserMenu({ userName, userEmail, organizationName, avatarUrl }: U
             className="fixed inset-0 z-10"
             onClick={() => setIsOpen(false)}
           />
-          <div className="absolute right-0 top-full mt-2 w-56 rounded-md border bg-white shadow-lg z-20">
+          <div
+            className={`absolute right-0 w-56 rounded-md border bg-white shadow-lg z-20 ${
+              direction === "up" ? "bottom-full mb-2" : "top-full mt-2"
+            }`}
+          >
             <div className="p-2">
               <form action={logoutAction}>
                 <Button

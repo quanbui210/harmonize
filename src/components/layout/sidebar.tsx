@@ -52,6 +52,11 @@ const primaryNav = [
     href: "/rulings",
     icon: BookOpenCheck,
   },
+  {
+    label: "Defense Dossiers",
+    href: "/dossiers",
+    icon: FileText,
+  },
 ]
 
 const secondaryNav = [
@@ -221,6 +226,7 @@ export function Sidebar({
               userEmail={userEmail}
               organizationName={organizationName}
               avatarUrl={avatarUrl}
+              direction="up"
             />
           </div>
         </div>
