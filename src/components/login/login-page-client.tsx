@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Scale } from "lucide-react";
 import { LoginForm } from "./login-form";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { resolveAuthIdentifierToEmail } from "@/lib/auth/employee-accounts";
 
 type LoginPageClientProps = {
   redirectTo: string;
@@ -129,6 +130,35 @@ export function LoginPageClient({ redirectTo, signInAction }: LoginPageClientPro
               redirectTo={redirectTo} 
               signInAction={signInAction}
               onPendingChange={setIsLoggingIn}
+              onPasswordSignIn={async ({ identifier, password }) => {
+                const supabase = getSupabaseBrowserClient();
+                const email = resolveAuthIdentifierToEmail(identifier);
+                const { error } = await supabase.auth.signInWithPassword({
+                  email,
+                  password,
+                });
+                if (error) {
+                  throw new Error(error.message || "Invalid username or password.");
+                }
+                const {
+                  data: { user },
+                  error: getUserError,
+                } = await supabase.auth.getUser();
+                if (getUserError) {
+                  throw new Error(getUserError.message || "Unable to verify account state.");
+                }
+
+                const mustChangePassword =
+                  user?.user_metadata?.must_change_password === true ||
+                  user?.user_metadata?.mustChangePassword === true;
+
+                if (mustChangePassword) {
+                  router.replace("/change-password");
+                  return;
+                }
+
+                router.replace(redirectTo || "/dashboard");
+              }}
             />
 
             {/* Legal Text */}

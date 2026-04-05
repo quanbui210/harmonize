@@ -348,6 +348,257 @@ export async function saveLabelAction(input: SaveLabelInput): Promise<string> {
   return label.id;
 }
 
+export interface UpdateLabelInput {
+  labelId: string;
+  labelData: EnhancedLabelData;
+  complianceScore: number;
+  complianceResults: ReturnType<typeof runComplianceChecks>;
+  productName: string;
+  productCategory?: string;
+  originCountry?: string;
+  destinationCountry?: string;
+  cnCode?: string;
+}
+
+export async function updateLabelAction(input: UpdateLabelInput): Promise<void> {
+  const user = await requireAuthenticatedUser();
+  const membership = await getPrimaryMembership(user.id);
+
+  if (!membership?.organizationId) {
+    throw new Error("User must belong to an organization");
+  }
+
+  const existing = await prisma.label.findFirst({
+    where: {
+      id: input.labelId,
+      organizationId: membership.organizationId,
+    },
+  });
+
+  if (!existing) {
+    throw new Error("Label not found");
+  }
+
+  const labelDataWithMetadata = {
+    ...input.labelData,
+    productName: input.productName,
+    productCategory: input.productCategory,
+    originCountry: input.originCountry,
+    destinationCountry: input.destinationCountry,
+    cnCode: input.cnCode,
+    complianceResults: input.complianceResults,
+  };
+
+  await prisma.label.update({
+    where: { id: input.labelId },
+    data: {
+      labelData: labelDataWithMetadata as any,
+      complianceScore: input.complianceScore,
+      version: {
+        increment: 1,
+      },
+    },
+  });
+}
+
+export interface TranslateIngredientsInput {
+  ingredients: string[];
+  targetLocales: string[];
+  destinationCountry?: string;
+}
+
+export interface TranslateIngredientsOutput {
+  source: string;
+  translations: Record<string, string>;
+}
+
+export interface TranslateLabelTextsInput {
+  texts: string[];
+  targetLocales: string[];
+  destinationCountry?: string;
+}
+
+export interface TranslateLabelTextsOutput {
+  source: string;
+  translations: Record<string, string>;
+}
+
+export async function translateIngredientsAction(
+  input: TranslateIngredientsInput,
+): Promise<TranslateIngredientsOutput[]> {
+  await requireAuthenticatedUser();
+
+  const sanitizedIngredients = (input.ingredients || [])
+    .map((item) => String(item || "").trim())
+    .filter(Boolean);
+  const sanitizedLocales = Array.from(
+    new Set((input.targetLocales || []).map((locale) => String(locale || "").trim().toLowerCase()).filter(Boolean)),
+  );
+
+  if (sanitizedIngredients.length === 0 || sanitizedLocales.length === 0) {
+    return sanitizedIngredients.map((source) => ({ source, translations: {} }));
+  }
+
+  const openai = createFeatureOpenAIClient("Ingredient Translation");
+  const response = await openai.chat.completions.create({
+    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    temperature: 0,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You are a food labeling translation assistant. Translate ingredient names exactly for EU packaging. Keep technical ingredient terms, preserve E-numbers, and do not add explanations. Return valid JSON only.",
+      },
+      {
+        role: "user",
+        content: `Destination market: ${input.destinationCountry || "EU"}.
+Target locales: ${sanitizedLocales.join(", ")}.
+
+Return JSON in this exact shape:
+{
+  "items": [
+    {
+      "source": "pepper",
+      "translations": {
+        "fr": "poivre",
+        "nl": "peper"
+      }
+    }
+  ]
+}
+
+Ingredients:
+${JSON.stringify(sanitizedIngredients)}`,
+      },
+    ],
+  });
+
+  const content = response.choices[0]?.message?.content?.trim() || "";
+  const cleaned = content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+
+  try {
+    const parsed = JSON.parse(cleaned) as { items?: Array<{ source?: string; translations?: Record<string, string> }> };
+    const mapped = (parsed.items || [])
+      .map((item) => ({
+        source: String(item.source || "").trim(),
+        translations: Object.fromEntries(
+          Object.entries(item.translations || {})
+            .map(([locale, value]) => [locale.toLowerCase(), String(value || "").trim()])
+            .filter(([, value]) => value.length > 0),
+        ),
+      }))
+      .filter((item) => item.source.length > 0);
+
+    if (mapped.length > 0) {
+      const bySource = new Map(mapped.map((item) => [item.source.toLowerCase(), item.translations]));
+      return sanitizedIngredients.map((source) => {
+        const fromModel = bySource.get(source.toLowerCase()) || {};
+        return {
+          source,
+          translations: Object.fromEntries(
+            sanitizedLocales.map((locale) => [locale, String(fromModel[locale] || "").trim() || source]),
+          ),
+        };
+      });
+    }
+  } catch {
+    // Fallback below
+  }
+
+  return sanitizedIngredients.map((source) => ({
+    source,
+    translations: Object.fromEntries(sanitizedLocales.map((locale) => [locale, source])),
+  }));
+}
+
+export async function translateLabelTextsAction(
+  input: TranslateLabelTextsInput,
+): Promise<TranslateLabelTextsOutput[]> {
+  await requireAuthenticatedUser();
+
+  const sanitizedTexts = (input.texts || [])
+    .map((item) => String(item || "").trim())
+    .filter(Boolean);
+  const sanitizedLocales = Array.from(
+    new Set((input.targetLocales || []).map((locale) => String(locale || "").trim().toLowerCase()).filter(Boolean)),
+  );
+
+  if (sanitizedTexts.length === 0 || sanitizedLocales.length === 0) {
+    return sanitizedTexts.map((source) => ({ source, translations: {} }));
+  }
+
+  const openai = createFeatureOpenAIClient("Label Text Translation");
+  const response = await openai.chat.completions.create({
+    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    temperature: 0,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You are a food labeling translation assistant. Translate short warning and storage phrases for EU packaging. Keep regulatory wording concise and label-ready. Return valid JSON only.",
+      },
+      {
+        role: "user",
+        content: `Destination market: ${input.destinationCountry || "EU"}.
+Target locales: ${sanitizedLocales.join(", ")}.
+
+Return JSON in this exact shape:
+{
+  "items": [
+    {
+      "source": "Store in a cool, dry place",
+      "translations": {
+        "fr": "Conserver dans un endroit frais et sec",
+        "nl": "Bewaren op een koele, droge plaats"
+      }
+    }
+  ]
+}
+
+Texts:
+${JSON.stringify(sanitizedTexts)}`,
+      },
+    ],
+  });
+
+  const content = response.choices[0]?.message?.content?.trim() || "";
+  const cleaned = content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+
+  try {
+    const parsed = JSON.parse(cleaned) as { items?: Array<{ source?: string; translations?: Record<string, string> }> };
+    const mapped = (parsed.items || [])
+      .map((item) => ({
+        source: String(item.source || "").trim(),
+        translations: Object.fromEntries(
+          Object.entries(item.translations || {})
+            .map(([locale, value]) => [locale.toLowerCase(), String(value || "").trim()])
+            .filter(([, value]) => value.length > 0),
+        ),
+      }))
+      .filter((item) => item.source.length > 0);
+
+    if (mapped.length > 0) {
+      const bySource = new Map(mapped.map((item) => [item.source.toLowerCase(), item.translations]));
+      return sanitizedTexts.map((source) => {
+        const fromModel = bySource.get(source.toLowerCase()) || {};
+        return {
+          source,
+          translations: Object.fromEntries(
+            sanitizedLocales.map((locale) => [locale, String(fromModel[locale] || "").trim() || source]),
+          ),
+        };
+      });
+    }
+  } catch {
+    // Fallback below
+  }
+
+  return sanitizedTexts.map((source) => ({
+    source,
+    translations: Object.fromEntries(sanitizedLocales.map((locale) => [locale, source])),
+  }));
+}
+
 export async function getLabelAction(labelId: string) {
   const user = await requireAuthenticatedUser();
   const membership = await getPrimaryMembership(user.id);

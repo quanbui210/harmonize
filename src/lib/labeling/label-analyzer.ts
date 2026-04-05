@@ -1,6 +1,6 @@
 /**
- * Analyzes original label against EU/Finnish requirements
- * Detects missing fields and generates questions for user input
+ * Analyzes original label against destination-market EU requirements.
+ * Detects missing fields and generates questions for user input.
  */
 
 import { searchRegulatoryDocuments } from "@/lib/rag/regulatory-search";
@@ -48,7 +48,8 @@ export interface LabelAnalysis {
 export async function analyzeLabel(
   originalLabelText: string,
   productCategory: string,
-  cnCode?: string
+  cnCode?: string,
+  destinationCountry?: string,
 ): Promise<LabelAnalysis> {
   // Determine product type
   const productType = cnCode
@@ -66,7 +67,7 @@ export async function analyzeLabel(
   // Search regulatory documents for required fields
   const regulatoryChunks = await searchRegulatoryDocuments({
     productType,
-    query: `Mandatory required fields information labels ${productCategory}. What information must be included on the label?`,
+    query: `Mandatory required fields information labels ${productCategory} for destination market ${destinationCountry || "EU"}. What information must be included on the label?`,
     language: "EN",
     maxResults: 10,
   });
@@ -76,7 +77,7 @@ export async function analyzeLabel(
     .join("\n\n");
 
   // Use GPT-4o to analyze the label
-  const systemPrompt = `You are an expert EU/Finnish regulatory compliance analyst. Your job is to analyze an original product label (possibly from a non-EU country like Vietnam) and compare it against EU/Finnish mandatory requirements.
+  const systemPrompt = `You are an expert EU regulatory compliance analyst. Your job is to analyze an original product label (possibly from a non-EU country like Vietnam) and compare it against destination-market mandatory requirements.
 
 CRITICAL: You must ONLY identify fields that are EXPLICITLY required in the regulatory context provided. Do NOT hallucinate requirements.
 
@@ -123,13 +124,14 @@ Return JSON with this structure:
   "recommendations": ["List of recommendations"]
 }`;
 
-  const userPrompt = `Analyze this original label text against EU/Finnish requirements:
+  const userPrompt = `Analyze this original label text against destination-market EU requirements:
 
 Original Label Text:
 ${originalLabelText}
 
 Product Category: ${productCategory}
 CN Code: ${cnCode || "Not specified"}
+Destination Country: ${destinationCountry || "Not specified (default EU guidance)"}
 
 Regulatory Requirements:
 ${regulatoryContext}
@@ -339,4 +341,3 @@ export function getRequiredFieldsTemplate(productCategory: string): MissingField
 
   return templates[productCategory] || templates.food; // Default to food template
 }
-

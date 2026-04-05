@@ -1,14 +1,60 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { requireAuthenticatedUser } from "@/lib/supabase/auth";
-import { getMembership, setSelectedOrganization, getPrimaryMembership } from "@/server/queries/organizations";
+import { getMembership, setSelectedOrganization } from "@/server/queries/organizations";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { MembershipRole } from "@prisma/client";
 import { createAuditLogEntry } from "@/server/actions/audit-log";
 import { slugify } from "@/lib/utils";
+import { createInvitationToken, hashInvitationToken } from "@/lib/invitations/token";
+import { sendEmailWithSendGrid } from "@/lib/email/sendgrid";
+import { buildOrganizationInviteEmail } from "@/lib/email/templates/organization-invite";
+import { ensureUserWorkspace } from "@/lib/users/sync-user";
+import {
+  buildTenantScopedUsername,
+  employeeUsernameToEmail,
+  isValidUsername,
+  normalizeUsername,
+} from "@/lib/auth/employee-accounts";
+
+const INVITATION_EXPIRY_DAYS = 7;
+
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+function getAppUrl() {
+  return (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+}
+
+async function findInvitationByToken(token: string) {
+  if (!token) {
+    return null;
+  }
+  const tokenHash = hashInvitationToken(token);
+  const includeConfig = {
+    organization: true,
+    invitedBy: true,
+  } as const;
+
+  // Primary lookup: hashed token (new secure format).
+  let invitation = await prisma.organizationInvitation.findUnique({
+    where: { token: tokenHash },
+    include: includeConfig,
+  });
+
+  // Backward compatibility for existing raw tokens.
+  if (!invitation) {
+    invitation = await prisma.organizationInvitation.findUnique({
+      where: { token },
+      include: includeConfig,
+    });
+  }
+
+  return invitation;
+}
 
 export async function selectOrganizationAction(organizationId: string) {
   const user = await requireAuthenticatedUser();
@@ -143,9 +189,11 @@ export async function sendInvitationAction(input: {
   organizationId: string;
   email: string;
   role: MembershipRole;
+  inviteMode?: "standard" | "create_account";
 }) {
   const user = await requireAuthenticatedUser();
   const membership = await getMembership(user.id, input.organizationId);
+  const normalizedEmail = normalizeEmail(input.email);
   
   if (!membership) {
     throw new Error("Unauthorized");
@@ -163,7 +211,7 @@ export async function sendInvitationAction(input: {
 
   // Check if user is already a member
   const existingUser = await prisma.user.findUnique({
-    where: { email: input.email },
+    where: { email: normalizedEmail },
     include: {
       memberships: {
         where: { organizationId: input.organizationId },
@@ -180,7 +228,7 @@ export async function sendInvitationAction(input: {
     where: {
       organizationId_email: {
         organizationId: input.organizationId,
-        email: input.email,
+        email: normalizedEmail,
       },
     },
   });
@@ -195,18 +243,18 @@ export async function sendInvitationAction(input: {
     });
   }
 
-  // Generate secure token
-  const token = randomBytes(32).toString("hex");
+  // Generate secure invitation token, persist only hash in database.
+  const { rawToken, tokenHash } = createInvitationToken();
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+  expiresAt.setDate(expiresAt.getDate() + INVITATION_EXPIRY_DAYS);
 
   const invitation = await prisma.organizationInvitation.create({
     data: {
       organizationId: input.organizationId,
-      email: input.email,
+      email: normalizedEmail,
       role: input.role,
       invitedById: user.id,
-      token,
+      token: tokenHash,
       expiresAt,
     },
     include: {
@@ -215,9 +263,32 @@ export async function sendInvitationAction(input: {
     },
   });
 
-  // TODO: Send email with invitation link
-  // For now, we'll return the token so it can be displayed in UI for testing
-  // In production, send email with: /invite/accept?token={token}
+  const acceptUrl = `${getAppUrl()}/invite/accept?token=${encodeURIComponent(rawToken)}`;
+  const inviterName = invitation.invitedBy.fullName || invitation.invitedBy.email;
+  const emailContent = buildOrganizationInviteEmail({
+    organizationName: invitation.organization.name,
+    inviteeEmail: normalizedEmail,
+    inviterName,
+    role: input.role,
+    acceptUrl,
+    expiresAt,
+    inviteMode: input.inviteMode ?? "standard",
+  });
+
+  try {
+    await sendEmailWithSendGrid({
+      to: normalizedEmail,
+      subject: emailContent.subject,
+      html: emailContent.html,
+      text: emailContent.text,
+    });
+  } catch (error) {
+    // Keep data clean if email could not be delivered.
+    await prisma.organizationInvitation.delete({
+      where: { id: invitation.id },
+    });
+    throw error;
+  }
 
   await createAuditLogEntry({
     organizationId: input.organizationId,
@@ -226,12 +297,239 @@ export async function sendInvitationAction(input: {
     entityId: invitation.id,
     action: "CREATE",
     payload: {
-      email: input.email,
+      email: normalizedEmail,
+      role: input.role,
+      inviteMode: input.inviteMode ?? "standard",
+    },
+  });
+
+  return {
+    invitationId: invitation.id,
+    email: normalizedEmail,
+    expiresAt,
+  };
+}
+
+export async function createEmployeeAccountAction(input: {
+  organizationId: string;
+  username: string;
+  temporaryPassword: string;
+  fullName?: string;
+  role: MembershipRole;
+}) {
+  const user = await requireAuthenticatedUser();
+  const membership = await getMembership(user.id, input.organizationId);
+
+  if (!membership) {
+    throw new Error("Unauthorized");
+  }
+  if (membership.role !== MembershipRole.OWNER && membership.role !== MembershipRole.ADMIN) {
+    throw new Error("Only owners and admins can create employee accounts");
+  }
+  if (input.role === MembershipRole.OWNER) {
+    throw new Error("Cannot create employee accounts with OWNER role");
+  }
+
+  const normalizedBaseUsername = normalizeUsername(input.username);
+  if (!isValidUsername(normalizedBaseUsername)) {
+    throw new Error("Username must be 3-32 chars and use only letters, numbers, dot, underscore, or dash");
+  }
+  const username = buildTenantScopedUsername({
+    baseUsername: normalizedBaseUsername,
+    organizationSlug: membership.organization.slug,
+    organizationName: membership.organization.name,
+    organizationId: membership.organization.id,
+  });
+  if (!isValidUsername(username)) {
+    throw new Error("Generated username is invalid. Please use a different base username.");
+  }
+  if (!input.temporaryPassword || input.temporaryPassword.length < 8) {
+    throw new Error("Temporary password must be at least 8 characters");
+  }
+
+  const email = employeeUsernameToEmail(username);
+  const existingPrismaUser = await prisma.user.findUnique({
+    where: { email },
+    include: {
+      memberships: {
+        where: { organizationId: input.organizationId },
+      },
+    },
+  });
+
+  if (existingPrismaUser?.memberships.length) {
+    throw new Error("This username is already a member of your organization");
+  }
+  if (existingPrismaUser) {
+    throw new Error("This username is already taken in another workspace. Please choose another username.");
+  }
+
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase.auth.admin.createUser({
+    email,
+    password: input.temporaryPassword,
+    email_confirm: true,
+    user_metadata: {
+      full_name: input.fullName?.trim() || username,
+      username,
+      must_change_password: true,
+      is_employee_account: true,
+    },
+  });
+
+  if (error || !data.user) {
+    if (error?.message?.toLowerCase().includes("already")) {
+      throw new Error("This username is already taken. Please choose another username.");
+    }
+    throw new Error(error?.message || "Failed to create employee auth account");
+  }
+  const authUserId = data.user.id;
+
+  await prisma.user.upsert({
+    where: { id: authUserId },
+    update: {
+      email,
+      fullName: input.fullName?.trim() || username,
+      authProviderId: authUserId,
+    },
+    create: {
+      id: authUserId,
+      email,
+      fullName: input.fullName?.trim() || username,
+      authProviderId: authUserId,
+    },
+  });
+
+  await prisma.membership.upsert({
+    where: {
+      userId_organizationId: {
+        userId: authUserId,
+        organizationId: input.organizationId,
+      },
+    },
+    update: {
+      role: input.role,
+    },
+    create: {
+      userId: authUserId,
+      organizationId: input.organizationId,
       role: input.role,
     },
   });
 
-  return { invitation, token }; // Return token for testing, remove in production
+  await createAuditLogEntry({
+    organizationId: input.organizationId,
+    userId: user.id,
+    entityType: "EMPLOYEE_ACCOUNT",
+    entityId: authUserId,
+    action: "CREATE",
+    payload: {
+      username,
+      role: input.role,
+    },
+  });
+
+  return {
+    userId: authUserId,
+    username,
+    email,
+    role: input.role,
+    mustChangePassword: true,
+  };
+}
+
+export async function getInvitationByTokenAction(token: string) {
+  const invitation = await findInvitationByToken(token);
+  if (!invitation) {
+    return { status: "not_found" as const };
+  }
+
+  if (invitation.acceptedAt) {
+    return { status: "accepted" as const };
+  }
+
+  if (invitation.expiresAt <= new Date()) {
+    return { status: "expired" as const };
+  }
+
+  return {
+    status: "valid" as const,
+    invitation: {
+      email: invitation.email,
+      role: invitation.role,
+      organizationName: invitation.organization.name,
+      invitedByName: invitation.invitedBy.fullName || invitation.invitedBy.email,
+      expiresAt: invitation.expiresAt,
+    },
+  };
+}
+
+export async function acceptInvitationAction(token: string) {
+  const authUser = await requireAuthenticatedUser();
+  if (!authUser.email) {
+    throw new Error("Authenticated email is required to accept an invitation");
+  }
+
+  const invitation = await findInvitationByToken(token);
+  if (!invitation) {
+    throw new Error("Invitation not found");
+  }
+  if (invitation.acceptedAt) {
+    await setSelectedOrganization(invitation.organizationId);
+    return { organizationId: invitation.organizationId, organizationName: invitation.organization.name };
+  }
+  if (invitation.expiresAt <= new Date()) {
+    throw new Error("Invitation has expired");
+  }
+
+  const authEmail = normalizeEmail(authUser.email);
+  const inviteEmail = normalizeEmail(invitation.email);
+  if (authEmail !== inviteEmail) {
+    throw new Error(`Please sign in with ${invitation.email} to accept this invitation`);
+  }
+
+  await ensureUserWorkspace(authUser);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.membership.upsert({
+      where: {
+        userId_organizationId: {
+          userId: authUser.id,
+          organizationId: invitation.organizationId,
+        },
+      },
+      update: {},
+      create: {
+        userId: authUser.id,
+        organizationId: invitation.organizationId,
+        role: invitation.role,
+      },
+    });
+
+    await tx.organizationInvitation.update({
+      where: { id: invitation.id },
+      data: { acceptedAt: new Date() },
+    });
+  });
+
+  await setSelectedOrganization(invitation.organizationId);
+
+  await createAuditLogEntry({
+    organizationId: invitation.organizationId,
+    userId: authUser.id,
+    entityType: "ORGANIZATION_INVITATION",
+    entityId: invitation.id,
+    action: "ACCEPT",
+    payload: {
+      email: invitation.email,
+      role: invitation.role,
+    },
+  });
+
+  return {
+    organizationId: invitation.organizationId,
+    organizationName: invitation.organization.name,
+  };
 }
 
 export async function getInvitationsAction(organizationId: string) {

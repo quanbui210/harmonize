@@ -6,7 +6,7 @@ import type { EnhancedLabelData } from "@/lib/labeling/label-generator-enhanced"
 import { LabelExportButtons } from "@/components/labeling/label-export-buttons";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Pencil } from "lucide-react";
 import Link from "next/link";
 
 interface LabelDetailPageProps {
@@ -61,6 +61,12 @@ export default async function LabelDetailPage({ params }: LabelDetailPageProps) 
             </p>
           </div>
         </div>
+        <Button asChild>
+          <Link href={`/labels/${id}/edit`}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit Label
+          </Link>
+        </Button>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

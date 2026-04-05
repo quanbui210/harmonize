@@ -83,6 +83,7 @@ export default function LabelLoadingPage() {
               originalLabelText: form.originalLabelText,
               productCategory: form.productCategory,
               cnCode: form.cnCode || undefined,
+              destinationCountry: form.destinationCountry || undefined,
             })
           : null;
 

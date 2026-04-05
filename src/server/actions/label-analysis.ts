@@ -7,13 +7,19 @@ export interface AnalyzeLabelInput {
   originalLabelText: string;
   productCategory: string;
   cnCode?: string;
+  destinationCountry?: string;
 }
 
 export async function analyzeLabelAction(
   input: AnalyzeLabelInput
 ): Promise<ReturnType<typeof analyzeLabel>> {
   await requireAuthenticatedUser();
-  return await analyzeLabel(input.originalLabelText, input.productCategory, input.cnCode);
+  return await analyzeLabel(
+    input.originalLabelText,
+    input.productCategory,
+    input.cnCode,
+    input.destinationCountry,
+  );
 }
 
 export async function getRequiredFieldsTemplateAction(

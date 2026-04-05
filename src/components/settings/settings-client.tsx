@@ -10,10 +10,15 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { updateOrganizationActionForm, sendInvitationAction } from "@/server/actions/organizations";
+import {
+  updateOrganizationActionForm,
+  sendInvitationAction,
+  createEmployeeAccountAction,
+} from "@/server/actions/organizations";
 import { MembershipRole, Organization } from "@prisma/client";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
+import { buildTenantScopedUsername, buildTenantSuffix } from "@/lib/auth/employee-accounts";
 
 type Membership = {
   id: string;
@@ -77,6 +82,26 @@ export function SettingsClient({ organization, currentMembership, members, invit
   const [logoPreview, setLogoPreview] = useState<string | null>(organization.logoUrl || null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<MembershipRole>("CONTRIBUTOR");
+  const [inviteMode, setInviteMode] = useState<"standard" | "create_account">("standard");
+  const [isCreatingEmployee, setIsCreatingEmployee] = useState(false);
+  const [employeeUsername, setEmployeeUsername] = useState("");
+  const [employeeFullName, setEmployeeFullName] = useState("");
+  const [employeePassword, setEmployeePassword] = useState("");
+  const [employeeRole, setEmployeeRole] = useState<MembershipRole>("CONTRIBUTOR");
+  const generatedEmployeeUsername =
+    employeeUsername.trim().length > 0
+      ? buildTenantScopedUsername({
+          baseUsername: employeeUsername,
+          organizationSlug: organization.slug,
+          organizationName: organization.name,
+          organizationId: organization.id,
+        })
+      : "";
+  const tenantSuffix = buildTenantSuffix({
+    organizationSlug: organization.slug,
+    organizationName: organization.name,
+    organizationId: organization.id,
+  });
 
   const canManage = currentMembership.role === "OWNER" || currentMembership.role === "ADMIN";
 
@@ -145,18 +170,22 @@ export function SettingsClient({ organization, currentMembership, members, invit
     e.preventDefault();
     setIsSendingInvite(true);
     try {
-      const result = await sendInvitationAction({
+      await sendInvitationAction({
         organizationId: organization.id,
         email: inviteEmail,
         role: inviteRole,
+        inviteMode,
       });
 
       // TODO: In production, email will be sent automatically
       // For now, show the invitation link for testing
       toast({
         variant: "success",
-        title: "Invitation sent",
-        description: `Invitation sent to ${inviteEmail}. In production, an email will be sent automatically.`,
+        title: inviteMode === "create_account" ? "Account invite sent" : "Invitation sent",
+        description:
+          inviteMode === "create_account"
+            ? `Sent to ${inviteEmail}. Recipient can create a password account or continue with Google.`
+            : `Sent to ${inviteEmail}. Recipient can join with Google or create a password account.`,
       });
       
       setInviteEmail("");
@@ -169,6 +198,38 @@ export function SettingsClient({ organization, currentMembership, members, invit
       });
     } finally {
       setIsSendingInvite(false);
+    }
+  };
+
+  const handleCreateEmployeeAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsCreatingEmployee(true);
+    try {
+      const result = await createEmployeeAccountAction({
+        organizationId: organization.id,
+        username: employeeUsername,
+        fullName: employeeFullName || undefined,
+        temporaryPassword: employeePassword,
+        role: employeeRole,
+      });
+
+      toast({
+        variant: "success",
+        title: "Employee account created",
+        description: `Username: ${result.username} | Role: ${employeeRole}. Must change password on first sign-in.`,
+      });
+      setEmployeeUsername("");
+      setEmployeeFullName("");
+      setEmployeePassword("");
+      router.refresh();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Failed to create employee account",
+        description: error?.message || "Please try again.",
+      });
+    } finally {
+      setIsCreatingEmployee(false);
     }
   };
 
@@ -263,7 +324,7 @@ export function SettingsClient({ organization, currentMembership, members, invit
                     Invite Member
                   </CardTitle>
                   <CardDescription>
-                    Send an invitation to join your organization
+                    Send a secure email invite with Google and password account options
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -299,8 +360,112 @@ export function SettingsClient({ organization, currentMembership, members, invit
                         </Select>
                       </div>
                     </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="inviteMode">Invite Type</Label>
+                      <Select
+                        value={inviteMode}
+                        onValueChange={(value) => setInviteMode(value as "standard" | "create_account")}
+                        disabled={isSendingInvite}
+                      >
+                        <SelectTrigger id="inviteMode">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="standard">Standard Invite</SelectItem>
+                          <SelectItem value="create_account">Create Member Account</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <Button type="submit" disabled={isSendingInvite}>
-                      {isSendingInvite ? "Sending..." : "Send Invitation"}
+                      {isSendingInvite
+                        ? "Sending..."
+                        : inviteMode === "create_account"
+                          ? "Create Member Account Invite"
+                          : "Send Invitation"}
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <UserPlus className="h-5 w-5" />
+                    Create Employee Account
+                  </CardTitle>
+                  <CardDescription>
+                    Create employee accounts without email delivery. We auto-append a workspace suffix for unique usernames.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleCreateEmployeeAccount} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="employeeUsername">Base Username</Label>
+                        <div className="flex h-10 w-full overflow-hidden rounded-md border bg-background">
+                          <Input
+                            id="employeeUsername"
+                            value={employeeUsername}
+                            onChange={(e) => setEmployeeUsername(e.target.value)}
+                            placeholder="username"
+                            disabled={isCreatingEmployee}
+                            className="h-full flex-1 rounded-none border-0 focus-visible:ring-0"
+                            required
+                          />
+                          <div className="flex items-center border-l bg-muted/30 px-3 text-sm text-muted-foreground">
+                            <span className="font-mono">_{tenantSuffix}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="employeeFullName">Full Name (optional)</Label>
+                        <Input
+                          id="employeeFullName"
+                          value={employeeFullName}
+                          onChange={(e) => setEmployeeFullName(e.target.value)}
+                          placeholder="John Doe"
+                          disabled={isCreatingEmployee}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="employeePassword">Temporary Password</Label>
+                        <Input
+                          id="employeePassword"
+                          type="password"
+                          value={employeePassword}
+                          onChange={(e) => setEmployeePassword(e.target.value)}
+                          placeholder="At least 8 characters"
+                          disabled={isCreatingEmployee}
+                          minLength={8}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="employeeRole">Role</Label>
+                        <Select
+                          value={employeeRole}
+                          onValueChange={(value) => setEmployeeRole(value as MembershipRole)}
+                          disabled={isCreatingEmployee}
+                        >
+                          <SelectTrigger id="employeeRole">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="CONTRIBUTOR">Contributor</SelectItem>
+                            <SelectItem value="REVIEWER">Reviewer</SelectItem>
+                            <SelectItem value="VIEWER">Viewer</SelectItem>
+                            <SelectItem value="ADMIN">Admin</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Login format for employee: use username (or generated email) + password.
+                    </p>
+                    <Button type="submit" disabled={isCreatingEmployee}>
+                      {isCreatingEmployee ? "Creating..." : "Create Employee Account"}
                     </Button>
                   </form>
                 </CardContent>

@@ -6,8 +6,8 @@ import { Badge } from "@/components/ui/badge";
 
 type ProductNameType = 
   | string 
-  | { original?: string; translations?: { fi?: string; sv?: string } }
-  | { fi?: string; sv?: string }
+  | { original?: string; translations?: Record<string, string | undefined> }
+  | Record<string, string | undefined>
   | undefined;
 
 interface ComplianceAuditReportProps {
@@ -18,24 +18,24 @@ interface ComplianceAuditReportProps {
 
 /**
  * Safely extract product name as string from various formats
- * Handles: string, {original, translations}, {fi, sv}, undefined
+ * Handles: string, {original, translations}, plain locale map, undefined
  */
 function getProductNameString(productName: ProductNameType): string {
   if (!productName) return "Product";
   if (typeof productName === "string") return productName;
   if (typeof productName !== "object") return "Product";
   
-  // Handle standard structure: {original: string, translations: {fi: string, sv: string}}
+  // Handle standard structure: {original: string, translations: {<locale>: string}}
   if ("translations" in productName && productName.translations && typeof productName.translations === "object") {
     const trans = productName.translations;
-    if (typeof trans.fi === "string") return trans.fi;
-    if (typeof trans.sv === "string") return trans.sv;
+    const firstTranslation = Object.values(trans).find((value) => typeof value === "string" && value.trim().length > 0);
+    if (typeof firstTranslation === "string") return firstTranslation;
     if ("original" in productName && typeof productName.original === "string") return productName.original;
   }
   
-  // Handle edge case: direct {fi: string, sv: string} structure
-  if ("fi" in productName && typeof productName.fi === "string") return productName.fi;
-  if ("sv" in productName && typeof productName.sv === "string") return productName.sv;
+  // Handle edge case: direct locale map structure
+  const firstDirectValue = Object.values(productName).find((value) => typeof value === "string" && value.trim().length > 0);
+  if (typeof firstDirectValue === "string") return firstDirectValue;
   
   // Final fallback
   if ("original" in productName && typeof productName.original === "string") return productName.original;
@@ -121,7 +121,7 @@ export function ComplianceAuditReport({
                     <div>Must include EU-based importer address. Original {originCountry} address is not sufficient.</div>
                   )}
                   {result.message.includes("language") && (
-                    <div>Generated Finnish and Swedish translations for all mandatory fields.</div>
+                    <div>Add translations for all mandatory fields in the required market locale(s).</div>
                   )}
                   {result.message.includes("allergen") && (
                     <div>Automation: Automatically bolded in the ingredient list.</div>
@@ -162,7 +162,7 @@ export function ComplianceAuditReport({
       {/* Language Check */}
       {languageChecks.length > 0 && (
         <div>
-          <div className="font-semibold mb-2">1. Finnish and Swedish Required:</div>
+          <div className="font-semibold mb-2">1. Required Market Languages:</div>
           {languageChecks.map((result, idx) => renderCheck(result, idx))}
         </div>
       )}
@@ -214,4 +214,3 @@ export function ComplianceAuditReport({
     </div>
   );
 }
-

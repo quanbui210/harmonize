@@ -2,13 +2,22 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { exportLabelPDFAction, exportLabelSVGAction, saveLabelAction } from "@/server/actions/labels";
+import {
+  exportLabelPDFAction,
+  exportLabelSVGAction,
+  saveLabelAction,
+  translateIngredientsAction,
+  translateLabelTextsAction,
+} from "@/server/actions/labels";
 import { analyzeLabelAction } from "@/server/actions/label-analysis";
 import { getClassificationsForLabelAction, getClassificationAction } from "@/server/actions/classifications";
 import {
   calculateComplianceScore,
+  runComplianceChecks,
+  type LabelData,
   type ComplianceResult,
 } from "@/lib/labeling/compliance-checker";
+import { getRegulatoryProductType } from "@/lib/regulatory/product-type";
 import { LABEL_SIZES, type LabelSize } from "@/lib/labeling/label-renderer";
 import type { MissingField, LabelAnalysis } from "@/lib/labeling/label-analyzer";
 import { LabelImageUpload } from "@/components/labeling/label-image-upload";
@@ -21,7 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ShieldCheck, ShieldAlert, Download, FileText, AlertCircle, CheckCircle2, ChevronRight, ChevronLeft, Save, Info } from "lucide-react";
+import { Loader2, ShieldCheck, ShieldAlert, Download, FileText, AlertCircle, CheckCircle2, ChevronRight, ChevronLeft, Save, Info, Pencil, Check, X, WandSparkles } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -129,10 +138,14 @@ export default function NewLabelPage() {
   const [complianceScore, setComplianceScore] = useState<number | null>(null);
   const [complianceResults, setComplianceResults] = useState<ComplianceResult[]>([]);
   const [generatedLabel, setGeneratedLabel] = useState<any>(null);
+  const [editedLabel, setEditedLabel] = useState<any>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [labelAnalysis, setLabelAnalysis] = useState<LabelAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isTranslatingIngredients, setIsTranslatingIngredients] = useState(false);
+  const [isAutoFixing, setIsAutoFixing] = useState(false);
   const [missingFieldsData, setMissingFieldsData] = useState<Record<string, string | number>>({});
   const [showMissingFieldsForm, setShowMissingFieldsForm] = useState(false);
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
@@ -154,6 +167,274 @@ export default function NewLabelPage() {
   const searchParams = useSearchParams();
 
   const isPending = isNavigatingToGenerate;
+
+  const resolveProductTypeForChecks = () => {
+    const normalized = (form.productCategory || "").toLowerCase();
+    if (
+      normalized.includes("food") ||
+      normalized.includes("beverage") ||
+      normalized.includes("drink") ||
+      normalized.includes("meat") ||
+      normalized.includes("dried") ||
+      normalized.includes("snack")
+    ) {
+      return "FOOD" as const;
+    }
+    if (normalized.includes("cosmetic")) {
+      return "COSMETICS" as const;
+    }
+    if (normalized.includes("toy")) {
+      return "TOYS" as const;
+    }
+    if (
+      normalized.includes("electronic") ||
+      normalized.includes("appliance") ||
+      normalized.includes("battery") ||
+      normalized.includes("machinery") ||
+      normalized.includes("device")
+    ) {
+      return "ELECTRONICS" as const;
+    }
+    return form.cnCode ? getRegulatoryProductType(form.cnCode) : "GENERAL";
+  };
+
+  const cloneLabel = (label: any) => JSON.parse(JSON.stringify(label));
+
+  const applyComplianceFromLabel = (label: any) => {
+    const labelDataForChecks: LabelData = {
+      productName: label.productName,
+      ingredients: Array.isArray(label.ingredients) ? label.ingredients : [],
+      nutritionInfo: label.nutritionInfo || {
+        energy: 0,
+        fat: 0,
+        carbs: 0,
+        protein: 0,
+        salt: 0,
+      },
+      warnings: Array.isArray(label.warnings) ? label.warnings : [],
+      importerAddress: label.importerAddress || "",
+      bestBeforeDate: label.bestBeforeDate || "",
+      labelDimensions: label.labelDimensions || { width: 100, height: 150 },
+      fontSize: label.fontSize || 10,
+    };
+
+    const results = runComplianceChecks(labelDataForChecks, resolveProductTypeForChecks(), {
+      destinationCountry: form.destinationCountry,
+      requiredLocales: label.market?.requiredLocales,
+      endUse: form.endUse,
+    });
+
+    const score = calculateComplianceScore(results);
+    setComplianceResults(results);
+    setComplianceScore(score);
+    return { results, score };
+  };
+
+  const getRequiredLocales = (label: any): string[] => {
+    const required = Array.isArray(label?.market?.requiredLocales) ? label.market.requiredLocales : [];
+    const normalized = required
+      .map((locale: string) => String(locale || "").toLowerCase().trim())
+      .filter(Boolean);
+    return normalized.length > 0 ? normalized : ["en"];
+  };
+
+  const enrichIngredientTranslations = async (label: any) => {
+    const locales = getRequiredLocales(label).filter((locale) => locale !== "en");
+    if (locales.length === 0) return label;
+
+    const ingredients = Array.isArray(label.ingredients) ? label.ingredients : [];
+    const candidates = ingredients
+      .map((ingredient: any, index: number) => ({ ingredient, index }))
+      .filter(({ ingredient }: { ingredient: any; index: number }) => String(ingredient?.name || "").trim().length > 0)
+      .filter(({ ingredient }: { ingredient: any; index: number }) =>
+        locales.some((locale) => {
+          const existing = String(ingredient?.translations?.[locale] || "").trim();
+          const source = String(ingredient?.name || "").trim();
+          return !existing || existing.toLowerCase() === source.toLowerCase();
+        }),
+      );
+
+    if (candidates.length === 0) return label;
+
+    const translated = await translateIngredientsAction({
+      ingredients: candidates.map(({ ingredient }: { ingredient: any; index: number }) => String(ingredient.name)),
+      targetLocales: locales,
+      destinationCountry: label.destinationCountry || form.destinationCountry,
+    });
+
+    const translationBySource = new Map(
+      translated.map((item) => [String(item.source || "").trim().toLowerCase(), item.translations || {}]),
+    );
+
+    const next = cloneLabel(label);
+    for (const { ingredient, index } of candidates) {
+      const source = String(ingredient?.name || "").trim();
+      const sourceKey = source.toLowerCase();
+      const localeValues = translationBySource.get(sourceKey) || {};
+      const targetIngredient = next.ingredients?.[index];
+      if (!targetIngredient) continue;
+      targetIngredient.translations = { ...(targetIngredient.translations || {}) };
+      for (const locale of locales) {
+        const translatedText = String(localeValues[locale] || "").trim();
+        if (translatedText) {
+          targetIngredient.translations[locale] = translatedText;
+        }
+      }
+    }
+    return next;
+  };
+
+  const enrichLabelTextTranslations = async (label: any) => {
+    const locales = getRequiredLocales(label).filter((locale) => locale !== "en");
+    if (locales.length === 0) return label;
+
+    const textSources = new Set<string>();
+    if (typeof label.storageInstructions === "string" && label.storageInstructions.trim().length > 0) {
+      textSources.add(label.storageInstructions.trim());
+    }
+    for (const warning of Array.isArray(label.warnings) ? label.warnings : []) {
+      const text = String(warning || "").trim();
+      if (text) textSources.add(text);
+    }
+    if (textSources.size === 0) return label;
+
+    const translated = await translateLabelTextsAction({
+      texts: Array.from(textSources),
+      targetLocales: locales,
+      destinationCountry: label.destinationCountry || form.destinationCountry,
+    });
+
+    const translationBySource = new Map(
+      translated.map((item) => [String(item.source || "").trim().toLowerCase(), item.translations || {}]),
+    );
+    const formatLocalized = (source: string) => {
+      const sourceText = String(source || "").trim();
+      const localeValues = translationBySource.get(sourceText.toLowerCase()) || {};
+      const localizedParts = locales
+        .map((locale) => String(localeValues[locale] || "").trim())
+        .filter(Boolean);
+      const uniqueLocalized = Array.from(new Set(localizedParts));
+      return uniqueLocalized.length > 0 ? uniqueLocalized.join(" / ") : sourceText;
+    };
+
+    const next = cloneLabel(label);
+    if (typeof next.storageInstructions === "string" && next.storageInstructions.trim().length > 0) {
+      next.storageInstructions = formatLocalized(next.storageInstructions);
+    }
+    if (Array.isArray(next.warnings)) {
+      next.warnings = next.warnings.map((warning: string) => formatLocalized(warning));
+    }
+    return next;
+  };
+
+  const enrichLabelTranslations = async (label: any) => {
+    const withIngredients = await enrichIngredientTranslations(label);
+    return enrichLabelTextTranslations(withIngredients);
+  };
+
+  const autoFixComplianceIssues = async (label: any) => {
+    let next = cloneLabel(label);
+
+    next = await enrichLabelTranslations(next);
+
+    const requiredLocales = getRequiredLocales(next);
+    if (typeof next.productName === "object" && next.productName) {
+      next.productName.translations = { ...(next.productName.translations || {}) };
+      for (const locale of requiredLocales) {
+        if (!String(next.productName.translations[locale] || "").trim()) {
+          next.productName.translations[locale] = next.productName.original || "Product";
+        }
+      }
+    }
+
+    if (Array.isArray(next.ingredients)) {
+      next.ingredients = next.ingredients.map((ingredient: any) => {
+        if (ingredient?.isAllergen) {
+          return { ...ingredient, isHighlighted: true };
+        }
+        return ingredient;
+      });
+
+      const normalize = (value: string) =>
+        String(value || "")
+          .toLowerCase()
+          .replace(/[%.,/#!$^&*;:{}=\-_`~()'"[\]\\|?<>+]/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+      const productNameText = [
+        String(next?.productName?.original || ""),
+        ...Object.values(next?.productName?.translations || {}),
+      ]
+        .map((value) => String(value || ""))
+        .join(" ");
+      const normalizedProductName = ` ${normalize(productNameText)} `;
+      const quidTargets = next.ingredients.filter((ingredient: any) => {
+        const candidates = [ingredient?.name, ...Object.values(ingredient?.translations || {})]
+          .map((value) => normalize(String(value || "")))
+          .filter((value) => value.length >= 3);
+        return candidates.some((candidate) => normalizedProductName.includes(` ${candidate} `));
+      });
+      const missingPercentages = quidTargets.filter((ingredient: any) => !Number.isFinite(Number(ingredient?.percentage)));
+      if (missingPercentages.length > 0) {
+        const currentTotal = next.ingredients.reduce((sum: number, ingredient: any) => {
+          const value = Number(ingredient?.percentage);
+          return Number.isFinite(value) ? sum + value : sum;
+        }, 0);
+        const remaining = Math.max(100 - currentTotal, 0);
+        const fallbackValue = remaining > 0
+          ? Number((remaining / missingPercentages.length).toFixed(1))
+          : 1;
+        next.ingredients = next.ingredients.map((ingredient: any) => {
+          if (!missingPercentages.includes(ingredient)) return ingredient;
+          return { ...ingredient, percentage: fallbackValue };
+        });
+      }
+
+      next.ingredients = next.ingredients.map((ingredient: any) => {
+        const code = String(ingredient?.code || "").toUpperCase().trim();
+        if (code.startsWith("E") && !String(ingredient?.functionalClass || "").trim()) {
+          return { ...ingredient, functionalClass: "Additive" };
+        }
+        return ingredient;
+      });
+    }
+
+    if (typeof next.fontSize !== "number" || next.fontSize < 7) {
+      next.fontSize = 7;
+    }
+
+    const lowerAddress = String(next.importerAddress || "").toLowerCase();
+    const euCountryKeywords = [
+      "finland", "sweden", "denmark", "germany", "france", "italy", "spain",
+      "netherlands", "belgium", "austria", "poland", "portugal", "greece",
+      "ireland", "czech", "romania", "hungary", "bulgaria", "croatia",
+      "slovakia", "slovenia", "estonia", "latvia", "lithuania", "luxembourg",
+      "malta", "cyprus",
+    ];
+    const hasEuCountryInAddress = euCountryKeywords.some((country) => lowerAddress.includes(country));
+    const destinationCountry = String(next.destinationCountry || form.destinationCountry || "").trim();
+    if (!hasEuCountryInAddress && destinationCountry) {
+      const address = String(next.importerAddress || "").trim();
+      next.importerAddress = address ? `${address}, ${destinationCountry}` : destinationCountry;
+    }
+
+    const destination = String(next.destinationCountry || form.destinationCountry || "").toLowerCase();
+    const saltValue = Number(next?.nutritionInfo?.salt || 0);
+    if (destination.includes("finland") && saltValue > 1.2) {
+      const fiWarning = "Voimakassuolainen";
+      const svWarning = "Kraftigt saltad";
+      const existingWarnings = Array.isArray(next.warnings) ? next.warnings.map((w: string) => String(w || "").trim()) : [];
+      const hasHighSalt = existingWarnings.some((warning: string) => {
+        const lower = warning.toLowerCase();
+        return lower.includes(fiWarning.toLowerCase()) || lower.includes(svWarning.toLowerCase());
+      });
+      if (!hasHighSalt) {
+        next.warnings = [...existingWarnings, `${fiWarning} / ${svWarning}`];
+      }
+    }
+
+    return next;
+  };
 
   // Load classifications and handle query param on mount
   useEffect(() => {
@@ -224,9 +505,11 @@ export default function NewLabelPage() {
       };
 
       setGeneratedLabel(parsed.label);
+      setEditedLabel(parsed.label ? cloneLabel(parsed.label) : null);
       setComplianceScore(parsed.complianceScore);
       setComplianceResults(parsed.complianceResults || []);
       setLabelAnalysis(parsed.labelAnalysis || null);
+      setIsEditMode(false);
       setCurrentStep(2);
       setError(null);
     } catch {
@@ -433,7 +716,7 @@ export default function NewLabelPage() {
   };
 
   const handleSaveLabel = async () => {
-    if (!generatedLabel || !form.productName) {
+    if (!generatedLabel && !editedLabel) {
       setError("Please generate a label first");
       return;
     }
@@ -441,11 +724,36 @@ export default function NewLabelPage() {
     setIsSaving(true);
     setError(null);
     try {
+      let labelToSave = generatedLabel ? cloneLabel(generatedLabel) : cloneLabel(editedLabel);
+      if (isEditMode && editedLabel) {
+        labelToSave = cloneLabel(editedLabel);
+      }
+      if (typeof labelToSave.warnings === "string") {
+        labelToSave.warnings = labelToSave.warnings
+          .split("\n")
+          .map((item: string) => item.trim())
+          .filter(Boolean);
+      }
+      labelToSave = await enrichLabelTranslations(labelToSave);
+      setGeneratedLabel(labelToSave);
+      if (isEditMode) {
+        setEditedLabel(cloneLabel(labelToSave));
+        setIsEditMode(false);
+      }
+      const { results: recalculatedResults, score: recalculatedScore } = applyComplianceFromLabel(labelToSave);
+
+      const resolvedProductName =
+        form.productName ||
+        (typeof labelToSave.productName === "string"
+          ? labelToSave.productName
+          : labelToSave.productName?.original) ||
+        "Product";
+
       const labelId = await saveLabelAction({
-        labelData: generatedLabel,
-        complianceScore: complianceScore || 0,
-        complianceResults,
-        productName: form.productName,
+        labelData: labelToSave,
+        complianceScore: recalculatedScore,
+        complianceResults: recalculatedResults,
+        productName: resolvedProductName,
         productCategory: form.productCategory,
         originCountry: form.originCountry,
         destinationCountry: form.destinationCountry,
@@ -459,6 +767,39 @@ export default function NewLabelPage() {
       setError(err?.message || "Failed to save label");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleAutoTranslateEditedIngredients = async () => {
+    if (!editedLabel) return;
+    setError(null);
+    setIsTranslatingIngredients(true);
+    try {
+      const next = await enrichLabelTranslations(cloneLabel(editedLabel));
+      setEditedLabel(next);
+    } catch (err: any) {
+      setError(err?.message || "Failed to translate ingredients");
+    } finally {
+      setIsTranslatingIngredients(false);
+    }
+  };
+
+  const handleAutoFixEditedLabel = async () => {
+    if (!editedLabel) return;
+    setError(null);
+    setIsAutoFixing(true);
+    try {
+      const next = await autoFixComplianceIssues(cloneLabel(editedLabel));
+      setEditedLabel(next);
+      const { results } = applyComplianceFromLabel(next);
+      const stillFailing = results.filter((result) => !result.passed && result.severity !== "INFO").length;
+      if (stillFailing > 0) {
+        setError(`Auto-fix applied common fixes, but ${stillFailing} issue(s) still need manual review.`);
+      }
+    } catch (err: any) {
+      setError(err?.message || "Failed to auto-fix compliance issues");
+    } finally {
+      setIsAutoFixing(false);
     }
   };
 
@@ -494,11 +835,101 @@ export default function NewLabelPage() {
     }
   };
 
+  const startEditLabel = () => {
+    if (!generatedLabel) return;
+    setEditedLabel(cloneLabel(generatedLabel));
+    setIsEditMode(true);
+    setError(null);
+  };
+
+  const cancelEditLabel = () => {
+    setEditedLabel(generatedLabel ? cloneLabel(generatedLabel) : null);
+    setIsEditMode(false);
+  };
+
+  const updateEditedLabel = (updater: (prev: any) => any) => {
+    setEditedLabel((prev: any) => {
+      if (!prev) return prev;
+      return updater(prev);
+    });
+  };
+
+  const handleEditedIngredientChange = (index: number, key: "name" | "percentage" | "isAllergen" | "isHighlighted", value: string | number | boolean) => {
+    updateEditedLabel((prev) => {
+      const ingredients = Array.isArray(prev.ingredients) ? [...prev.ingredients] : [];
+      const ingredient = { ...(ingredients[index] || {}) };
+      if (key === "percentage") {
+        const parsed = typeof value === "number" ? value : Number(value);
+        ingredient.percentage = Number.isFinite(parsed) ? parsed : undefined;
+      } else if (key === "isAllergen" || key === "isHighlighted") {
+        ingredient[key] = Boolean(value);
+      } else {
+        ingredient.name = String(value);
+        const locale = prev?.market?.renderLocales?.[0] || prev?.market?.requiredLocales?.[0] || "en";
+        ingredient.translations = {
+          ...(ingredient.translations || {}),
+          [locale]: String(value),
+        };
+      }
+      ingredients[index] = ingredient;
+      return { ...prev, ingredients };
+    });
+  };
+
+  const addEditedIngredient = () => {
+    updateEditedLabel((prev) => ({
+      ...prev,
+      ingredients: [
+        {
+          name: "",
+          percentage: undefined,
+          isAllergen: false,
+          isHighlighted: false,
+          translations: {},
+        },
+        ...(Array.isArray(prev.ingredients) ? prev.ingredients : []),
+      ],
+    }));
+  };
+
+  const removeEditedIngredient = (index: number) => {
+    updateEditedLabel((prev) => ({
+      ...prev,
+      ingredients: (Array.isArray(prev.ingredients) ? prev.ingredients : []).filter((_: any, idx: number) => idx !== index),
+    }));
+  };
+
+  const applyLabelEdits = async () => {
+    if (!editedLabel) return;
+    setError(null);
+    setIsTranslatingIngredients(true);
+    try {
+      let nextLabel = cloneLabel(editedLabel);
+      if (typeof nextLabel.warnings === "string") {
+        nextLabel.warnings = nextLabel.warnings
+          .split("\n")
+          .map((item: string) => item.trim())
+          .filter(Boolean);
+      }
+      nextLabel = await enrichLabelTranslations(nextLabel);
+      setGeneratedLabel(nextLabel);
+      setEditedLabel(cloneLabel(nextLabel));
+      applyComplianceFromLabel(nextLabel);
+      setIsEditMode(false);
+    } catch (err: any) {
+      setError(err?.message || "Failed to apply label edits");
+    } finally {
+      setIsTranslatingIngredients(false);
+    }
+  };
+
   const reset = () => {
     setForm(initialForm);
     setComplianceResults([]);
     setComplianceScore(null);
     setGeneratedLabel(null);
+    setEditedLabel(null);
+    setIsEditMode(false);
     setError(null);
     setLabelAnalysis(null);
     setMissingFieldsData({});
@@ -662,6 +1093,7 @@ export default function NewLabelPage() {
         originalLabelText: textToAnalyze,
         productCategory: form.productCategory,
         cnCode: form.cnCode || undefined,
+        destinationCountry: form.destinationCountry || undefined,
       });
 
       setLabelAnalysis(analysis);
@@ -726,7 +1158,7 @@ export default function NewLabelPage() {
         <div>
             <h1 className="text-2xl font-semibold">Create Product Label</h1>
           <p className="text-sm text-muted-foreground">
-            Step-by-step process to generate compliant FI/SV labels
+            Step-by-step process to generate compliant EU market labels
           </p>
         </div>
         <Button variant="outline" onClick={reset} disabled={isPending}>
@@ -1302,6 +1734,258 @@ export default function NewLabelPage() {
       {/* Step 2: Compliance & Result */}
       {currentStep === 2 && generatedLabel && (
         <div className="space-y-6 pb-24">
+          {error && (
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+              {error}
+            </div>
+          )}
+          {isEditMode && editedLabel && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Edit Label Before Save</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Update fields below, then apply edits to refresh compliance and preview.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Product Name</Label>
+                    <Input
+                      value={editedLabel.productName?.original || ""}
+                      onChange={(e) =>
+                        updateEditedLabel((prev) => ({
+                          ...prev,
+                          productName: {
+                            ...(prev.productName || {}),
+                            original: e.target.value,
+                          },
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Best Before Date</Label>
+                    <Input
+                      value={editedLabel.bestBeforeDate || ""}
+                      onChange={(e) =>
+                        updateEditedLabel((prev) => ({
+                          ...prev,
+                          bestBeforeDate: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Net Quantity</Label>
+                    <Input
+                      value={editedLabel.netQuantity || ""}
+                      onChange={(e) =>
+                        updateEditedLabel((prev) => ({
+                          ...prev,
+                          netQuantity: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Importer / Company Address</Label>
+                    <Textarea
+                      rows={2}
+                      value={editedLabel.importerAddress || ""}
+                      onChange={(e) =>
+                        updateEditedLabel((prev) => ({
+                          ...prev,
+                          importerAddress: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Warnings (one per line)</Label>
+                  <Textarea
+                    rows={3}
+                    value={Array.isArray(editedLabel.warnings) ? editedLabel.warnings.join("\n") : ""}
+                    onChange={(e) =>
+                      updateEditedLabel((prev) => ({
+                        ...prev,
+                        warnings: e.target.value
+                          .split("\n")
+                          .map((item: string) => item.trim())
+                          .filter(Boolean),
+                      }))
+                    }
+                  />
+                </div>
+
+                <div className="space-y-3 rounded-md border p-4">
+                  <Label>Nutrition (per 100g / 100ml)</Label>
+                  <div className="grid gap-3 md:grid-cols-5">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Energy (kcal)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={editedLabel.nutritionInfo?.energy ?? ""}
+                        onChange={(e) =>
+                          updateEditedLabel((prev) => ({
+                            ...prev,
+                            nutritionInfo: {
+                              ...(prev.nutritionInfo || {}),
+                              energy: Number(e.target.value) || 0,
+                            },
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Fat (g)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={editedLabel.nutritionInfo?.fat ?? ""}
+                        onChange={(e) =>
+                          updateEditedLabel((prev) => ({
+                            ...prev,
+                            nutritionInfo: {
+                              ...(prev.nutritionInfo || {}),
+                              fat: Number(e.target.value) || 0,
+                            },
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Carbs (g)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={editedLabel.nutritionInfo?.carbs ?? ""}
+                        onChange={(e) =>
+                          updateEditedLabel((prev) => ({
+                            ...prev,
+                            nutritionInfo: {
+                              ...(prev.nutritionInfo || {}),
+                              carbs: Number(e.target.value) || 0,
+                            },
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Protein (g)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={editedLabel.nutritionInfo?.protein ?? ""}
+                        onChange={(e) =>
+                          updateEditedLabel((prev) => ({
+                            ...prev,
+                            nutritionInfo: {
+                              ...(prev.nutritionInfo || {}),
+                              protein: Number(e.target.value) || 0,
+                            },
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Salt (g)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={editedLabel.nutritionInfo?.salt ?? ""}
+                        onChange={(e) =>
+                          updateEditedLabel((prev) => ({
+                            ...prev,
+                            nutritionInfo: {
+                              ...(prev.nutritionInfo || {}),
+                              salt: Number(e.target.value) || 0,
+                            },
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3 rounded-md border p-4">
+                  <div className="flex items-center justify-between">
+                    <Label>Ingredients</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleAutoFixEditedLabel}
+                        disabled={isAutoFixing || isSaving || isTranslatingIngredients}
+                      >
+                        {isAutoFixing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <WandSparkles className="mr-2 h-4 w-4" />}
+                        Auto-fix Compliance
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleAutoTranslateEditedIngredients}
+                        disabled={isTranslatingIngredients || isAutoFixing || isSaving}
+                      >
+                        {isTranslatingIngredients ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Auto-translate
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" onClick={addEditedIngredient}>
+                        Add Ingredient
+                      </Button>
+                    </div>
+                  </div>
+
+                  {(Array.isArray(editedLabel.ingredients) ? editedLabel.ingredients : []).map((ingredient: any, idx: number) => (
+                    <div key={idx} className="grid gap-2 rounded-md border p-3 md:grid-cols-6">
+                      <Input
+                        className="md:col-span-3"
+                        placeholder="Ingredient name"
+                        value={ingredient?.name || ""}
+                        onChange={(e) => handleEditedIngredientChange(idx, "name", e.target.value)}
+                      />
+                      <Input
+                        className="md:col-span-1"
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        placeholder="%"
+                        value={ingredient?.percentage ?? ""}
+                        onChange={(e) => handleEditedIngredientChange(idx, "percentage", e.target.value)}
+                      />
+                      <div className="md:col-span-1 flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(ingredient?.isAllergen)}
+                          onChange={(e) => handleEditedIngredientChange(idx, "isAllergen", e.target.checked)}
+                        />
+                        Allergen
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="md:col-span-1"
+                        onClick={() => removeEditedIngredient(idx)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <div className="grid gap-6 lg:grid-cols-3">
             {/* Label Preview */}
             <Card className="lg:col-span-2">
@@ -1312,9 +1996,30 @@ export default function NewLabelPage() {
                     <p className="text-sm text-muted-foreground">Review your generated label and compliance analysis.</p>
                   </div>
                   <div className="flex items-center flex-wrap gap-3">
+                    {!isEditMode ? (
+                      <Button variant="outline" size="sm" onClick={startEditLabel}>
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Edit Label
+                      </Button>
+                    ) : (
+                      <>
+                        <Button variant="outline" size="sm" onClick={cancelEditLabel}>
+                          <X className="mr-2 h-4 w-4" />
+                          Cancel
+                        </Button>
+                        <Button size="sm" onClick={applyLabelEdits} disabled={isTranslatingIngredients || isAutoFixing || isSaving}>
+                          {isTranslatingIngredients ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Check className="mr-2 h-4 w-4" />
+                          )}
+                          Apply Edits
+                        </Button>
+                      </>
+                    )}
                     <Button 
                       onClick={handleSaveLabel} 
-                      disabled={isPending || isSaving}
+                      disabled={isPending || isSaving || isTranslatingIngredients || isAutoFixing}
                       className="bg-primary hover:bg-primary/90 px-6"
                       size="sm"
                     >
@@ -1331,11 +2036,11 @@ export default function NewLabelPage() {
                       )}
                     </Button>
                     <div className="w-px h-8 bg-border mx-1" />
-                    <Button variant="outline" size="sm" onClick={handleExportPDF}>
+                    <Button variant="outline" size="sm" onClick={handleExportPDF} disabled={isEditMode}>
                       <Download className="mr-2 h-4 w-4" />
                       Export PDF
                     </Button>
-                    <Button variant="outline" size="sm" onClick={handleExportSVG}>
+                    <Button variant="outline" size="sm" onClick={handleExportSVG} disabled={isEditMode}>
                       <FileText className="mr-2 h-4 w-4" />
                       Export SVG
                     </Button>
@@ -1344,7 +2049,7 @@ export default function NewLabelPage() {
               </CardHeader>
               <CardContent>
                 <div className="border-2 border-gray-200 rounded-lg p-4 bg-gray-50 flex justify-center">
-                  <LabelPreview labelData={generatedLabel} productCategory={form.productCategory} />
+                  <LabelPreview labelData={isEditMode && editedLabel ? editedLabel : generatedLabel} productCategory={form.productCategory} />
                 </div>
               </CardContent>
             </Card>
@@ -1390,7 +2095,7 @@ export default function NewLabelPage() {
                 </div>
                 <Button 
                   onClick={handleSaveLabel} 
-                  disabled={isPending || isSaving}
+                  disabled={isPending || isSaving || isTranslatingIngredients || isAutoFixing}
                   size="lg"
                   className="px-8 shadow-md"
                 >

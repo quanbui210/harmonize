@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 import { createServerClient } from "@supabase/ssr"
 
-const PUBLIC_PATHS = ["/", "/login", "/auth/callback", "/api/public", "/vault/upload"]
+const PUBLIC_PATHS = ["/", "/login", "/auth/callback", "/api/public", "/vault/upload", "/invite"]
 
 const getSupabaseUrl = () => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -68,6 +68,10 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getSession()
 
   const publicRoute = isPublicPath(pathname)
+  const mustChangePassword =
+    session?.user?.user_metadata &&
+    (session.user.user_metadata.must_change_password === true ||
+      session.user.user_metadata.mustChangePassword === true)
 
   if (!session && !publicRoute) {
     const redirectUrl = request.nextUrl.clone()
@@ -76,6 +80,20 @@ export async function middleware(request: NextRequest) {
       "redirectTo",
       `${pathname}${request.nextUrl.search}`,
     )
+    return NextResponse.redirect(redirectUrl)
+  }
+
+  if (session && mustChangePassword && pathname !== "/change-password") {
+    const redirectUrl = request.nextUrl.clone()
+    redirectUrl.pathname = "/change-password"
+    redirectUrl.search = ""
+    return NextResponse.redirect(redirectUrl)
+  }
+
+  if (session && !mustChangePassword && pathname === "/change-password") {
+    const redirectUrl = request.nextUrl.clone()
+    redirectUrl.pathname = "/dashboard"
+    redirectUrl.search = ""
     return NextResponse.redirect(redirectUrl)
   }
 
