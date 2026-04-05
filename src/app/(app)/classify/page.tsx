@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { ArrowLeft, FileText, CheckCircle2, AlertTriangle } from "lucide-react";
 import { ClassificationSearchForm } from "@/components/classification/classification-search-form";
+import { Prisma } from "@prisma/client";
 import {
   Tooltip,
   TooltipContent,
@@ -49,57 +50,90 @@ type ClassifyPageProps = {
   };
 };
 
+type ClassificationRow = Prisma.ClassificationGetPayload<{
+  include: {
+    product: true;
+    dossier: true;
+    dutySummary: true;
+  };
+}>;
+
 export default async function ClassifyPage({ searchParams }: ClassifyPageProps) {
   const user = await requireAuthenticatedUser();
-  const membership = await getPrimaryMembership(user.id);
+  let membership;
+  try {
+    membership = await getPrimaryMembership(user.id);
+  } catch (error) {
+    console.error("Failed to load membership:", error);
+    return (
+      <div className="container mx-auto max-w-4xl space-y-6 py-8">
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardHeader>
+            <CardTitle>Service temporarily unavailable</CardTitle>
+            <CardDescription>
+              Database connection limit reached. Please retry in a minute.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
 
   if (!membership) {
     redirect("/login?error=organization");
   }
 
   const searchQuery = (searchParams?.search || "").trim();
+  let classifications: ClassificationRow[] = [];
+  let loadError: string | null = null;
 
   // Get all classifications for this organization
-  const classifications = await prisma.classification.findMany({
-    where: {
-      organizationId: membership.organizationId,
-      ...(searchQuery
-        ? {
-            OR: [
-              { htsCode: { contains: searchQuery, mode: "insensitive" } },
-              { hsCode: { contains: searchQuery, mode: "insensitive" } },
-              { summary: { contains: searchQuery, mode: "insensitive" } },
-              {
-                product: {
-                  is: {
-                    OR: [
-                      { id: { contains: searchQuery } },
-                      { name: { contains: searchQuery, mode: "insensitive" } },
-                      { description: { contains: searchQuery, mode: "insensitive" } },
-                    ],
+  try {
+    classifications = await prisma.classification.findMany({
+      where: {
+        organizationId: membership.organizationId,
+        ...(searchQuery
+          ? {
+              OR: [
+                { htsCode: { contains: searchQuery, mode: "insensitive" } },
+                { hsCode: { contains: searchQuery, mode: "insensitive" } },
+                { summary: { contains: searchQuery, mode: "insensitive" } },
+                {
+                  product: {
+                    is: {
+                      OR: [
+                        { id: { contains: searchQuery } },
+                        { name: { contains: searchQuery, mode: "insensitive" } },
+                        { description: { contains: searchQuery, mode: "insensitive" } },
+                      ],
+                    },
                   },
                 },
-              },
-              {
-                dossier: {
-                  is: {
-                    id: { contains: searchQuery },
+                {
+                  dossier: {
+                    is: {
+                      id: { contains: searchQuery },
+                    },
                   },
                 },
-              },
-            ],
-          }
-        : {}),
-    },
-    include: {
-      product: true,
-      dossier: true,
-      dutySummary: true,
-    },
-    orderBy: {
-      updatedAt: "desc",
-    },
-  });
+              ],
+            }
+          : {}),
+      },
+      include: {
+        product: true,
+        dossier: true,
+        dutySummary: true,
+      },
+      orderBy: {
+        updatedAt: "desc",
+      },
+    });
+  } catch (error) {
+    console.error("Failed to load classifications:", error);
+    loadError =
+      "Database is temporarily busy (connection pool limit). Please retry shortly.";
+  }
 
   return (
     <div className="container mx-auto max-w-7xl space-y-8 py-8">
@@ -134,6 +168,15 @@ export default async function ClassifyPage({ searchParams }: ClassifyPageProps) 
           userId={user.id}
         />
       </div>
+
+      {loadError ? (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardHeader>
+            <CardTitle>Could not load classification list</CardTitle>
+            <CardDescription>{loadError}</CardDescription>
+          </CardHeader>
+        </Card>
+      ) : null}
 
       {/* All Classifications Table */}
       <Card>

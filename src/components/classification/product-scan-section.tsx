@@ -37,6 +37,7 @@ export function ProductScanSection({
   market,
   disabled,
 }: ProductScanSectionProps) {
+  const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
   const router = useRouter();
   const [images, setImages] = useState<UploadedImage[]>([]);
   const [classificationError, setClassificationError] = useState<string | null>(null);
@@ -60,6 +61,10 @@ export function ProductScanSection({
       // Validate file type
       if (!file.type.startsWith("image/")) {
         alert(`${file.name} is not an image file. Skipping.`);
+        continue;
+      }
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        alert(`${file.name} is larger than 10MB. Please upload a smaller image.`);
         continue;
       }
 
@@ -88,13 +93,14 @@ export function ProductScanSection({
         formData.append("image", image.file);
 
         const result = await uploadProductImageAction(formData);
+        const extractedData = result?.extractedData ?? undefined;
 
         setImages((prev) =>
           prev.map((img) =>
             img.id === image.id
               ? {
                   ...img,
-                  extractedData: result.extractedData,
+                  extractedData,
                   isProcessing: false,
                 }
               : img
@@ -112,7 +118,12 @@ export function ProductScanSection({
               : img
           )
         );
-        alert(`Failed to process ${image.file.name}: ${error.message}`);
+        const msg = String(error?.message || "Unknown upload error");
+        const friendly =
+          msg.includes("413") || msg.includes("body")
+            ? "Image is too large for upload. Please use smaller image size (<= 10MB)."
+            : msg;
+        alert(`Failed to process ${image.file.name}: ${friendly}`);
       }
     }
   };

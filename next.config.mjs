@@ -2,6 +2,10 @@
 const nextConfig = {
   experimental: {
     instrumentationHook: true,
+    // Allow multi-image uploads in Server Actions (default can trigger 413 for larger files).
+    serverActions: {
+      bodySizeLimit: "12mb",
+    },
   },
   images: {
     remotePatterns: [
