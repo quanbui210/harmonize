@@ -74,7 +74,6 @@ export function LoginForm({
 
       {mode === "employee" ? (
         <form onSubmit={handlePasswordSubmit} className="space-y-3 rounded-lg border p-4">
-          <p className="text-sm font-medium">Employee sign in with Username + Password</p>
           <div className="space-y-2">
             <Label htmlFor="identifier">Username</Label>
             <Input
@@ -111,7 +110,6 @@ export function LoginForm({
         </form>
       ) : (
         <form action={signInAction} className="space-y-4 rounded-lg border p-4" onSubmit={handleSubmit}>
-          <p className="text-sm font-medium">Admin sign in with Google</p>
           <input type="hidden" name="redirectTo" value={redirectTo} />
           <Button
             type="submit"
