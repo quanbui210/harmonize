@@ -28,7 +28,7 @@ export default async function LabelDetailPage({ params }: LabelDetailPageProps) 
   }
 
   const labelData = label.labelData as any as EnhancedLabelData & {
-    productName?: string | { original: string; translations?: { fi?: string; sv?: string } };
+    productName?: string | { original?: string; translations?: Record<string, string | undefined> };
     productCategory?: string;
     complianceResults?: any[];
   };
@@ -36,10 +36,16 @@ export default async function LabelDetailPage({ params }: LabelDetailPageProps) 
   const productCategory = labelData?.productCategory || "food";
 
   // Helper function to extract product name string from object or string
-  const getProductName = (productName: string | { original: string; translations?: { fi?: string; sv?: string } } | undefined): string => {
+  const getProductName = (
+    productName: string | { original?: string; translations?: Record<string, string | undefined> } | undefined,
+  ): string => {
     if (!productName) return "Product Label";
     if (typeof productName === "string") return productName;
-    return productName.original || productName.translations?.fi || productName.translations?.sv || "Product Label";
+    const translatedName = Object.values(productName.translations || {}).find(
+      (value) => typeof value === "string" && value.trim().length > 0,
+    );
+    if (typeof translatedName === "string") return translatedName;
+    return productName.original || "Product Label";
   };
 
   return (

@@ -1,6 +1,6 @@
 /**
- * AI-powered label generator with Finnish/Swedish translation
- * Uses RAG to search regulatory documents for accurate requirements
+ * AI-powered label generator with destination-market translations.
+ * Uses RAG to search regulatory documents for accurate requirements.
  */
 
 import { searchRegulatoryDocuments } from "@/lib/rag/regulatory-search";
@@ -8,6 +8,7 @@ import { getRegulatoryProductType } from "@/lib/regulatory/product-type";
 import type { LabelData } from "./compliance-checker";
 import type { RegulatoryProductType } from "@/lib/regulatory/product-type";
 import { createFeatureOpenAIClient } from "@/lib/langfuse/openai-wrapper";
+import { resolveEUMarketProfile } from "@/lib/labeling/eu-market";
 
 interface ProductData {
   name: string;
@@ -22,6 +23,7 @@ interface ProductData {
   };
   originCountry?: string;
   cnCode?: string;
+  destinationCountry?: string;
 }
 
 /**
@@ -31,6 +33,10 @@ export async function generateCompliantLabel(
   product: ProductData,
   cnCode?: string
 ): Promise<LabelData> {
+  const market = resolveEUMarketProfile(product.destinationCountry);
+  const requiredLocales = market.requiredLocales.length > 0 ? market.requiredLocales : ["en"];
+  const localeList = requiredLocales.join(", ");
+
   // Determine product type from CN code
   const productType = cnCode ? getRegulatoryProductType(cnCode) : "GENERAL";
 
@@ -42,16 +48,17 @@ export async function generateCompliantLabel(
     maxResults: 5,
   });
 
-  const systemPrompt = `You are a food labeling expert specializing in EU and Finnish regulations. 
+  const systemPrompt = `You are a food labeling expert specializing in EU destination-market regulations.
 You must generate a compliant label based on:
 1. Product information provided
 2. Regulatory requirements from Ruokavirasto Guide 17068/2
 3. Regulation (EU) No 1169/2011
 
 CRITICAL RULES:
-- Labels MUST be in Finnish AND Swedish
+- Labels MUST include destination-market required language(s): ${localeList}
+- Finnish + Swedish is required only when destination market is Finland
 - QUID percentages required if ingredient in product name
-- High salt warning (>1.2%) must include "Voimakassuolainen / Kraftigt saltad"
+- High salt warning (>1.2%) should use destination-market required language(s)
 - Allergens must be visually distinct
 - EU importer address required
 - E-codes must include functional class
@@ -78,8 +85,8 @@ Return JSON with this exact structure:
   "productName": {
     "original": "string",
     "translations": {
-      "fi": "Finnish translation",
-      "sv": "Swedish translation"
+      "${requiredLocales[0] || "en"}": "Translation for required locale 1"${requiredLocales[1] ? `,
+      "${requiredLocales[1]}": "Translation for required locale 2"` : ""}
     }
   },
   "ingredients": [
@@ -91,8 +98,8 @@ Return JSON with this exact structure:
       "isAllergen": false,
       "isHighlighted": false,
       "translations": {
-        "fi": "Finnish name",
-        "sv": "Swedish name"
+        "${requiredLocales[0] || "en"}": "Translated name for required locale 1"${requiredLocales[1] ? `,
+        "${requiredLocales[1]}": "Translated name for required locale 2"` : ""}
       }
     }
   ],
@@ -103,8 +110,8 @@ Return JSON with this exact structure:
     "protein": 3.0,
     "salt": 0.5
   },
-  "warnings": ["Voimakassuolainen / Kraftigt saltad"],
-  "importerAddress": "Company Name, Street Address, City, Finland",
+  "warnings": ["Mandatory warning in destination-market required language(s)"],
+  "importerAddress": "Company Name, Street Address, City, ${market.countryName}",
   "bestBeforeDate": "2025-12-31",
   "labelDimensions": {
     "width": 100,
@@ -137,4 +144,3 @@ Return JSON with this exact structure:
     throw new Error("Failed to generate compliant label");
   }
 }
-

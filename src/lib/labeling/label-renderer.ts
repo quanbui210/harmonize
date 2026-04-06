@@ -747,7 +747,7 @@ export function generateLabelSVG(
         svg += `<line x1="${tableX}" y1="${rowY}" x2="${tableX + tableWidth}" y2="${rowY}" stroke="#ccc" stroke-width="1"/>`;
       }
 
-      // Label (left) - Finnish
+      // Label (left) - primary locale
       svg += `<text x="${tableX + 4}" y="${rowY - 6}" font-family="Arial, sans-serif" font-size="${fontSizeSmall}" fill="#000">${escapeXml(row.labelPrimary)}</text>`;
 
       if (row.labelSecondary) {

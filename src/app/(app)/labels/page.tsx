@@ -27,28 +27,34 @@ export default async function LabelsPage() {
     take: 50,
   });
 
+  const getAnyTranslation = (value: unknown): string | null => {
+    if (!value || typeof value !== "object") return null;
+    const translations = value as Record<string, unknown>;
+    const first = Object.values(translations).find(
+      (entry) => typeof entry === "string" && entry.trim().length > 0,
+    );
+    return typeof first === "string" ? first : null;
+  };
+
   const getProductName = (labelData: any): string => {
     if (!labelData?.productName) return "Unnamed Product";
     if (typeof labelData.productName === "string") {
       return labelData.productName;
     }
     if (typeof labelData.productName !== "object") return "Unnamed Product";
-    
-    // Handle {original, translations: {fi, sv}}
+
     if (labelData.productName.translations && typeof labelData.productName.translations === "object") {
-      const trans = labelData.productName.translations;
-      if (typeof trans.fi === "string") return trans.fi;
-      if (typeof trans.sv === "string") return trans.sv;
+      const translatedName = getAnyTranslation(labelData.productName.translations);
+      if (translatedName) return translatedName;
       if (typeof labelData.productName.original === "string") return labelData.productName.original;
     }
-    
-    // Handle direct {fi, sv} structure
-    if (typeof labelData.productName.fi === "string") return labelData.productName.fi;
-    if (typeof labelData.productName.sv === "string") return labelData.productName.sv;
-    
+
+    const directLocalizedName = getAnyTranslation(labelData.productName);
+    if (directLocalizedName) return directLocalizedName;
+
     // Final fallback
     if (typeof labelData.productName.original === "string") return labelData.productName.original;
-    
+
     return "Unnamed Product";
   };
 
@@ -96,7 +102,7 @@ export default async function LabelsPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {labels.map((label) => {
             const labelData = label.labelData as unknown as EnhancedLabelData & {
-              productName?: string | { original: string; translations?: { fi?: string; sv?: string } };
+              productName?: string | { original?: string; translations?: Record<string, string | undefined> };
               productCategory?: string;
             };
             const productName = getProductName(labelData);

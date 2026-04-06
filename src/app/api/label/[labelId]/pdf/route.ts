@@ -81,11 +81,16 @@ export async function GET(
       if (typeof productName === "string") return productName;
       if (typeof productName !== "object") return "Product";
       if (productName.translations && typeof productName.translations === "object") {
-        const trans = productName.translations;
-        if (typeof trans.fi === "string") return trans.fi;
-        if (typeof trans.sv === "string") return trans.sv;
+        const firstTranslation = Object.values(productName.translations).find(
+          (value) => typeof value === "string" && value.trim().length > 0,
+        );
+        if (typeof firstTranslation === "string") return firstTranslation;
         if (typeof productName.original === "string") return productName.original;
       }
+      const directTranslation = Object.values(productName).find(
+        (value) => typeof value === "string" && value.trim().length > 0,
+      );
+      if (typeof directTranslation === "string") return directTranslation;
       if (typeof productName.original === "string") return productName.original;
       return "Product";
     }

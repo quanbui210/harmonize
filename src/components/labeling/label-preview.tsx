@@ -69,6 +69,24 @@ function parseEnergyKcal(value: unknown): number {
   return parseNutritionNumber(normalized);
 }
 
+function getLocalizedText(value: unknown, locales: string[]): string {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object") return "";
+
+  const localeMap = value as Record<string, unknown>;
+  for (const locale of locales) {
+    const candidate = localeMap[locale];
+    if (typeof candidate === "string" && candidate.trim().length > 0) {
+      return candidate.trim();
+    }
+  }
+
+  const fallback = Object.values(localeMap).find(
+    (candidate) => typeof candidate === "string" && candidate.trim().length > 0,
+  );
+  return typeof fallback === "string" ? fallback.trim() : "";
+}
+
 export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) {
   const width = labelData.labelDimensions?.width || 100;
   const height = labelData.labelDimensions?.height || 150;
@@ -90,6 +108,10 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
     : getRenderLocales(requiredLocales);
   const primaryLocale = renderLocales[0] || "en";
   const secondaryLocale = renderLocales[1];
+  const warningTexts = (Array.isArray(labelData.warnings) ? labelData.warnings : [])
+    .map((warning) => getLocalizedText(warning, renderLocales))
+    .filter((warning) => warning.length > 0);
+  const storageInstructionText = getLocalizedText(labelData.storageInstructions, renderLocales);
 
   return (
     <div
@@ -127,7 +149,7 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
                     : "Ingredient";
 
               return (
-                <span key={`fi-${idx}`}>
+                <span key={`primary-${idx}`}>
                   <span className={ing.isAllergen ? "font-bold text-red-700" : ""}>
                     {ingNamePrimary}
                     {ing.percentage != null ? ` (${ing.percentage}%)` : ""}
@@ -167,9 +189,9 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
       )}
 
       {/* Warnings */}
-      {labelData.warnings && labelData.warnings.length > 0 && (
+      {warningTexts.length > 0 && (
         <div className="mb-3">
-          {labelData.warnings.map((warning, idx) => (
+          {warningTexts.map((warning, idx) => (
             <div
               key={idx}
               className="border-2 border-black p-2 mb-2 font-bold uppercase text-sm"
@@ -265,9 +287,9 @@ export function LabelPreview({ labelData, productCategory }: LabelPreviewProps) 
       </div>
 
       {/* Storage Instructions */}
-      {labelData.storageInstructions && (
+      {storageInstructionText && (
         <div className="text-sm">
-          <span className="font-medium">{getLabelText(renderLocales, "storage")}:</span> {labelData.storageInstructions}
+          <span className="font-medium">{getLabelText(renderLocales, "storage")}:</span> {storageInstructionText}
         </div>
       )}
     </div>

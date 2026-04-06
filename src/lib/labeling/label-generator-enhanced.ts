@@ -309,7 +309,7 @@ Return JSON with this exact structure:
     "salt": 0.5
   },
   "warnings": ["Market-appropriate mandatory warnings in required locales"],
-  "importerAddress": "Company Name, Street Address, City, Finland",
+  "importerAddress": "Company Name, Street Address, City, ${market.countryName}",
   "manufacturerAddress": "Original manufacturer address from label (optional)",
   "bestBeforeDate": "2025-12-31",
   "batchNumber": "LOT12345",

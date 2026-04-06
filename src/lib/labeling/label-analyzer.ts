@@ -80,6 +80,7 @@ export async function analyzeLabel(
   const systemPrompt = `You are an expert EU regulatory compliance analyst. Your job is to analyze an original product label (possibly from a non-EU country like Vietnam) and compare it against destination-market mandatory requirements.
 
 CRITICAL: You must ONLY identify fields that are EXPLICITLY required in the regulatory context provided. Do NOT hallucinate requirements.
+CRITICAL: Language requirements are destination-specific. Do not assume Finnish/Swedish by default. Require Finnish + Swedish only when destination market is Finland.
 
 For each missing field, provide:
 1. Field ID (e.g., "nutrition_energy", "importer_address")
@@ -141,6 +142,7 @@ Identify:
 2. What mandatory fields are MISSING (compare against regulatory requirements)
 3. Generate user-friendly questions for missing fields
 4. Calculate completeness score (0-100)
+5. Apply language obligations only for the destination market provided
 
 Return JSON only.`;
 
@@ -302,7 +304,7 @@ export function getRequiredFieldsTemplate(productCategory: string): MissingField
         question: "What is the EU importer's full address?",
         inputType: "textarea",
         placeholder: "Company Name, Street, City, Country",
-        regulatorySource: "Finnish Product Safety Act 184/2025",
+        regulatorySource: "EU 2023/988 (GPSR)",
       },
     ],
     toys: [
@@ -334,7 +336,7 @@ export function getRequiredFieldsTemplate(productCategory: string): MissingField
         question: "What is the EU importer's full address?",
         inputType: "textarea",
         placeholder: "Company Name, Street, City, Country",
-        regulatorySource: "Finnish Product Safety Act 184/2025",
+        regulatorySource: "EU 2023/988 (GPSR)",
       },
     ],
   };
