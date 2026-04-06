@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 
 interface UploadedImage {
   id: string;
+  uploadedImageId?: string;
   file: File;
   preview: string;
   extractedData?: {
@@ -100,6 +101,7 @@ export function ProductScanSection({
             img.id === image.id
               ? {
                   ...img,
+                  uploadedImageId: result.imageId,
                   extractedData,
                   isProcessing: false,
                 }
@@ -176,6 +178,10 @@ export function ProductScanSection({
 
     setClassificationError(null);
     try {
+      const imageIds = images
+        .map((img) => img.uploadedImageId)
+        .filter((id): id is string => Boolean(id));
+
       const payloadKey = `classify_scan_${Date.now()}_${Math.random().toString(36).slice(2)}`;
       if (typeof window !== "undefined") {
         window.sessionStorage.setItem(
@@ -194,6 +200,7 @@ export function ProductScanSection({
               material: m.name,
               percentage: m.percentage || 0,
             })),
+            imageIds,
             market: selectedMarket,
           }),
         );

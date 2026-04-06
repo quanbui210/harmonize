@@ -165,6 +165,9 @@ export default function NewLabelPage() {
   
   const router = useRouter();
   const searchParams = useSearchParams();
+  const classificationIdParam = searchParams.get("classificationId");
+  const labelGenerationErrorParam = searchParams.get("labelGenerationError");
+  const labelGenerationResultKeyParam = searchParams.get("labelGenerationResultKey");
 
   const isPending = isNavigatingToGenerate;
 
@@ -436,7 +439,7 @@ export default function NewLabelPage() {
     return next;
   };
 
-  // Load classifications and handle query param on mount
+  // Load classifications and handle classification query param.
   useEffect(() => {
     const loadClassifications = async () => {
       setIsLoadingClassifications(true);
@@ -445,7 +448,6 @@ export default function NewLabelPage() {
         setClassifications(data);
         
         // Check if classificationId is in query params
-        const classificationIdParam = searchParams.get("classificationId");
         if (classificationIdParam) {
           setSelectedClassificationId(classificationIdParam);
           // Load and pre-fill classification data
@@ -470,24 +472,22 @@ export default function NewLabelPage() {
     };
     
     loadClassifications();
-  }, [searchParams]);
+  }, [classificationIdParam]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const labelGenerationError = searchParams.get("labelGenerationError");
-    if (labelGenerationError) {
+    if (labelGenerationErrorParam) {
       setIsNavigatingToGenerate(false);
-      setError(decodeURIComponent(labelGenerationError));
+      setError(decodeURIComponent(labelGenerationErrorParam));
       router.replace("/labels/new");
       return;
     }
 
-    const generationResultKey = searchParams.get("labelGenerationResultKey");
-    if (!generationResultKey) return;
+    if (!labelGenerationResultKeyParam) return;
 
-    const rawResult = window.sessionStorage.getItem(generationResultKey);
-    window.sessionStorage.removeItem(generationResultKey);
+    const rawResult = window.sessionStorage.getItem(labelGenerationResultKeyParam);
+    window.sessionStorage.removeItem(labelGenerationResultKeyParam);
     setIsNavigatingToGenerate(false);
 
     if (!rawResult) {
@@ -517,7 +517,7 @@ export default function NewLabelPage() {
     } finally {
       router.replace("/labels/new");
     }
-  }, [router, searchParams]);
+  }, [labelGenerationErrorParam, labelGenerationResultKeyParam, router]);
 
   const handleClassificationChange = async (classificationId: string) => {
     setSelectedClassificationId(classificationId);
@@ -704,12 +704,22 @@ export default function NewLabelPage() {
           JSON.stringify({
             form,
             missingFieldsData,
+            classificationId:
+              selectedClassificationId && selectedClassificationId !== "none"
+                ? selectedClassificationId
+                : null,
           }),
         );
       }
 
       setIsNavigatingToGenerate(true);
-      router.push(`/labels/loading?payloadKey=${encodeURIComponent(payloadKey)}`);
+      const params = new URLSearchParams({
+        payloadKey,
+      });
+      if (selectedClassificationId && selectedClassificationId !== "none") {
+        params.set("classificationId", selectedClassificationId);
+      }
+      router.push(`/labels/loading?${params.toString()}`);
     } catch (err: any) {
       setError(err?.message || "Failed to generate label");
     }
@@ -1200,16 +1210,25 @@ export default function NewLabelPage() {
               </p>
             </div>
 
-            {/* {selectedClassificationId && selectedClassificationId !== "none" && (
-              <ProductImageSelector
-                classificationId={selectedClassificationId}
-                onImageSelected={handleLabelTextExtracted}
-                disabled={isPending || isAnalyzing}
-              />
-            )} */}
+            {selectedClassificationId && selectedClassificationId !== "none" && (
+              <div className="space-y-2 rounded-md border bg-muted/20 p-3">
+                <p className="text-xs font-medium text-foreground">
+                  Option 1: Reuse a classification image
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Select an existing product image, then click <strong>Use Existing Image</strong> to re-analyze and auto-fill label fields.
+                </p>
+                <ProductImageSelector
+                  classificationId={selectedClassificationId}
+                  onImageSelected={handleLabelTextExtracted}
+                  autoSelectLatest
+                  disabled={isPending || isAnalyzing}
+                />
+              </div>
+            )}
 
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Upload Label Image</Label>
+              <Label className="text-sm font-medium">Option 2: Upload Label Image</Label>
               <p className="text-xs text-muted-foreground">
                 {selectedClassificationId && selectedClassificationId !== "none"
                   ? "Or upload a new label image. The clearer the text and data visible in the image, the better the extraction results will be."

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import Link from "next/link";
+import Image from "next/image";
 import { CheckCircle2, FileText, AlertTriangle, Plus, Waypoints, Info } from "lucide-react";
 import { getRegulatoryProductType } from "@/lib/regulatory/product-type";
 import { DeleteClassificationButton } from "@/components/classification/delete-classification-button";
@@ -14,6 +15,7 @@ import { ImportGuidanceSection } from "@/components/classification/import-guidan
 import { AlternativeClassifications } from "@/components/classification/alternative-classifications";
 import { BtiDefenseCard } from "@/components/classification/bti-defense-card";
 import { ReactElement, JSXElementConstructor, ReactNode, ReactPortal, AwaitedReactNode, Key } from "react";
+import { getSupabaseAdminClient } from "@/lib/supabase/server";
 
 type Props = {
   params: { classificationId: string };
@@ -88,6 +90,12 @@ export default async function ClassificationDetailPage({ params }: Props) {
       product: {
         include: {
           materials: true,
+          images: {
+            orderBy: {
+              createdAt: "desc",
+            },
+            take: 1,
+          },
         },
       },
       sources: true,
@@ -140,6 +148,16 @@ export default async function ClassificationDetailPage({ params }: Props) {
     productMeta && typeof productMeta.compositionText === "string"
       ? productMeta.compositionText
       : undefined;
+
+  let productImageSignedUrl: string | null = null;
+  const primaryImage = classification.product.images?.[0];
+  if (primaryImage?.storagePath) {
+    const supabase = getSupabaseAdminClient();
+    const { data } = await supabase.storage
+      .from("product-images")
+      .createSignedUrl(primaryImage.storagePath, 3600);
+    productImageSignedUrl = data?.signedUrl || null;
+  }
 
   // Parse stored legal rationale data
   const distinctions = (classification.distinctions as Array<{ heading: string; reason: string }>) || [];
@@ -200,6 +218,17 @@ export default async function ClassificationDetailPage({ params }: Props) {
             )}
           </div>
         </div>
+        {productImageSignedUrl ? (
+          <div className="ml-4 h-24 w-24 shrink-0 overflow-hidden rounded-lg border bg-muted">
+            <Image
+              src={productImageSignedUrl}
+              alt={getProductNameString(classification.product.name)}
+              width={96}
+              height={96}
+              className="h-full w-full object-cover"
+            />
+          </div>
+        ) : null}
         <div className="flex items-center gap-2">
           <Button variant="outline" asChild>
             <Link href="/classify">Back to Search</Link>

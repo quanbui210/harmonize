@@ -35,6 +35,7 @@ export default function LabelLoadingPage() {
   const hasStartedRef = useRef(false);
 
   const payloadKey = searchParams.get("payloadKey");
+  const classificationId = searchParams.get("classificationId");
 
   useEffect(() => {
     if (hasStartedRef.current) return;
@@ -58,8 +59,10 @@ export default function LabelLoadingPage() {
         const payload = JSON.parse(payloadRaw) as {
           form: any;
           missingFieldsData: Record<string, string | number>;
+          classificationId?: string | null;
         };
         const { form, missingFieldsData } = payload;
+        const effectiveClassificationId = payload.classificationId || classificationId || null;
 
         const mergedNutrition = { ...(form.nutrition || {}) };
         if (missingFieldsData?.nutrition_energy !== undefined) {
@@ -117,16 +120,28 @@ export default function LabelLoadingPage() {
           }),
         );
 
-        router.replace(`/labels/new?labelGenerationResultKey=${encodeURIComponent(resultKey)}`);
+        const nextParams = new URLSearchParams({
+          labelGenerationResultKey: resultKey,
+        });
+        if (effectiveClassificationId) {
+          nextParams.set("classificationId", effectiveClassificationId);
+        }
+        router.replace(`/labels/new?${nextParams.toString()}`);
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to generate label. Please try again.";
-        router.replace(`/labels/new?labelGenerationError=${encodeURIComponent(message)}`);
+        const errorParams = new URLSearchParams({
+          labelGenerationError: message,
+        });
+        if (classificationId) {
+          errorParams.set("classificationId", classificationId);
+        }
+        router.replace(`/labels/new?${errorParams.toString()}`);
       }
     };
 
     void run();
-  }, [payloadKey, router]);
+  }, [classificationId, payloadKey, router]);
 
   return (
     <LoadingScreen

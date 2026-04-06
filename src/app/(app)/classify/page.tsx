@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowLeft, FileText, CheckCircle2, AlertTriangle } from "lucide-react";
 import { ClassificationSearchForm } from "@/components/classification/classification-search-form";
 import { Prisma } from "@prisma/client";
@@ -32,6 +33,7 @@ import {
 import { DeleteClassificationButton } from "@/components/classification/delete-classification-button";
 import { CodeDisplay } from "@/components/classification/code-display";
 import { ClassificationPageSearch } from "@/components/classification/classification-page-search";
+import { getSupabaseAdminClient } from "@/lib/supabase/server";
 
 function digitsOnly(value: string | null | undefined): string {
   return (value || "").replace(/\D/g, "");
@@ -52,7 +54,11 @@ type ClassifyPageProps = {
 
 type ClassificationRow = Prisma.ClassificationGetPayload<{
   include: {
-    product: true;
+    product: {
+      include: {
+        images: true;
+      };
+    };
     dossier: true;
     dutySummary: true;
   };
@@ -121,7 +127,16 @@ export default async function ClassifyPage({ searchParams }: ClassifyPageProps) 
           : {}),
       },
       include: {
-        product: true,
+        product: {
+          include: {
+            images: {
+              orderBy: {
+                createdAt: "desc",
+              },
+              take: 1,
+            },
+          },
+        },
         dossier: true,
         dutySummary: true,
       },
@@ -134,6 +149,24 @@ export default async function ClassifyPage({ searchParams }: ClassifyPageProps) 
     loadError =
       "Database is temporarily busy (connection pool limit). Please retry shortly.";
   }
+
+  const supabase = getSupabaseAdminClient();
+  const productImageUrls = new Map<string, string>();
+
+  await Promise.all(
+    classifications.map(async (item) => {
+      const firstImage = item.product?.images?.[0];
+      if (!firstImage?.storagePath) return;
+
+      const { data } = await supabase.storage
+        .from("product-images")
+        .createSignedUrl(firstImage.storagePath, 3600);
+
+      if (data?.signedUrl) {
+        productImageUrls.set(item.id, data.signedUrl);
+      }
+    }),
+  );
 
   return (
     <div className="container mx-auto max-w-7xl space-y-8 py-8">
@@ -231,22 +264,37 @@ export default async function ClassifyPage({ searchParams }: ClassifyPageProps) 
                   >
                     <TableCell className="max-w-[200px] md:max-w-[300px] lg:max-w-[400px]">
                       <Link href={`/classify/${item.id}`} className="block">
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex items-center gap-3">
+                          <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md border bg-muted">
+                            {productImageUrls.get(item.id) ? (
+                              <Image
+                                src={productImageUrls.get(item.id)!}
+                                alt={item.product?.name ?? "Product image"}
+                                width={48}
+                                height={48}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="h-full w-full" />
+                            )}
+                          </div>
                           <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <p className="font-medium truncate cursor-help">
-                                  {item.product?.name ?? "Untitled Product"}
-                                </p>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p className="max-w-xs">{item.product?.name ?? "Untitled Product"}</p>
-                              </TooltipContent>
-                            </Tooltip>
+                            <div className="min-w-0">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <p className="font-medium truncate cursor-help">
+                                    {item.product?.name ?? "Untitled Product"}
+                                  </p>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="max-w-xs">{item.product?.name ?? "Untitled Product"}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {String(item.product?.id ?? "")}
+                              </p>
+                            </div>
                           </TooltipProvider>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {String(item.product?.id ?? "")}
-                          </p>
                         </div>
                       </Link>
                     </TableCell>

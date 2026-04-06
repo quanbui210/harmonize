@@ -293,6 +293,7 @@ export async function searchAndClassifyAction(input: {
   compositionText?: string;
   originCountry?: string;
   destinationCountry?: string;
+  imageIds?: string[];
   market: MarketCode;
 }) {
   const user = await requireAuthenticatedUser();
@@ -676,6 +677,19 @@ export async function searchAndClassifyAction(input: {
         : {}),
     },
   });
+
+  if (Array.isArray(input.imageIds) && input.imageIds.length > 0) {
+    await prisma.productImage.updateMany({
+      where: {
+        id: { in: input.imageIds },
+        organizationId: membership.organizationId,
+        uploadedById: user.id,
+      },
+      data: {
+        productId: product.id,
+      },
+    });
+  }
 
   const classification = await prisma.classification.create({
     data: {

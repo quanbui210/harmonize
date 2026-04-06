@@ -10,6 +10,7 @@ import { marked } from "marked";
 import { createAuditLogEntry } from "@/server/actions/audit-log";
 import { getCNCodeDescription } from "@/server/actions/cn-descriptions";
 import { MarketCode } from "@prisma/client";
+import { revalidatePath } from "next/cache";
 
 // Configure marked for safe rendering
 marked.setOptions({
@@ -222,6 +223,14 @@ export async function generateDossierAction(input: {
       sha256,
     },
   });
+
+  // Refresh cached server routes that render dossier status badges/buttons.
+  revalidatePath("/classify");
+  revalidatePath(`/classify/${classification.id}`);
+  revalidatePath(`/classify/${classification.id}/dossier`);
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/missing-dossiers");
+  revalidatePath("/dossiers");
 
   // Log audit entry
   await createAuditLogEntry({

@@ -672,10 +672,116 @@ export async function getProductImagesForClassificationAction(classificationId: 
         id: image.id,
         url: data?.signedUrl || null,
         ocrText: image.ocrText,
+        extractedData: image.extractedData,
         createdAt: image.createdAt,
       };
     })
   );
 
   return imagesWithUrls.filter((img) => img.url !== null);
+}
+
+export interface ValidateImageSuitabilityInput {
+  ocrText?: string | null;
+  extractedData?: unknown;
+}
+
+export interface ValidateImageSuitabilityResult {
+  isValid: boolean;
+  category: "LABEL" | "PRODUCT" | "UNRELATED" | "UNCLEAR";
+  confidence: number;
+  reason: string;
+}
+
+export async function validateImageSuitabilityAction(
+  input: ValidateImageSuitabilityInput
+): Promise<ValidateImageSuitabilityResult> {
+  await requireAuthenticatedUser();
+
+  const normalizedOcr = (input.ocrText || "").trim();
+  const extractedDataText =
+    input.extractedData && typeof input.extractedData === "object"
+      ? JSON.stringify(input.extractedData).slice(0, 4000)
+      : "";
+
+  if (!normalizedOcr && !extractedDataText) {
+    return {
+      isValid: false,
+      category: "UNCLEAR",
+      confidence: 0,
+      reason: "No OCR or extracted product data available to validate image suitability.",
+    };
+  }
+
+  const openai = createFeatureOpenAIClient("Label Image Suitability Validation");
+  const response = await openai.chat.completions.create({
+    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    temperature: 0,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You validate whether an image is suitable for product label generation. " +
+          "Accept images that appear to contain product packaging, product label text, ingredients, nutrition, or compliance-relevant product data. " +
+          "Reject clearly unrelated content (people/selfies, landscapes, invoices, random documents, screenshots with no product context). " +
+          "Return strict JSON only.",
+      },
+      {
+        role: "user",
+        content: `Classify this image context.
+
+OCR text:
+${normalizedOcr || "(empty)"}
+
+Extracted data:
+${extractedDataText || "(empty)"}
+
+Return JSON exactly:
+{
+  "isValid": true,
+  "category": "LABEL",
+  "confidence": 0.0,
+  "reason": "short reason"
+}
+
+Rules:
+- category must be one of: LABEL, PRODUCT, UNRELATED, UNCLEAR
+- confidence is 0..1
+- If unclear, set isValid=false unless there are strong product/label clues`,
+      },
+    ],
+  });
+
+  const raw = response.choices[0]?.message?.content?.trim() || "";
+  const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+
+  try {
+    const parsed = JSON.parse(cleaned) as Partial<ValidateImageSuitabilityResult>;
+    const category = ["LABEL", "PRODUCT", "UNRELATED", "UNCLEAR"].includes(String(parsed.category))
+      ? (parsed.category as ValidateImageSuitabilityResult["category"])
+      : "UNCLEAR";
+    const confidenceNumber = Number(parsed.confidence);
+    const confidence = Number.isFinite(confidenceNumber)
+      ? Math.min(1, Math.max(0, confidenceNumber))
+      : 0;
+    const reason = String(parsed.reason || "AI validation did not provide details.");
+    const isValid =
+      typeof parsed.isValid === "boolean"
+        ? parsed.isValid
+        : category === "LABEL" || category === "PRODUCT";
+
+    return {
+      isValid,
+      category,
+      confidence,
+      reason,
+    };
+  } catch {
+    return {
+      isValid: normalizedOcr.length > 30,
+      category: normalizedOcr.length > 30 ? "PRODUCT" : "UNCLEAR",
+      confidence: normalizedOcr.length > 30 ? 0.55 : 0.2,
+      reason: "Fallback validation used because AI response was not parseable JSON.",
+    };
+  }
 }
