@@ -26,9 +26,7 @@ interface ProductData {
   destinationCountry?: string;
 }
 
-/**
- * Generate compliant label using AI + RAG
- */
+
 export async function generateCompliantLabel(
   product: ProductData,
   cnCode?: string
@@ -37,10 +35,8 @@ export async function generateCompliantLabel(
   const requiredLocales = market.requiredLocales.length > 0 ? market.requiredLocales : ["en"];
   const localeList = requiredLocales.join(", ");
 
-  // Determine product type from CN code
   const productType = cnCode ? getRegulatoryProductType(cnCode) : "GENERAL";
 
-  // Search regulatory documents for relevant requirements
   const regulatoryChunks = await searchRegulatoryDocuments({
     productType,
     query: `Labeling requirements for ${product.name}. Ingredients: ${product.originalIngredients || "not specified"}`,
