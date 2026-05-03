@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -22,10 +22,11 @@ import {
   UserCircle2,
 } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
+import Svg, { Circle } from 'react-native-svg';
 import { ApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/AuthProvider';
+import { BrandMark } from '@/components/BrandMark';
 import { lightTheme } from '@/constants/mobile-theme';
-import { formatClassificationCode, getPreferredClassificationCode } from '@/lib/classification-code';
 
 const { colors, radius } = lightTheme;
 
@@ -37,36 +38,17 @@ export default function DashboardScreen() {
     queryKey: ['me'],
     queryFn: () => ApiClient.getMe(),
     enabled: !!user,
+    staleTime: 5 * 60_000,
   });
   const dashboardQuery = useQuery({
     queryKey: ['dashboard'],
     queryFn: () => ApiClient.getDashboard(),
     enabled: !!user,
+    staleTime: 45_000,
   });
 
   const isRefreshing = dashboardQuery.isRefetching || meQuery.isRefetching;
   const overview = dashboardQuery.data;
-  const metricCards = useMemo(
-    () => [
-      {
-        label: 'Saved results',
-        value: (overview?.approvedCount ?? 0) + (overview?.pendingCount ?? 0),
-        tone: colors.surface,
-      },
-      {
-        label: 'Pending items',
-        value: overview?.missingReasonings ?? 0,
-        tone: colors.warningSoft,
-      },
-      {
-        label: 'Labels',
-        value: overview?.totalLabels ?? 0,
-        tone: colors.surface,
-      },
-    ],
-    [overview],
-  );
-
   if (authLoading || !user) {
     return (
       <SafeAreaView style={styles.centered}>
@@ -75,14 +57,13 @@ export default function DashboardScreen() {
     );
   }
 
-  const firstActionItem = overview?.actionItems?.[0];
   const readiness = overview?.auditReadinessScore ?? 0;
-  const readinessState = getReadinessState(readiness, overview?.missingReasonings ?? 0);
   const identityName = meQuery.data?.organization.name || meQuery.data?.user.name || 'TulliCheck';
   const totalSavedResults = (overview?.approvedCount ?? 0) + (overview?.pendingCount ?? 0);
 
   return (
     <SafeAreaView style={styles.screen}>
+      <GridBackdrop />
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -99,11 +80,9 @@ export default function DashboardScreen() {
       >
         <View style={styles.headerCard}>
           <View style={styles.headerIdentity}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{getInitials(identityName)}</Text>
-            </View>
+            <BrandMark size={46} />
             <View style={styles.headerCopy}>
-              <Text style={styles.welcomeText}>Welcome back</Text>
+              <Text style={styles.welcomeText}>TulliCheck</Text>
               <Text style={styles.workspace}>{meQuery.data?.organization.name ?? 'Workspace'}</Text>
             </View>
           </View>
@@ -114,133 +93,51 @@ export default function DashboardScreen() {
 
         <View style={styles.scoreCard}>
           <Text style={styles.scoreLabel}>Audit readiness</Text>
-          <View style={styles.scoreRowTop}>
-            <View style={styles.scoreHeadline}>
-              <Text style={styles.scoreHeadlineTitle}>Coverage overview</Text>
-              <Text style={styles.scoreHeadlineText}>
-                {overview?.approvedCount ?? 0} of {totalSavedResults} saved results are fully covered
-              </Text>
-            </View>
-            <View style={[styles.scoreStatusPill, { backgroundColor: readinessState.pillColor }]}>
-              <Text style={styles.scoreStatusText}>{readinessState.label}</Text>
-            </View>
-          </View>
-          <View style={styles.scoreRow}>
-            <View style={styles.scoreRing}>
-              <View style={styles.scoreRingInner}>
-                <Text style={styles.scoreRingValue}>{readiness}%</Text>
-                <Text style={styles.scoreRingLabel}>{readinessState.shortLabel}</Text>
-              </View>
-            </View>
-            <View style={styles.scoreCopy}>
-              <Bullet text={`${overview?.approvedCount ?? 0} dossiers ready`} />
-              <Bullet text={`${overview?.pendingCount ?? 0} saved results`} />
-              <Bullet text={readinessState.description} muted />
-            </View>
-          </View>
+          <AuditProgressRing progress={readiness} size={214} strokeWidth={10} />
         </View>
 
         <View style={styles.primaryActionGrid}>
           <ActionTile
             title="New Scan"
-            description="Classify a product from the package."
             icon={<ScanSearch color="#FFFFFF" size={19} />}
             dark
             onPress={() => router.push('/scan')}
           />
           <ActionTile
             title="New Label"
-            description="Start from an original label photo."
-            icon={<FileBadge2 color={colors.text} size={19} />}
+            icon={<FileBadge2 color={colors.text} size={16} />}
             onPress={() => router.push('/scan/label')}
           />
         </View>
 
-        <View style={styles.summaryGrid}>
-          {metricCards.map((card) => (
-            <View key={card.label} style={[styles.summaryCard, { backgroundColor: card.tone }]}>
-              <Text style={styles.summaryLabel}>{card.label}</Text>
-              <Text style={styles.summaryValue}>{card.value}</Text>
-            </View>
-          ))}
+        <View style={styles.summaryLines}>
+          <SummaryLine label="Saved Results" value={totalSavedResults} />
+          <SummaryLine label="Active Labels" value={overview?.totalLabels ?? 0} />
+          <SummaryLine label="Pending Reviews" value={overview?.missingReasonings ?? 0} />
+          <SummaryLine label="Dossiers" value={overview?.approvedCount ?? 0} />
         </View>
 
-        {overview?.missingReasonings ? (
-          <Pressable
-            style={styles.actionCard}
-            onPress={() => router.push('/library?section=classifications')}
-          >
-            <Text style={styles.actionEyebrow}>Pending completion</Text>
-            <Text style={styles.actionCardTitle}>{overview.missingReasonings} items can be strengthened</Text>
-            <Text style={styles.actionCardText}>
-              Review the saved results that still need a clarification or dossier.
-            </Text>
-            <Text style={styles.actionCardLink}>Review now</Text>
-          </Pressable>
-        ) : null}
-
-        <SectionHeader
-          title="Recent activity"
-          actionLabel="View all"
-          onPress={() => router.push('/library?section=classifications')}
-        />
+        <SectionHeader title="Quick menu" />
         <View style={styles.sectionCard}>
-          {dashboardQuery.isLoading ? (
-            <ActivityIndicator color={colors.primary} />
-          ) : overview?.actionItems?.length ? (
-            overview.actionItems.slice(0, 4).map((item: any) => {
-              const tone = getActivityTone(item);
-              return (
-                <Pressable
-                  key={item.id}
-                  style={styles.listRow}
-                  onPress={() => {
-                    const id = String(item.id ?? '');
-                    if (!id) return;
-                    router.push(`/classifications/${id}` as never);
-                  }}
-                >
-                  <View style={styles.listDotWrap}>
-                    <View style={[styles.listDot, tone.dotStyle]} />
-                  </View>
-                  <View style={styles.listCopy}>
-                    <Text style={styles.listTitle}>{item.product?.name ?? 'Untitled product'}</Text>
-                    <Text style={styles.listSubtitle}>
-                      {formatClassificationCode(
-                        getPreferredClassificationCode({
-                          cnCode: item.cnCode,
-                          htsCode: item.htsCode,
-                          hsCode: item.hsCode,
-                        }),
-                      ) || 'Classification pending'}
-                    </Text>
-                  </View>
-                  <View style={[styles.listTag, tone.tagStyle]}>
-                    <Text style={[styles.listTagText, tone.tagTextStyle]}>{tone.label}</Text>
-                  </View>
-                </Pressable>
-              );
-            })
-          ) : (
-            <Text style={styles.emptyText}>No recent activity yet.</Text>
-          )}
+          <QuickMenuItem
+            icon={<Files color={colors.text} size={16} />}
+            label="Classifications"
+            subtitle="Open all saved classification results"
+            onPress={() => router.push('/library?section=classifications')}
+          />
+          <QuickMenuItem
+            icon={<FileBadge2 color={colors.text} size={16} />}
+            label="Labels"
+            subtitle="Open generated and saved labels"
+            onPress={() => router.push('/library?section=labels')}
+          />
+          <QuickMenuItem
+            icon={<FileCheck2 color={colors.text} size={16} />}
+            label="Dossiers"
+            subtitle="Open dossiers ready for review"
+            onPress={() => router.push('/library?section=dossiers')}
+          />
         </View>
-
-        <Pressable
-          style={styles.footerLink}
-          onPress={() => {
-            if (firstActionItem?.id) {
-              router.push(`/classifications/${String(firstActionItem.id)}` as never);
-              return;
-            }
-            router.push('/scan');
-          }}
-        >
-          <Text style={styles.footerLinkText}>
-            {firstActionItem?.id ? 'Open latest result' : 'Run your first scan'}
-          </Text>
-          <ChevronRight color={colors.text} size={16} />
-        </Pressable>
       </ScrollView>
 
       <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
@@ -336,13 +233,11 @@ function SectionHeader({
 
 function ActionTile({
   title,
-  description,
   icon,
   dark,
   onPress,
 }: {
   title: string;
-  description: string;
   icon: ReactNode;
   dark?: boolean;
   onPress: () => void;
@@ -351,7 +246,6 @@ function ActionTile({
     <Pressable style={[styles.actionTile, dark && styles.actionTileDark]} onPress={onPress}>
       <View style={[styles.actionIcon, dark && styles.actionIconDark]}>{icon}</View>
       <Text style={[styles.actionTitle, dark && styles.actionTitleDark]}>{title}</Text>
-      <Text style={[styles.actionTileText, dark && styles.actionTileTextDark]}>{description}</Text>
     </Pressable>
   );
 }
@@ -374,12 +268,82 @@ function MenuItem({
   );
 }
 
-function Bullet({ text, muted }: { text: string; muted?: boolean }) {
+function SummaryLine({ label, value }: { label: string; value: number }) {
   return (
-    <View style={styles.bulletRow}>
-      <View style={[styles.bulletDot, muted ? styles.bulletDotMuted : styles.bulletDotDefault]} />
-      <Text style={[styles.bulletText, muted && styles.bulletTextMuted]}>{text}</Text>
+    <View style={styles.summaryLine}>
+      <Text style={styles.summaryLineLabel}>{label}</Text>
+      <Text style={styles.summaryLineValue}>{value.toLocaleString()}</Text>
     </View>
+  );
+}
+
+function AuditProgressRing({
+  progress,
+  size,
+  strokeWidth,
+}: {
+  progress: number;
+  size: number;
+  strokeWidth: number;
+}) {
+  const normalized = Math.max(0, Math.min(100, Number.isFinite(progress) ? progress : 0));
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const dashOffset = circumference * (1 - normalized / 100);
+
+  return (
+    <View style={[styles.scoreRingMinimal, { width: size, height: size, borderRadius: size / 2 }]}>
+      <Svg width={size} height={size}>
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke="#DFE7F4"
+          strokeWidth={strokeWidth}
+          fill="transparent"
+        />
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke="#0B0F17"
+          strokeWidth={strokeWidth}
+          fill="transparent"
+          strokeDasharray={`${circumference} ${circumference}`}
+          strokeDashoffset={dashOffset}
+          strokeLinecap="round"
+          originX={size / 2}
+          originY={size / 2}
+          rotation={-90}
+        />
+      </Svg>
+      <View style={styles.scoreRingMinimalInner}>
+        <Text style={styles.scoreRingValue}>{normalized}%</Text>
+      </View>
+    </View>
+  );
+}
+
+function QuickMenuItem({
+  icon,
+  label,
+  subtitle,
+  onPress,
+}: {
+  icon: ReactNode;
+  label: string;
+  subtitle: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable style={styles.quickMenuItem} onPress={onPress}>
+      <View style={styles.quickMenuIcon}>{icon}</View>
+      <View style={styles.quickMenuCopy}>
+        <Text style={styles.quickMenuLabel}>{label}</Text>
+        <Text style={styles.quickMenuSubtitle}>{subtitle}</Text>
+      </View>
+      <ChevronRight color={colors.textMuted} size={16} />
+    </Pressable>
   );
 }
 
@@ -395,58 +359,36 @@ function getInitials(value: string) {
   );
 }
 
-function getReadinessState(score: number, missingReasonings: number) {
-  if (score >= 80 && missingReasonings === 0) {
-    return {
-      label: 'Complete',
-      shortLabel: 'Complete',
-      description: 'Your saved results look well covered right now.',
-      pillColor: colors.successSoft,
-    };
-  }
+function GridBackdrop() {
+  const verticalLines = Array.from({ length: 14 });
+  const horizontalLines = Array.from({ length: 28 });
 
-  if (score >= 45) {
-    return {
-      label: 'In progress',
-      shortLabel: 'In progress',
-      description: 'Some saved results are still pending completion.',
-      pillColor: colors.warningSoft,
-    };
-  }
-
-  return {
-    label: 'Pending completion',
-    shortLabel: 'Pending',
-    description: 'Prioritize items that still need clarification or dossier coverage.',
-    pillColor: colors.warningSoft,
-  };
-}
-
-function getActivityTone(item: any) {
-  if (item?.dossier) {
-    return {
-      label: 'Dossier ready',
-      dotStyle: styles.listDotReady,
-      tagStyle: styles.listTagReady,
-      tagTextStyle: styles.listTagTextReady,
-    };
-  }
-
-  if (item?.refinementQuestion || item?.requiresReview) {
-    return {
-      label: 'Needs details',
-      dotStyle: styles.listDotAttention,
-      tagStyle: styles.listTagAttention,
-      tagTextStyle: styles.listTagTextAttention,
-    };
-  }
-
-  return {
-    label: 'Saved',
-    dotStyle: styles.listDotNeutral,
-    tagStyle: styles.listTagNeutral,
-    tagTextStyle: styles.listTagTextNeutral,
-  };
+  return (
+    <View pointerEvents="none" style={styles.gridBackdrop}>
+      {verticalLines.map((_, index) => (
+        <View
+          key={`v-${index}`}
+          style={[
+            styles.gridLineVertical,
+            {
+              left: `${(index / (verticalLines.length - 1)) * 100}%`,
+            },
+          ]}
+        />
+      ))}
+      {horizontalLines.map((_, index) => (
+        <View
+          key={`h-${index}`}
+          style={[
+            styles.gridLineHorizontal,
+            {
+              top: `${(index / (horizontalLines.length - 1)) * 100}%`,
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -460,9 +402,28 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.page,
   },
+  gridBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+  },
+  gridLineVertical: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 1,
+    backgroundColor: '#E2E9F5',
+  },
+  gridLineHorizontal: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: '#E2E9F5',
+  },
   content: {
     paddingHorizontal: 18,
     paddingBottom: 120,
+    zIndex: 1,
   },
   headerCard: {
     marginTop: 8,
@@ -470,11 +431,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 16,
+    paddingHorizontal: 2,
+    paddingVertical: 8,
   },
   headerIdentity: {
     flexDirection: 'row',
@@ -482,30 +440,20 @@ const styles = StyleSheet.create({
     gap: 12,
     flex: 1,
   },
-  avatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800',
-  },
   headerCopy: {
     flex: 1,
   },
   welcomeText: {
-    color: colors.textMuted,
+    color: colors.textSecondary,
     fontSize: 12,
     marginBottom: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    fontWeight: '700',
   },
   workspace: {
     color: colors.text,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
   },
   menuButton: {
@@ -519,221 +467,141 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   scoreCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 18,
-    marginBottom: 14,
+    paddingTop: 8,
+    paddingBottom: 18,
+    marginBottom: 10,
+    alignItems: 'center',
   },
   scoreLabel: {
-    color: colors.textMuted,
+    color: '#334155',
     fontSize: 11,
     fontWeight: '700',
     textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 10,
+    letterSpacing: 1.6,
+    marginBottom: 14,
   },
-  scoreRowTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  scoreHeadline: {
-    flex: 1,
-    paddingRight: 12,
-  },
-  scoreHeadlineTitle: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '800',
-    marginBottom: 3,
-  },
-  scoreHeadlineText: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  scoreStatusPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 999,
-  },
-  scoreStatusText: {
-    color: colors.text,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  scoreRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 18,
-  },
-  scoreRing: {
-    width: 126,
-    height: 126,
-    borderRadius: 63,
-    borderWidth: 7,
-    borderColor: colors.border,
+  scoreRingMinimal: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surfaceMuted,
   },
-  scoreRingInner: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: colors.surface,
+  scoreRingMinimalInner: {
+    position: 'absolute',
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
+    borderWidth: 0,
   },
   scoreRingValue: {
-    color: colors.text,
-    fontSize: 28,
+    color: '#0B0F17',
+    fontSize: 38,
     fontWeight: '800',
-  },
-  scoreRingLabel: {
-    color: colors.textMuted,
-    fontSize: 11,
-    fontWeight: '700',
-    marginTop: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  scoreCopy: {
-    flex: 1,
-    gap: 8,
-  },
-  bulletRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  bulletDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  bulletDotDefault: {
-    backgroundColor: colors.text,
-  },
-  bulletDotMuted: {
-    backgroundColor: colors.textMuted,
-  },
-  bulletText: {
-    flex: 1,
-    color: colors.text,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  bulletTextMuted: {
-    color: colors.textSecondary,
+    lineHeight: 42,
   },
   primaryActionGrid: {
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 12,
+    marginBottom: 16,
   },
   actionTile: {
     flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: colors.border,
-    padding: 16,
-    minHeight: 132,
-  },
-  actionTileDark: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  actionIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: colors.surfaceRaised,
+    borderColor: '#DDE5F2',
+    paddingHorizontal: 14,
+    paddingVertical: 18,
+    minHeight: 114,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+  },
+  actionTileDark: {
+    backgroundColor: '#000000',
+    borderColor: '#000000',
+  },
+  actionIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#F5F8FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
   },
   actionIconDark: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.10)',
   },
   actionTitle: {
-    color: colors.text,
-    fontSize: 18,
+    color: '#111827',
+    fontSize: 17,
     fontWeight: '800',
-    marginBottom: 6,
+    lineHeight: 22,
   },
   actionTitleDark: {
     color: '#FFFFFF',
   },
-  actionTileText: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 19,
+  summaryLines: {
+    marginBottom: 18,
   },
-  actionTileTextDark: {
-    color: 'rgba(255,255,255,0.72)',
-  },
-  summaryGrid: {
+  summaryLine: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5EAF4',
   },
-  summaryCard: {
-    flex: 1,
-    borderRadius: radius.md,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
+  summaryLineLabel: {
+    color: '#48556A',
+    fontSize: 13,
+    fontWeight: '500',
   },
-  summaryValue: {
-    color: colors.text,
+  summaryLineValue: {
+    color: '#0B0F17',
     fontSize: 22,
     fontWeight: '800',
   },
-  summaryLabel: {
-    color: colors.textMuted,
-    fontSize: 10,
-    textTransform: 'uppercase',
-    letterSpacing: 0.7,
-    marginBottom: 8,
-  },
-  actionCard: {
-    backgroundColor: '#E7EEF9',
+  sectionCard: {
+    backgroundColor: '#FFFFFF',
     borderRadius: radius.md,
-    padding: 16,
-    marginBottom: 22,
     borderWidth: 1,
-    borderColor: '#D4DDF0',
+    borderColor: '#E6ECF8',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    marginBottom: 14,
   },
-  actionEyebrow: {
-    color: colors.textMuted,
-    fontSize: 11,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 8,
+  quickMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E6ECF8',
   },
-  actionCardTitle: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '800',
-    marginBottom: 6,
+  quickMenuIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#F3F7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  actionCardText: {
-    color: colors.textSecondary,
+  quickMenuCopy: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  quickMenuLabel: {
+    color: '#0B0F17',
     fontSize: 13,
-    lineHeight: 19,
-    marginBottom: 10,
-  },
-  actionCardLink: {
-    color: colors.text,
     fontWeight: '700',
-    fontSize: 13,
+    marginBottom: 2,
+  },
+  quickMenuSubtitle: {
+    color: '#64748B',
+    fontSize: 11,
+    lineHeight: 16,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -743,103 +611,12 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: colors.text,
-    fontSize: 22,
+    fontSize: 17,
     fontWeight: '800',
   },
   sectionAction: {
     color: colors.textSecondary,
     fontWeight: '700',
-  },
-  sectionCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginBottom: 14,
-  },
-  listRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderSoft,
-  },
-  listDotWrap: {
-    width: 28,
-    alignItems: 'center',
-  },
-  listDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  listDotReady: {
-    backgroundColor: colors.success,
-  },
-  listDotAttention: {
-    backgroundColor: colors.warning,
-  },
-  listDotNeutral: {
-    backgroundColor: colors.textMuted,
-  },
-  listCopy: {
-    flex: 1,
-    paddingRight: 12,
-  },
-  listTitle: {
-    color: colors.text,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  listSubtitle: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    marginTop: 3,
-  },
-  listTag: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-  },
-  listTagReady: {
-    backgroundColor: colors.successSoft,
-  },
-  listTagAttention: {
-    backgroundColor: colors.warningSoft,
-  },
-  listTagNeutral: {
-    backgroundColor: colors.surfaceRaised,
-  },
-  listTagText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  listTagTextReady: {
-    color: colors.success,
-  },
-  listTagTextAttention: {
-    color: colors.warning,
-  },
-  listTagTextNeutral: {
-    color: colors.textSecondary,
-  },
-  footerLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginBottom: 26,
-  },
-  footerLinkText: {
-    color: colors.text,
-    fontWeight: '700',
-  },
-  emptyText: {
-    color: colors.textSecondary,
-    paddingVertical: 16,
-    paddingHorizontal: 8,
   },
   menuOverlay: {
     flex: 1,
@@ -886,12 +663,12 @@ const styles = StyleSheet.create({
   },
   menuName: {
     color: colors.text,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
   },
   menuEmail: {
     color: colors.textSecondary,
-    fontSize: 13,
+    fontSize: 12,
   },
   menuItem: {
     flexDirection: 'row',
@@ -910,7 +687,7 @@ const styles = StyleSheet.create({
   menuItemLabel: {
     color: colors.text,
     fontWeight: '800',
-    fontSize: 15,
+    fontSize: 14,
     flex: 1,
   },
 });

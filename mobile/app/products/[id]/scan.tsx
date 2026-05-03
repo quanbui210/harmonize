@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -7,16 +7,18 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { ArrowLeft, Camera, CheckCircle2, CircleHelp, ImagePlus } from 'lucide-react-native';
 import { ApiClient } from '@/lib/api-client';
 import { lightTheme } from '@/constants/mobile-theme';
 import { parseRefinementQuestion } from '@/lib/refinement-question';
+import type { ClassificationRecord, CursorPaginatedResponse, ProductRecord } from '@/types/api';
 
 const { colors, radius } = lightTheme;
 
@@ -35,12 +37,35 @@ export default function ProductScanScreen() {
     : params.classificationId;
   const queryClient = useQueryClient();
   const [preview, setPreview] = useState<UploadPreview | null>(null);
+  const [originCountry, setOriginCountry] = useState('');
+  const [destinationCountry, setDestinationCountry] = useState('Finland');
+  const productQuery = useQuery({
+    queryKey: ['product', productId],
+    queryFn: () => ApiClient.getProduct(productId),
+    enabled: !!productId,
+  });
   const clarificationQuery = useQuery({
     queryKey: ['classification', classificationId],
     queryFn: () => ApiClient.getClassification(classificationId),
     enabled: !!classificationId,
   });
   const activeQuestion = parseRefinementQuestion(clarificationQuery.data?.refinementQuestion);
+
+  useEffect(() => {
+    if (!productQuery.data) return;
+    const metadata =
+      productQuery.data.metadata && typeof productQuery.data.metadata === 'object'
+        ? (productQuery.data.metadata as Record<string, unknown>)
+        : {};
+    const currentOriginCountry = stringValue(metadata.originCountry);
+    const currentDestinationCountry = stringValue(metadata.destinationCountry);
+    if (currentOriginCountry && originCountry.trim().length === 0) {
+      setOriginCountry(currentOriginCountry);
+    }
+    if (currentDestinationCountry && destinationCountry.trim().length === 0) {
+      setDestinationCountry(currentDestinationCountry);
+    }
+  }, [destinationCountry, originCountry, productQuery.data]);
 
   const uploadMutation = useMutation({
     mutationFn: async (asset: { uri: string; fileName?: string | null; mimeType?: string | null }) => {
@@ -57,10 +82,9 @@ export default function ProductScanScreen() {
         ocrText: result.ocrText,
         confidence: result.confidence,
       });
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['product', productId] }),
-        queryClient.invalidateQueries({ queryKey: ['products'] }),
-      ]);
+      queryClient.setQueryData(['product', productId], (current: unknown) =>
+        appendProductImageInProductCache(current, result.image),
+      );
     },
     onError: (error: Error) => {
       Alert.alert('Upload failed', error.message);
@@ -68,15 +92,73 @@ export default function ProductScanScreen() {
   });
 
   const classifyMutation = useMutation({
-    mutationFn: () => ApiClient.classifyProduct(productId),
+    mutationFn: async () => {
+      const normalizedOriginCountry = originCountry.trim();
+      const normalizedDestinationCountry = destinationCountry.trim();
+      if (!normalizedOriginCountry || !normalizedDestinationCountry) {
+        throw new Error('Please set both origin and destination countries before rechecking.');
+      }
+
+      const product = productQuery.data;
+      if (!product) {
+        throw new Error('Product details are still loading. Please try again.');
+      }
+
+      await ApiClient.updateProduct(productId, {
+        name: product.name,
+        description: product.description,
+        intendedUse: product.intendedUse ?? undefined,
+        targetMarkets: product.targetMarkets ?? ['EU'],
+        metadata: {
+          ...(product.metadata || {}),
+          originCountry: normalizedOriginCountry,
+          destinationCountry: normalizedDestinationCountry,
+        },
+        materials: product.materials ?? [],
+      });
+
+      return ApiClient.classifyProduct(productId);
+    },
     onSuccess: async (response) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['product', productId] }),
-        queryClient.invalidateQueries({ queryKey: ['products'] }),
-        queryClient.invalidateQueries({ queryKey: ['classifications'] }),
-        queryClient.invalidateQueries({ queryKey: ['classifications', 'for-product', productId] }),
-        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
-      ]);
+      const classification =
+        response.result?.classification && typeof response.result.classification === 'object'
+          ? (response.result.classification as ClassificationRecord)
+          : null;
+
+      if (classification) {
+        queryClient.setQueryData(['classification', classification.id], classification);
+        queryClient.setQueriesData(
+          { queryKey: ['classifications'] },
+          (current: unknown) =>
+            replaceOrInsertClassificationInCollectionCache(current, classification),
+        );
+        queryClient.setQueriesData(
+          { queryKey: ['classifications', 'for-product', productId] },
+          (current: unknown) =>
+            replaceOrInsertClassificationInCollectionCache(current, classification),
+        );
+        if (classification.product) {
+          queryClient.setQueryData(['product', productId], classification.product);
+          queryClient.setQueriesData(
+            { queryKey: ['products'] },
+            (current: unknown) =>
+              replaceOrInsertProductInCollectionCache(
+                current,
+                classification.product as ProductRecord,
+              ),
+          );
+        }
+      } else {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['classifications'] }),
+          queryClient.invalidateQueries({
+            queryKey: ['classifications', 'for-product', productId],
+          }),
+          queryClient.invalidateQueries({ queryKey: ['product', productId] }),
+          queryClient.invalidateQueries({ queryKey: ['products'] }),
+        ]);
+      }
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
 
       const classificationId = String(
         response.result?.classification?.id || response.result?.classificationId || '',
@@ -143,9 +225,30 @@ export default function ProductScanScreen() {
         </View>
 
         <Text style={styles.pageTitle}>Add More Photos</Text>
-        <Text style={styles.pageSubtitle}>
-          Use this when the current result still needs one more detail from the packaging or label.
-        </Text>
+        <Text style={styles.pageSubtitle}>Use this when one more detail is needed.</Text>
+
+        <View style={styles.contextCard}>
+          <Text style={styles.contextTitle}>Trade context</Text>
+          <Text style={styles.contextText}>Used for duty and VAT estimates.</Text>
+          <Text style={styles.fieldLabel}>Origin country</Text>
+          <TextInput
+            value={originCountry}
+            onChangeText={setOriginCountry}
+            placeholder="e.g. Vietnam"
+            placeholderTextColor={colors.textMuted}
+            style={styles.fieldInput}
+            autoCapitalize="words"
+          />
+          <Text style={styles.fieldLabel}>Destination country</Text>
+          <TextInput
+            value={destinationCountry}
+            onChangeText={setDestinationCountry}
+            placeholder="e.g. Finland"
+            placeholderTextColor={colors.textMuted}
+            style={styles.fieldInput}
+            autoCapitalize="words"
+          />
+        </View>
 
         {classificationId && activeQuestion ? (
           <View style={styles.questionCard}>
@@ -167,8 +270,7 @@ export default function ProductScanScreen() {
               </View>
             ) : null}
             <Text style={styles.questionHint}>
-              Add a clearer photo if the answer is shown on the packaging. You can still go back and
-              answer it directly.
+              Add a clearer photo if the answer is visible on packaging.
             </Text>
             <Pressable
               style={styles.questionBackButton}
@@ -229,9 +331,7 @@ export default function ProductScanScreen() {
           <View style={styles.processingCard}>
             <ActivityIndicator color={colors.primary} />
             <Text style={styles.processingTitle}>Uploading photo...</Text>
-            <Text style={styles.processingText}>
-              We are reading the photo and adding the details to this product.
-            </Text>
+            <Text style={styles.processingText}>Reading and attaching details.</Text>
           </View>
         ) : null}
 
@@ -246,8 +346,10 @@ export default function ProductScanScreen() {
             </View>
 
             <InfoRow label="Text reading quality" value={`${Math.round((preview.confidence ?? 0) * 100)}%`} />
+            <InfoRow label="Origin country" value={originCountry.trim() || 'Not detected'} />
+            <InfoRow label="Destination country" value={destinationCountry.trim() || 'Not detected'} />
             <InfoRow label="Detected product" value={stringValue(preview.extractedData?.productName)} />
-            <InfoRow label="Origin country" value={stringValue(preview.extractedData?.originCountry)} />
+            <InfoRow label="Detected origin country" value={stringValue(preview.extractedData?.originCountry)} />
             <InfoRow label="Intended use" value={stringValue(preview.extractedData?.intendedUse)} />
             <InfoRow label="Description" value={stringValue(preview.extractedData?.description)} />
 
@@ -280,9 +382,7 @@ export default function ProductScanScreen() {
         ) : (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyTitle}>No scans yet</Text>
-            <Text style={styles.emptyText}>
-              Use this step for packaging fronts, ingredient panels, nutrition facts, or supplier label photos.
-            </Text>
+            <Text style={styles.emptyText}>Add packaging, ingredient, or label photos.</Text>
           </View>
         )}
       </ScrollView>
@@ -302,6 +402,117 @@ function InfoRow({ label, value }: { label: string; value: string }) {
       <Text style={styles.infoValue}>{value}</Text>
     </View>
   );
+}
+
+function appendProductImageInProductCache(cache: unknown, image: unknown) {
+  if (!cache || typeof cache !== 'object') return cache;
+  if (!image || typeof image !== 'object') return cache;
+
+  const product = cache as ProductRecord;
+  const uploadedImage = image as Record<string, unknown>;
+  const existingImages = Array.isArray(product.images) ? product.images : [];
+  const uploadedId = typeof uploadedImage.id === 'string' ? uploadedImage.id : null;
+  const deduped = uploadedId
+    ? existingImages.filter((item) => item.id !== uploadedId)
+    : existingImages;
+
+  return {
+    ...product,
+    images: [uploadedImage, ...deduped] as ProductRecord['images'],
+  } as ProductRecord;
+}
+
+function replaceOrInsertClassificationInCollectionCache(
+  cache: unknown,
+  updated: ClassificationRecord,
+) {
+  if (!cache || typeof cache !== 'object') return cache;
+  const value = cache as Record<string, unknown>;
+
+  if (Array.isArray(value.pages)) {
+    let found = false;
+    const pages = (value.pages as unknown[]).map((page, index) => {
+      if (!page || typeof page !== 'object') return page;
+      const pageRecord = page as Record<string, unknown>;
+      if (!Array.isArray(pageRecord.items)) return page;
+      const mappedItems = (pageRecord.items as unknown[]).map((item) => {
+        if (item && typeof item === 'object' && (item as ClassificationRecord).id === updated.id) {
+          found = true;
+          return updated;
+        }
+        return item;
+      });
+      if (!found && index === 0) {
+        return { ...pageRecord, items: [updated, ...mappedItems] };
+      }
+      return { ...pageRecord, items: mappedItems };
+    });
+    return { ...value, pages } as InfiniteData<CursorPaginatedResponse<ClassificationRecord>>;
+  }
+
+  if (Array.isArray(value.items)) {
+    const items = value.items as unknown[];
+    const hasMatch = items.some(
+      (item) => item && typeof item === 'object' && (item as ClassificationRecord).id === updated.id,
+    );
+    return {
+      ...value,
+      items: hasMatch
+        ? items.map((item) =>
+            item && typeof item === 'object' && (item as ClassificationRecord).id === updated.id
+              ? updated
+              : item,
+          )
+        : [updated, ...items],
+    } as CursorPaginatedResponse<ClassificationRecord>;
+  }
+
+  return cache;
+}
+
+function replaceOrInsertProductInCollectionCache(cache: unknown, updated: ProductRecord) {
+  if (!cache || typeof cache !== 'object') return cache;
+  const value = cache as Record<string, unknown>;
+
+  if (Array.isArray(value.pages)) {
+    let found = false;
+    const pages = (value.pages as unknown[]).map((page, index) => {
+      if (!page || typeof page !== 'object') return page;
+      const pageRecord = page as Record<string, unknown>;
+      if (!Array.isArray(pageRecord.items)) return page;
+      const mappedItems = (pageRecord.items as unknown[]).map((item) => {
+        if (item && typeof item === 'object' && (item as ProductRecord).id === updated.id) {
+          found = true;
+          return { ...(item as ProductRecord), ...updated };
+        }
+        return item;
+      });
+      if (!found && index === 0) {
+        return { ...pageRecord, items: [{ ...updated }, ...mappedItems] };
+      }
+      return { ...pageRecord, items: mappedItems };
+    });
+    return { ...value, pages } as InfiniteData<CursorPaginatedResponse<ProductRecord>>;
+  }
+
+  if (Array.isArray(value.items)) {
+    const items = value.items as unknown[];
+    const hasMatch = items.some(
+      (item) => item && typeof item === 'object' && (item as ProductRecord).id === updated.id,
+    );
+    return {
+      ...value,
+      items: hasMatch
+        ? items.map((item) =>
+            item && typeof item === 'object' && (item as ProductRecord).id === updated.id
+              ? { ...(item as ProductRecord), ...updated }
+              : item,
+          )
+        : [{ ...updated }, ...items],
+    } as CursorPaginatedResponse<ProductRecord>;
+  }
+
+  return cache;
 }
 
 const styles = StyleSheet.create({
@@ -355,7 +566,7 @@ const styles = StyleSheet.create({
   },
   pageTitle: {
     color: colors.text,
-    fontSize: 34,
+    fontSize: 24,
     fontWeight: '800',
     textAlign: 'center',
     marginBottom: 8,
@@ -363,9 +574,48 @@ const styles = StyleSheet.create({
   pageSubtitle: {
     color: colors.textSecondary,
     textAlign: 'center',
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 12,
+    lineHeight: 18,
     marginBottom: 18,
+  },
+  contextCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    padding: 16,
+    marginBottom: 14,
+  },
+  contextTitle: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  contextText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 12,
+  },
+  fieldLabel: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 6,
+    marginTop: 4,
+    textTransform: 'uppercase',
+  },
+  fieldInput: {
+    minHeight: 44,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceMuted,
+    paddingHorizontal: 12,
+    color: colors.text,
+    fontSize: 13,
+    marginBottom: 8,
   },
   questionCard: {
     backgroundColor: colors.surface,
@@ -383,20 +633,20 @@ const styles = StyleSheet.create({
   },
   questionTitle: {
     color: colors.text,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '800',
   },
   questionText: {
     color: colors.text,
-    fontSize: 18,
-    lineHeight: 26,
+    fontSize: 15,
+    lineHeight: 22,
     fontWeight: '700',
     marginBottom: 8,
   },
   questionExplanation: {
     color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 12,
+    lineHeight: 18,
     marginBottom: 12,
   },
   questionOptions: {
@@ -415,13 +665,13 @@ const styles = StyleSheet.create({
   },
   questionOptionText: {
     color: colors.text,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
   },
   questionHint: {
     color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 12,
+    lineHeight: 18,
     marginBottom: 12,
   },
   questionBackButton: {
@@ -468,7 +718,7 @@ const styles = StyleSheet.create({
   },
   framePlaceholderText: {
     color: 'rgba(255,255,255,0.72)',
-    fontSize: 14,
+    fontSize: 12,
   },
   previewFrameImage: {
     width: '100%',
@@ -487,7 +737,7 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
   },
   secondaryRow: {
@@ -523,7 +773,7 @@ const styles = StyleSheet.create({
   },
   processingTitle: {
     color: colors.text,
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '800',
     marginTop: 10,
     marginBottom: 6,
@@ -531,7 +781,8 @@ const styles = StyleSheet.create({
   processingText: {
     color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 21,
+    lineHeight: 18,
+    fontSize: 12,
   },
   resultCard: {
     backgroundColor: colors.surface,
@@ -548,7 +799,7 @@ const styles = StyleSheet.create({
   },
   resultTitle: {
     color: colors.text,
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '800',
   },
   successBadge: {
@@ -573,7 +824,7 @@ const styles = StyleSheet.create({
   },
   infoValue: {
     color: colors.text,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
   },
   ocrBox: {
@@ -602,13 +853,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     color: colors.text,
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '800',
     marginBottom: 8,
   },
   emptyText: {
     color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 12,
+    lineHeight: 18,
   },
 });

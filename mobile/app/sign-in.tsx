@@ -12,15 +12,20 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect } from 'expo-router';
-import { ShieldCheck } from 'lucide-react-native';
+import { ArrowRight, Lock, Mail } from 'lucide-react-native';
 import { useAuth } from '@/components/AuthProvider';
+import { BrandMark } from '@/components/BrandMark';
+import { lightTheme } from '@/constants/mobile-theme';
+
+const { colors, radius } = lightTheme;
 
 export default function SignInScreen() {
-  const { user, isLoading, signInWithPassword } = useAuth();
+  const { user, isLoading, signInWithPassword, signInWithGoogle } = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
 
   if (isLoading) {
     return (
@@ -34,10 +39,12 @@ export default function SignInScreen() {
     return <Redirect href="/" />;
   }
 
-  const isDisabled = !identifier.trim() || !password || isSubmitting;
+  const passwordDisabled =
+    !identifier.trim() || !password || isSubmitting || isGoogleSubmitting;
+  const googleDisabled = isSubmitting || isGoogleSubmitting;
 
   const handleSubmit = async () => {
-    if (isDisabled) return;
+    if (passwordDisabled) return;
 
     try {
       setIsSubmitting(true);
@@ -54,6 +61,28 @@ export default function SignInScreen() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    if (isSubmitting || isGoogleSubmitting) return;
+
+    try {
+      setIsGoogleSubmitting(true);
+      setError(null);
+      await signInWithGoogle();
+    } catch (submitError) {
+      const message =
+        submitError instanceof Error
+          ? submitError.message
+          : 'Unable to sign in with Google right now.';
+      if (message.toLowerCase().includes('cancel')) {
+        setError(null);
+      } else {
+        setError(message);
+      }
+    } finally {
+      setIsGoogleSubmitting(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.screen}>
       <KeyboardAvoidingView
@@ -62,62 +91,92 @@ export default function SignInScreen() {
       >
         <View style={styles.container}>
           <LinearGradient
-            colors={['#11233C', '#0B4C57', '#082C33']}
+            colors={['#101E35', '#162A4A', '#132847']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.heroCard}
           >
-            <View style={styles.badge}>
-              <ShieldCheck color="#D9FFF7" size={16} />
-              <Text style={styles.badgeText}>Secure workspace</Text>
+            <View style={styles.brandRow}>
+              <BrandMark size={46} />
+              <Text style={styles.appName}>TulliCheck</Text>
             </View>
             <Text style={styles.title}>Welcome back</Text>
             <Text style={styles.subtitle}>
-              Sign in to open your mobile dashboard, products, scans, and dossier workflow.
+              Sign in to continue with product classification, labels, and dossiers.
             </Text>
           </LinearGradient>
 
           <View style={styles.formCard}>
             <Text style={styles.formTitle}>Sign in</Text>
             <Text style={styles.formText}>
-              Use your existing TulliCheck account. You can sign in with the same username or email you use on web.
+              Continue with Google or sign in with your existing username/email and password.
             </Text>
+
+            <Pressable
+              style={[styles.googleButton, googleDisabled && styles.googleButtonDisabled]}
+              onPress={() => void handleGoogleSignIn()}
+              disabled={googleDisabled}
+            >
+              {isGoogleSubmitting ? (
+                <ActivityIndicator color={colors.text} />
+              ) : (
+                <>
+                  <View style={styles.googleBadge}>
+                    <Text style={styles.googleBadgeText}>G</Text>
+                  </View>
+                  <Text style={styles.googleButtonText}>Continue with Google</Text>
+                  <ArrowRight color={colors.textMuted} size={16} />
+                </>
+              )}
+            </Pressable>
+
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or use password</Text>
+              <View style={styles.dividerLine} />
+            </View>
 
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Username or email</Text>
-              <TextInput
-                value={identifier}
-                onChangeText={setIdentifier}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="email-address"
-                placeholder="john or you@company.com"
-                placeholderTextColor="#5F728E"
-                style={styles.input}
-              />
+              <View style={styles.inputShell}>
+                <Mail color={colors.textMuted} size={16} />
+                <TextInput
+                  value={identifier}
+                  onChangeText={setIdentifier}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                  placeholder="john or you@company.com"
+                  placeholderTextColor={colors.textMuted}
+                  style={styles.input}
+                />
+              </View>
             </View>
 
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Password</Text>
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                placeholder="Enter your password"
-                placeholderTextColor="#5F728E"
-                style={styles.input}
-              />
+              <View style={styles.inputShell}>
+                <Lock color={colors.textMuted} size={16} />
+                <TextInput
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                  placeholder="Enter your password"
+                  placeholderTextColor={colors.textMuted}
+                  style={styles.input}
+                />
+              </View>
             </View>
 
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             <Pressable
-              style={[styles.submitButton, isDisabled && styles.submitButtonDisabled]}
+              style={[styles.submitButton, passwordDisabled && styles.submitButtonDisabled]}
               onPress={() => void handleSubmit()}
-              disabled={isDisabled}
+              disabled={passwordDisabled}
             >
               {isSubmitting ? (
-                <ActivityIndicator color="#06131A" />
+                <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <Text style={styles.submitText}>Open dashboard</Text>
               )}
@@ -132,11 +191,11 @@ export default function SignInScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#07111E',
+    backgroundColor: colors.page,
   },
   loadingScreen: {
     flex: 1,
-    backgroundColor: '#07111E',
+    backgroundColor: colors.page,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -147,85 +206,138 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 20,
-    gap: 18,
+    gap: 14,
   },
   heroCard: {
-    borderRadius: 28,
+    borderRadius: radius.xl,
     padding: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: colors.borderSoft,
   },
-  badge: {
+  brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.10)',
+    gap: 12,
     marginBottom: 18,
   },
-  badgeText: {
-    color: '#E7FFFA',
-    fontSize: 13,
-    fontWeight: '700',
+  appName: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '800',
   },
   title: {
     color: '#FFFFFF',
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: '800',
     marginBottom: 10,
   },
   subtitle: {
     color: '#D4E6E9',
-    fontSize: 15,
-    lineHeight: 24,
+    fontSize: 13,
+    lineHeight: 20,
   },
   formCard: {
-    backgroundColor: '#0A1627',
-    borderRadius: 28,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
     padding: 22,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    gap: 16,
+    borderColor: colors.border,
+    gap: 14,
   },
   formTitle: {
-    color: '#F8FBFF',
-    fontSize: 24,
+    color: colors.text,
+    fontSize: 19,
     fontWeight: '800',
   },
   formText: {
-    color: '#8C9AB0',
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  googleButton: {
+    minHeight: 52,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  googleButtonDisabled: {
+    opacity: 0.6,
+  },
+  googleBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  googleBadgeText: {
+    color: '#DB4437',
     fontSize: 14,
-    lineHeight: 21,
+    fontWeight: '800',
+  },
+  googleButtonText: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '700',
+    flex: 1,
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.borderSoft,
+  },
+  dividerText: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
   fieldGroup: {
     gap: 8,
   },
   label: {
-    color: '#D7E1EF',
-    fontSize: 13,
+    color: colors.textSecondary,
+    fontSize: 12,
     fontWeight: '700',
   },
-  input: {
-    backgroundColor: '#07111E',
-    borderRadius: 16,
+  inputShell: {
+    minHeight: 52,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 16,
-    paddingVertical: 15,
-    color: '#F8FBFF',
-    fontSize: 15,
+    borderColor: colors.border,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  input: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 14,
+    paddingVertical: 14,
   },
   errorText: {
-    color: '#F5A4A4',
+    color: colors.danger,
     fontSize: 13,
     lineHeight: 20,
   },
   submitButton: {
-    backgroundColor: '#8DEBDA',
-    borderRadius: 16,
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
     minHeight: 54,
     alignItems: 'center',
     justifyContent: 'center',
@@ -235,8 +347,8 @@ const styles = StyleSheet.create({
     opacity: 0.55,
   },
   submitText: {
-    color: '#06131A',
-    fontSize: 15,
+    color: '#FFFFFF',
+    fontSize: 14,
     fontWeight: '800',
   },
 });

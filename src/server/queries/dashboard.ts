@@ -1,8 +1,21 @@
 import { ClassificationStatus } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 
-export async function getDashboardOverview(organizationId: string) {
-  const [missingReasonings, autoClassified] =
+type DashboardOverviewOptions = {
+  includeActiveImports?: boolean;
+  includeRecentShipments?: boolean;
+  actionItemsLimit?: number;
+};
+
+export async function getDashboardOverview(
+  organizationId: string,
+  options?: DashboardOverviewOptions,
+) {
+  const includeActiveImports = options?.includeActiveImports ?? true;
+  const includeRecentShipments = options?.includeRecentShipments ?? true;
+  const actionItemsLimit = options?.actionItemsLimit ?? 11;
+
+  const [missingReasonings, autoClassified, totalWithDossiers, totalClassifications, totalLabels] =
     await Promise.all([
       prisma.classification.count({
         where: {
@@ -16,31 +29,24 @@ export async function getDashboardOverview(organizationId: string) {
           requiresReview: false,
         },
       }),
+      prisma.classification.count({
+        where: {
+          organizationId,
+          dossier: { isNot: null },
+        },
+      }),
+      prisma.classification.count({
+        where: { organizationId },
+      }),
+      prisma.label.count({
+        where: {
+          organizationId,
+          isDraft: false,
+        },
+      }),
     ])
-
-  // Calculate audit readiness based on classifications with dossiers
-  const totalWithDossiers = await prisma.classification.count({
-    where: {
-      organizationId,
-      dossier: { isNot: null }, // Has a dossier
-    },
-  })
-
-  const totalClassifications = await prisma.classification.count({
-    where: { organizationId },
-  })
-
-  const approvedCount = totalWithDossiers // Classifications with dossiers are "approved"
-  const pendingCount = totalClassifications - totalWithDossiers // Classifications without dossiers are "pending"
-
-  // Count labels (non-draft labels)
-  const totalLabels = await prisma.label.count({
-    where: {
-      organizationId,
-      isDraft: false,
-    },
-  })
-
+  const approvedCount = totalWithDossiers
+  const pendingCount = totalClassifications - totalWithDossiers
 
   // Get recent classifications for dashboard (limited to 12, use "View all" for more)
   // Handle orphaned classifications (where product was deleted) by using raw query or filtering
@@ -71,26 +77,28 @@ export async function getDashboardOverview(organizationId: string) {
       orderBy: {
         updatedAt: "desc",
       },
-      take: 11,
+      take: actionItemsLimit,
     });
     
     actionItems = allActionItems;
 
-    const allActiveImportsData = await prisma.classification.findMany({
-      where: { 
-        organizationId,
-        productId: {
-          in: Array.from(productIdSet),
+    if (includeActiveImports) {
+      const allActiveImportsData = await prisma.classification.findMany({
+        where: { 
+          organizationId,
+          productId: {
+            in: Array.from(productIdSet),
+          },
         },
-      },
-      include: { product: true },
-      orderBy: {
-        createdAt: "desc",
-      },
-      take: 3,
-    });
-    
-    activeImports = allActiveImportsData;
+        include: { product: true },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 3,
+      });
+      
+      activeImports = allActiveImportsData;
+    }
   } catch (error) {
     // Fallback: if there's an error, return empty arrays
     console.error("Error fetching dashboard classifications:", error);
@@ -98,27 +106,28 @@ export async function getDashboardOverview(organizationId: string) {
     activeImports = [];
   }
 
-  // Get recent active shipments (not cancelled)
-  const recentShipments = await (prisma as any).shipment.findMany({
-    where: {
-      organizationId,
-      status: {
-        not: "CANCELLED",
-      },
-    },
-    include: {
-      items: {
-        include: {
-          product: true,
+  const recentShipments = includeRecentShipments
+    ? await (prisma as any).shipment.findMany({
+        where: {
+          organizationId,
+          status: {
+            not: "CANCELLED",
+          },
         },
-        take: 1, // Just get count
-      },
-    },
-    orderBy: {
-      updatedAt: "desc",
-    },
-    take: 3,
-  })
+        include: {
+          items: {
+            include: {
+              product: true,
+            },
+            take: 1, // Just get count
+          },
+        },
+        orderBy: {
+          updatedAt: "desc",
+        },
+        take: 3,
+      })
+    : []
 
   const auditReadinessScore =
     totalClassifications === 0

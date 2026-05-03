@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { createHash } from "crypto";
 import { z } from "zod";
 import { VaultTag } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { handleApiError, requireApiAuth } from "@/lib/api/mobile-auth";
+import { handleCorsPreflight, jsonWithCors } from "@/lib/api/cors";
 
 const finalizeUploadSchema = z.object({
   path: z.string().min(1),
@@ -22,7 +23,8 @@ export async function POST(request: NextRequest) {
     const payload = finalizeUploadSchema.parse(body);
 
     if (!payload.path.startsWith(`${membership.organizationId}/`)) {
-      return NextResponse.json(
+      return jsonWithCors(
+        request,
         { error: "Upload path does not belong to the current organization" },
         { status: 403 },
       );
@@ -38,7 +40,7 @@ export async function POST(request: NextRequest) {
       });
 
       if (!product) {
-        return NextResponse.json({ error: "Product not found" }, { status: 404 });
+        return jsonWithCors(request, { error: "Product not found" }, { status: 404 });
       }
     }
 
@@ -63,7 +65,8 @@ export async function POST(request: NextRequest) {
     });
 
     if (existing) {
-      return NextResponse.json(
+      return jsonWithCors(
+        request,
         { error: "This file has already been uploaded", fileId: existing.id },
         { status: 409 },
       );
@@ -96,7 +99,8 @@ export async function POST(request: NextRequest) {
       .from(payload.bucket)
       .createSignedUrl(payload.path, 3600);
 
-    return NextResponse.json(
+    return jsonWithCors(
+      request,
       {
         file: {
           ...file,
@@ -106,6 +110,10 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     );
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, request);
   }
+}
+
+export function OPTIONS(request: NextRequest) {
+  return handleCorsPreflight(request);
 }

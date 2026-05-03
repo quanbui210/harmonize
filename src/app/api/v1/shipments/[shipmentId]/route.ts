@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 import { ShipmentStatus } from "@prisma/client";
 import { getShipmentAction, updateShipmentAction } from "@/server/actions/shipments";
 import { handleApiError, requireApiAuth } from "@/lib/api/mobile-auth";
+import { handleCorsPreflight, jsonWithCors } from "@/lib/api/cors";
 
 const updateShipmentSchema = z.object({
   shipmentNumber: z.string().min(1).optional(),
@@ -28,9 +29,9 @@ export async function GET(
     await requireApiAuth(request);
     const { shipmentId } = await params;
     const shipment = await getShipmentAction(shipmentId);
-    return NextResponse.json({ shipment });
+    return jsonWithCors(request, { shipment });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, request);
   }
 }
 
@@ -44,8 +45,12 @@ export async function PATCH(
     const body = await request.json();
     const payload = updateShipmentSchema.parse(body);
     const shipment = await updateShipmentAction(shipmentId, payload);
-    return NextResponse.json({ shipment });
+    return jsonWithCors(request, { shipment });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, request);
   }
+}
+
+export function OPTIONS(request: NextRequest) {
+  return handleCorsPreflight(request);
 }

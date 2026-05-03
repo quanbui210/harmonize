@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { ArrowLeft, Building2, LogOut, Mail, ShieldCheck } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthProvider';
+import { BrandMark } from '@/components/BrandMark';
 import { ApiClient } from '@/lib/api-client';
 import { lightTheme } from '@/constants/mobile-theme';
 
@@ -37,7 +38,9 @@ export default function AccountScreen() {
             <ArrowLeft color={colors.text} size={18} />
           </Pressable>
           <Text style={styles.headerTitle}>Account</Text>
-          <View style={styles.iconSpacer} />
+          <View style={styles.iconSpacer}>
+            <BrandMark size={30} />
+          </View>
         </View>
 
         <View style={styles.profileCard}>
@@ -138,10 +141,12 @@ const styles = StyleSheet.create({
   },
   iconSpacer: {
     width: 42,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
   },
   headerTitle: {
     color: colors.text,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
   },
   profileCard: {
@@ -165,18 +170,18 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     color: '#FFFFFF',
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
   },
   profileName: {
     color: colors.text,
-    fontSize: 22,
+    fontSize: 19,
     fontWeight: '800',
     textAlign: 'center',
   },
   profileMeta: {
     color: colors.textSecondary,
-    fontSize: 14,
+    fontSize: 13,
     marginTop: 4,
     textAlign: 'center',
   },
@@ -204,14 +209,14 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: 11,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 4,
   },
   infoValue: {
     color: colors.text,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
   },
   signOutButton: {
@@ -226,7 +231,7 @@ const styles = StyleSheet.create({
   },
   signOutText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
   },
 });

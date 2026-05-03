@@ -17,6 +17,25 @@ export type ApiMembership = {
   role: string;
 };
 
+export type CursorPaginatedResponse<T> = {
+  items: T[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export type DashboardActionItem = {
+  id: string;
+  product?: {
+    name?: string | null;
+  } | null;
+  cnCode?: string | null;
+  htsCode?: string | null;
+  hsCode?: string | null;
+  dossier?: { id: string } | null;
+  refinementQuestion?: string | null;
+  requiresReview?: boolean;
+};
+
 export type DashboardOverview = {
   auditReadinessScore: number;
   approvedCount: number;
@@ -24,9 +43,7 @@ export type DashboardOverview = {
   missingReasonings: number;
   autoClassified: number;
   totalLabels: number;
-  actionItems: any[];
-  activeImports: any[];
-  recentShipments: any[];
+  actionItems: DashboardActionItem[];
 };
 
 export type ProductMaterial = {

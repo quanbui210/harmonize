@@ -4,26 +4,34 @@ import {
   Alert,
   Animated,
   Easing,
+  FlatList,
+  Image,
+  ListRenderItemInfo,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { ArrowLeft, ChevronRight, FileBadge2, FileCheck2, Files, PackageOpen } from 'lucide-react-native';
 import { ApiClient } from '@/lib/api-client';
+import { BrandMark } from '@/components/BrandMark';
 import { lightTheme } from '@/constants/mobile-theme';
 import { formatClassificationCode, getPreferredClassificationCode } from '@/lib/classification-code';
 import type { ClassificationRecord, LabelRecord } from '@/types/api';
 
 const { colors, radius } = lightTheme;
 const LIBRARY_SECTIONS: LibrarySection[] = ['classifications', 'labels', 'dossiers'];
+const PAGE_SIZE = 20;
 
 type LibrarySection = 'classifications' | 'labels' | 'dossiers';
+type LibraryListItem =
+  | { type: 'classification'; id: string; classification: ClassificationRecord }
+  | { type: 'label'; id: string; label: LabelRecord }
+  | { type: 'dossier'; id: string; classification: ClassificationRecord };
 
 export default function LibraryScreen() {
   const params = useLocalSearchParams<{ section?: string }>();
@@ -38,24 +46,42 @@ export default function LibraryScreen() {
   const contentTranslateY = useRef(new Animated.Value(0)).current;
   const hasMounted = useRef(false);
 
-  const classificationsQuery = useQuery({
+  const classificationsQuery = useInfiniteQuery({
     queryKey: ['classifications', 'library'],
-    queryFn: () => ApiClient.listClassifications(100),
+    queryFn: ({ pageParam }) =>
+      ApiClient.listClassifications({ limit: PAGE_SIZE, cursor: pageParam }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : null),
+    enabled: section === 'classifications' || section === 'dossiers',
+    staleTime: 30_000,
   });
-  const labelsQuery = useQuery({
+  const labelsQuery = useInfiniteQuery({
     queryKey: ['labels', 'library'],
-    queryFn: () => ApiClient.listLabels(100),
+    queryFn: ({ pageParam }) => ApiClient.listLabels({ limit: PAGE_SIZE, cursor: pageParam }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : null),
+    enabled: section === 'labels',
+    staleTime: 30_000,
   });
-
-  const dossiers = useMemo(
-    () => (classificationsQuery.data ?? []).filter((item) => Boolean(item.dossier?.id)),
+  const classifications = useMemo(
+    () => classificationsQuery.data?.pages.flatMap((page) => page.items) ?? [],
     [classificationsQuery.data],
   );
+  const labels = useMemo(
+    () => labelsQuery.data?.pages.flatMap((page) => page.items) ?? [],
+    [labelsQuery.data],
+  );
 
-  const isRefreshing = classificationsQuery.isRefetching || labelsQuery.isRefetching;
+  const dossiers = useMemo(
+    () => classifications.filter((item) => Boolean(item.dossier?.id)),
+    [classifications],
+  );
+
+  const activeQuery = section === 'labels' ? labelsQuery : classificationsQuery;
+  const isRefreshing = activeQuery.isRefetching && !activeQuery.isFetchingNextPage;
   const isLoading =
-    classificationsQuery.isLoading || (section === 'labels' && labelsQuery.isLoading);
-  const hasError = classificationsQuery.isError || (section === 'labels' && labelsQuery.isError);
+    section === 'labels' ? labelsQuery.isLoading : classificationsQuery.isLoading;
+  const hasError = section === 'labels' ? labelsQuery.isError : classificationsQuery.isError;
   const currentSectionIndex = LIBRARY_SECTIONS.indexOf(section);
   const segmentWidth = segmentedWidth > 8 ? (segmentedWidth - 8) / LIBRARY_SECTIONS.length : 0;
   const indicatorTranslateX =
@@ -97,28 +123,34 @@ export default function LibraryScreen() {
     ]).start();
   }, [contentOpacity, contentTranslateY, currentSectionIndex, indicatorProgress]);
 
-  return (
-    <SafeAreaView style={styles.screen}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={() => {
-              void classificationsQuery.refetch();
-              void labelsQuery.refetch();
-            }}
-            tintColor={colors.primary}
-          />
-        }
-      >
+  const listData = useMemo<LibraryListItem[]>(() => {
+    if (section === 'labels') {
+      return labels.map((label) => ({ type: 'label', id: label.id, label }));
+    }
+    if (section === 'dossiers') {
+      return dossiers.map((classification) => ({
+        type: 'dossier',
+        id: classification.id,
+        classification,
+      }));
+    }
+    return classifications.map((classification) => ({
+      type: 'classification',
+      id: classification.id,
+      classification,
+    }));
+  }, [classifications, dossiers, labels, section]);
+
+  const renderHeader = () => (
+    <>
         <View style={styles.header}>
           <Pressable style={styles.iconButton} onPress={() => router.back()}>
             <ArrowLeft color={colors.text} size={18} />
           </Pressable>
           <Text style={styles.headerTitle}>Library</Text>
-          <View style={styles.iconSpacer} />
+          <View style={styles.headerBrand}>
+            <BrandMark size={30} />
+          </View>
         </View>
 
         <Text style={styles.title}>Saved items</Text>
@@ -157,174 +189,182 @@ export default function LibraryScreen() {
         </View>
 
         <View style={styles.summaryRow}>
-          <SummaryCard label="Classifications" value={classificationsQuery.data?.length ?? 0} />
-          <SummaryCard label="Labels" value={labelsQuery.data?.length ?? 0} />
+          <SummaryCard label="Classifications" value={classifications.length} />
+          <SummaryCard label="Labels" value={labels.length} />
           <SummaryCard label="Dossiers" value={dossiers.length} />
         </View>
-
-        <Animated.View
-          style={[
-            styles.sectionCard,
-            {
-              opacity: contentOpacity,
-              transform: [{ translateY: contentTranslateY }],
-            },
-          ]}
-        >
-          {isLoading ? (
-            <View style={styles.centeredState}>
-              <ActivityIndicator color={colors.primary} />
-            </View>
-          ) : hasError ? (
-            <EmptyState
-              title="Could not load this section"
-              text={
-                classificationsQuery.error instanceof Error
-                  ? classificationsQuery.error.message
-                  : labelsQuery.error instanceof Error
-                    ? labelsQuery.error.message
-                    : 'Please pull to refresh and try again.'
-              }
-            />
-          ) : section === 'classifications' ? (
-            <ClassificationSection items={classificationsQuery.data ?? []} />
-          ) : section === 'labels' ? (
-            <LabelsSection
-              items={labelsQuery.data ?? []}
-              openingLabelId={openingLabelId}
-              onOpen={async (label) => {
-                try {
-                  setOpeningLabelId(label.id);
-                  const exportUrls = await ApiClient.getLabelExport(label.id);
-                  router.push({
-                    pathname: '/preview',
-                    params: {
-                      path: exportUrls.htmlUrl,
-                      title: getLabelProductName(label.labelData),
-                    },
-                  });
-                } catch (error) {
-                  Alert.alert(
-                    'Could not open label',
-                    error instanceof Error ? error.message : 'Please try again.',
-                  );
-                } finally {
-                  setOpeningLabelId(null);
-                }
-              }}
-            />
-          ) : (
-            <DossiersSection items={dossiers} />
-          )}
-        </Animated.View>
-      </ScrollView>
-    </SafeAreaView>
+    </>
   );
-}
 
-function ClassificationSection({ items }: { items: ClassificationRecord[] }) {
-  if (!items.length) {
+  const renderItem = ({ item }: ListRenderItemInfo<LibraryListItem>) => {
+    if (item.type === 'label') {
+      const label = item.label;
+      return (
+        <LibraryRow
+          icon={<FileBadge2 color={colors.text} size={18} />}
+          title={getLabelProductName(label.labelData)}
+          subtitle={getLabelSubtitle(label)}
+          meta={label.complianceScore != null ? `${Math.round(label.complianceScore)}% score` : 'Saved label'}
+          onPress={async () => {
+            try {
+              setOpeningLabelId(label.id);
+              const exportUrls = await ApiClient.getLabelExport(label.id);
+              router.push({
+                pathname: '/preview',
+                params: {
+                  path: exportUrls.htmlUrl,
+                  title: getLabelProductName(label.labelData),
+                },
+              });
+            } catch (error) {
+              Alert.alert(
+                'Could not open label',
+                error instanceof Error ? error.message : 'Please try again.',
+              );
+            } finally {
+              setOpeningLabelId(null);
+            }
+          }}
+          disabled={openingLabelId === label.id}
+          trailing={
+            openingLabelId === label.id ? <ActivityIndicator size="small" color={colors.primary} /> : undefined
+          }
+        />
+      );
+    }
+
+    if (item.type === 'dossier') {
+      const classification = item.classification;
+      const thumbnailUrl = getProductThumbnailUrl(classification);
+      return (
+        <LibraryRow
+          icon={<FileCheck2 color={colors.text} size={18} />}
+          thumbnailUrl={thumbnailUrl}
+          title={classification.product?.name ?? 'Untitled product'}
+          subtitle={
+            formatClassificationCode(
+              getPreferredClassificationCode({
+                cnCode: classification.cnCode,
+                htsCode: classification.htsCode,
+                hsCode: classification.hsCode,
+              }),
+            ) || 'Classification ready'
+          }
+          meta="Open dossier"
+          onPress={() => router.push(`/classifications/${classification.id}/dossier` as never)}
+        />
+      );
+    }
+
+    const classification = item.classification;
+    const thumbnailUrl = getProductThumbnailUrl(classification);
+    return (
+      <LibraryRow
+        icon={<Files color={colors.text} size={18} />}
+        thumbnailUrl={thumbnailUrl}
+        title={classification.product?.name ?? 'Untitled product'}
+        subtitle={
+          formatClassificationCode(
+            getPreferredClassificationCode({
+              cnCode: classification.cnCode,
+              htsCode: classification.htsCode,
+              hsCode: classification.hsCode,
+            }),
+          ) || 'Classification pending'
+        }
+        meta={classification.dossier?.id ? 'Dossier ready' : classification.refinementQuestion ? 'Needs clarification' : 'Saved result'}
+        onPress={() => router.push(`/classifications/${classification.id}` as never)}
+      />
+    );
+  };
+
+  const renderEmpty = () => {
+    if (isLoading) {
+      return (
+        <View style={styles.centeredState}>
+          <ActivityIndicator color={colors.primary} />
+        </View>
+      );
+    }
+    if (hasError) {
+      return (
+        <EmptyState
+          title="Could not load this section"
+          text={
+            classificationsQuery.error instanceof Error
+              ? classificationsQuery.error.message
+              : labelsQuery.error instanceof Error
+                ? labelsQuery.error.message
+                : 'Please pull to refresh and try again.'
+          }
+        />
+      );
+    }
+    if (section === 'labels') {
+      return (
+        <EmptyState
+          title="No labels yet"
+          text="Generate a label after classification and it will appear here."
+        />
+      );
+    }
+    if (section === 'dossiers') {
+      return (
+        <EmptyState
+          title="No dossiers yet"
+          text="Once a classification has a dossier, you can reopen it here."
+        />
+      );
+    }
     return (
       <EmptyState
         title="No classifications yet"
         text="Run your first scan and the result will appear here."
       />
     );
-  }
+  };
 
   return (
-    <>
-      {items.map((item) => (
-        <LibraryRow
-          key={item.id}
-          icon={<Files color={colors.text} size={18} />}
-          title={item.product?.name ?? 'Untitled product'}
-          subtitle={
-            formatClassificationCode(
-              getPreferredClassificationCode({
-                cnCode: item.cnCode,
-                htsCode: item.htsCode,
-                hsCode: item.hsCode,
-              }),
-            ) || 'Classification pending'
+    <SafeAreaView style={styles.screen}>
+      <Animated.View
+        style={[
+          styles.animatedShell,
+          {
+            opacity: contentOpacity,
+            transform: [{ translateY: contentTranslateY }],
+          },
+        ]}
+      >
+        <FlatList
+          data={listData}
+          keyExtractor={(item) => `${item.type}-${item.id}`}
+          renderItem={renderItem}
+          ListHeaderComponent={renderHeader}
+          ListEmptyComponent={renderEmpty}
+          ListFooterComponent={
+            activeQuery.isFetchingNextPage ? (
+              <View style={styles.centeredState}>
+                <ActivityIndicator color={colors.primary} />
+              </View>
+            ) : null
           }
-          meta={item.dossier?.id ? 'Dossier ready' : item.refinementQuestion ? 'Needs clarification' : 'Saved result'}
-          onPress={() => router.push(`/classifications/${item.id}` as never)}
-        />
-      ))}
-    </>
-  );
-}
-
-function LabelsSection({
-  items,
-  openingLabelId,
-  onOpen,
-}: {
-  items: LabelRecord[];
-  openingLabelId: string | null;
-  onOpen: (label: LabelRecord) => Promise<void>;
-}) {
-  if (!items.length) {
-    return (
-      <EmptyState
-        title="No labels yet"
-        text="Generate a label after classification and it will appear here."
-      />
-    );
-  }
-
-  return (
-    <>
-      {items.map((label) => (
-        <LibraryRow
-          key={label.id}
-          icon={<FileBadge2 color={colors.text} size={18} />}
-          title={getLabelProductName(label.labelData)}
-          subtitle={getLabelSubtitle(label)}
-          meta={label.complianceScore != null ? `${Math.round(label.complianceScore)}% score` : 'Saved label'}
-          onPress={() => void onOpen(label)}
-          disabled={openingLabelId === label.id}
-          trailing={
-            openingLabelId === label.id ? <ActivityIndicator size="small" color={colors.primary} /> : undefined
+          onEndReachedThreshold={0.4}
+          onEndReached={() => {
+            if (!activeQuery.hasNextPage || activeQuery.isFetchingNextPage) return;
+            void activeQuery.fetchNextPage();
+          }}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={() => void activeQuery.refetch()}
+              tintColor={colors.primary}
+            />
           }
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.content}
         />
-      ))}
-    </>
-  );
-}
-
-function DossiersSection({ items }: { items: ClassificationRecord[] }) {
-  if (!items.length) {
-    return (
-      <EmptyState
-        title="No dossiers yet"
-        text="Once a classification has a dossier, you can reopen it here."
-      />
-    );
-  }
-
-  return (
-    <>
-      {items.map((item) => (
-        <LibraryRow
-          key={item.id}
-          icon={<FileCheck2 color={colors.text} size={18} />}
-          title={item.product?.name ?? 'Untitled product'}
-          subtitle={
-            formatClassificationCode(
-              getPreferredClassificationCode({
-                cnCode: item.cnCode,
-                htsCode: item.htsCode,
-                hsCode: item.hsCode,
-              }),
-            ) || 'Classification ready'
-          }
-          meta="Open dossier"
-          onPress={() => router.push(`/classifications/${item.id}/dossier` as never)}
-        />
-      ))}
-    </>
+      </Animated.View>
+    </SafeAreaView>
   );
 }
 
@@ -336,6 +376,7 @@ function LibraryRow({
   onPress,
   disabled,
   trailing,
+  thumbnailUrl,
 }: {
   icon: React.ReactNode;
   title: string;
@@ -344,6 +385,7 @@ function LibraryRow({
   onPress: () => void;
   disabled?: boolean;
   trailing?: React.ReactNode;
+  thumbnailUrl?: string | null;
 }) {
   return (
     <Pressable
@@ -351,7 +393,9 @@ function LibraryRow({
       onPress={onPress}
       disabled={disabled}
     >
-      <View style={styles.rowIcon}>{icon}</View>
+      <View style={styles.rowIcon}>
+        {thumbnailUrl ? <Image source={{ uri: thumbnailUrl }} style={styles.rowThumbnail} /> : icon}
+      </View>
       <View style={styles.rowCopy}>
         <Text style={styles.rowTitle} numberOfLines={1}>
           {title}
@@ -445,6 +489,12 @@ function getLabelSubtitle(label: LabelRecord) {
   return `Generated ${formattedDate}`;
 }
 
+function getProductThumbnailUrl(classification: ClassificationRecord) {
+  const images = classification.product?.images;
+  if (!images?.length) return null;
+  return images[0]?.signedUrl ?? null;
+}
+
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -473,15 +523,22 @@ const styles = StyleSheet.create({
   },
   iconSpacer: {
     width: 42,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  headerBrand: {
+    width: 42,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
   },
   headerTitle: {
     color: colors.text,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
   },
   title: {
     color: colors.text,
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '800',
     marginBottom: 12,
   },
@@ -536,12 +593,12 @@ const styles = StyleSheet.create({
   },
   summaryValue: {
     color: colors.text,
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '800',
   },
   summaryLabel: {
     color: colors.textMuted,
-    fontSize: 10,
+    fontSize: 9,
     marginTop: 3,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
@@ -576,23 +633,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surfaceRaised,
+    overflow: 'hidden',
+  },
+  rowThumbnail: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 20,
   },
   rowCopy: {
     flex: 1,
   },
   rowTitle: {
     color: colors.text,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
   },
   rowSubtitle: {
     color: colors.textSecondary,
-    fontSize: 11,
+    fontSize: 10,
     marginTop: 3,
   },
   rowMeta: {
     color: colors.textMuted,
-    fontSize: 11,
+    fontSize: 10,
     marginTop: 4,
   },
   emptyState: {
@@ -602,7 +665,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     color: colors.text,
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: '800',
     marginTop: 10,
     marginBottom: 6,
@@ -610,8 +673,8 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 13,
+    lineHeight: 19,
     textAlign: 'center',
   },
 });

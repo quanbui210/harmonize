@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
 import { ArrowLeft, Bot, Check, ChevronRight, CircleHelp, Copy, FileBadge2, FileCheck2, ShieldAlert, Trash2 } from 'lucide-react-native';
 import { ApiClient } from '@/lib/api-client';
 import { lightTheme } from '@/constants/mobile-theme';
 import { formatClassificationCode, getPreferredClassificationCode, normalizeCodeDigits } from '@/lib/classification-code';
 import { parseRefinementQuestion } from '@/lib/refinement-question';
+import type { ClassificationRecord, CursorPaginatedResponse } from '@/types/api';
 
 const { colors, radius } = lightTheme;
 
@@ -21,6 +22,7 @@ export default function ClassificationDetailScreen() {
     queryKey: ['classification', classificationId],
     queryFn: () => ApiClient.getClassification(classificationId),
     enabled: !!classificationId,
+    staleTime: 10_000,
   });
 
   const classification = classificationQuery.data;
@@ -81,11 +83,26 @@ export default function ClassificationDetailScreen() {
     onSuccess: async (response) => {
       setSelectedRefinementAnswer(null);
       setCustomRefinementAnswer('');
+      const updatedClassification = response.result?.classification;
+      if (updatedClassification) {
+        queryClient.setQueryData(
+          ['classification', classificationId],
+          updatedClassification,
+        );
+        queryClient.setQueryData(
+          ['classification', updatedClassification.id],
+          updatedClassification,
+        );
+        queryClient.setQueriesData(
+          { queryKey: ['classifications'] },
+          (current: unknown) =>
+            replaceClassificationInCollectionCache(current, updatedClassification),
+        );
+      } else {
+        await queryClient.invalidateQueries({ queryKey: ['classifications'] });
+      }
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['classification', classificationId] }),
-        queryClient.invalidateQueries({ queryKey: ['classifications'] }),
         queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
-        queryClient.invalidateQueries({ queryKey: ['products'] }),
         classification?.productId
           ? queryClient.invalidateQueries({ queryKey: ['product', classification.productId] })
           : Promise.resolve(),
@@ -102,11 +119,16 @@ export default function ClassificationDetailScreen() {
   });
   const deleteMutation = useMutation({
     mutationFn: () => ApiClient.deleteClassification(classificationId),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
+      const deletedId = result.deletedClassificationId;
+      queryClient.removeQueries({ queryKey: ['classification', deletedId], exact: true });
+      queryClient.setQueriesData(
+        { queryKey: ['classifications'] },
+        (current: unknown) => removeClassificationFromCollectionCache(current, deletedId),
+      );
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
         queryClient.invalidateQueries({ queryKey: ['products'] }),
-        queryClient.invalidateQueries({ queryKey: ['classifications'] }),
       ]);
       router.replace('/library?section=classifications');
     },
@@ -211,9 +233,29 @@ export default function ClassificationDetailScreen() {
               }}
             />
 
+            <View style={styles.primaryActions}>
+              <Pressable
+                style={styles.secondaryPrimaryButton}
+                onPress={() => router.push(`/scan/label?classificationId=${classification.id}` as never)}
+              >
+                <FileBadge2 color={colors.text} size={16} />
+                <Text style={styles.secondaryPrimaryButtonText}>Generate EU label</Text>
+              </Pressable>
+              <Pressable
+                style={styles.primaryButton}
+                onPress={() => router.push(`/classifications/${classification.id}/dossier` as never)}
+              >
+                <Text style={styles.primaryButtonText}>Open dossier</Text>
+                <ChevronRight color="#FFFFFF" size={16} />
+              </Pressable>
+            </View>
+
             <View style={styles.card}>
-              <Text style={styles.cardLabel}>Estimated impact</Text>
-              <MetricLine label="Third country duty" value={dutyRate != null ? `${dutyRate}%` : '-'} />
+              <Text style={styles.cardLabel}>Estimated import charges</Text>
+              <MetricLine
+                label="Estimated customs duty (third-country)"
+                value={dutyRate != null ? `${dutyRate}%` : '-'}
+              />
               <MetricLine label="Standard VAT" value={vatRate != null ? `${vatRate}%` : '-'} />
               <MetricLine label="Supplementary unit" value={supplementaryUnit || '-'} />
             </View>
@@ -444,23 +486,6 @@ export default function ClassificationDetailScreen() {
                   <Text style={styles.bodyCopy}>{notes}</Text>
                 </>
               ) : null}
-            </View>
-
-            <View style={styles.primaryActions}>
-              <Pressable
-                style={styles.secondaryPrimaryButton}
-                onPress={() => router.push(`/scan/label?classificationId=${classification.id}` as never)}
-              >
-                <FileBadge2 color={colors.text} size={16} />
-                <Text style={styles.secondaryPrimaryButtonText}>Generate EU label</Text>
-              </Pressable>
-              <Pressable
-                style={styles.primaryButton}
-                onPress={() => router.push(`/classifications/${classification.id}/dossier` as never)}
-              >
-                <Text style={styles.primaryButtonText}>Open dossier</Text>
-                <ChevronRight color="#FFFFFF" size={16} />
-              </Pressable>
             </View>
 
             {classification.requiresReview ? (
@@ -737,6 +762,81 @@ function getSummaryDisplayCode(input: {
     htsCode: input.htsCode,
     hsCode: input.hsCode,
   });
+}
+
+function replaceClassificationInCollectionCache(
+  cache: unknown,
+  updated: ClassificationRecord,
+) {
+  if (!cache || typeof cache !== 'object') return cache;
+  const value = cache as Record<string, unknown>;
+
+  if (Array.isArray(value.pages)) {
+    const pages = (value.pages as unknown[]).map((page) => {
+      if (!page || typeof page !== 'object') return page;
+      const pageRecord = page as Record<string, unknown>;
+      if (!Array.isArray(pageRecord.items)) return page;
+      return {
+        ...pageRecord,
+        items: (pageRecord.items as unknown[]).map((item) =>
+          item && typeof item === 'object' && (item as ClassificationRecord).id === updated.id
+            ? updated
+            : item,
+        ),
+      };
+    });
+    return { ...value, pages } as InfiniteData<CursorPaginatedResponse<ClassificationRecord>>;
+  }
+
+  if (Array.isArray(value.items)) {
+    return {
+      ...value,
+      items: (value.items as unknown[]).map((item) =>
+        item && typeof item === 'object' && (item as ClassificationRecord).id === updated.id
+          ? updated
+          : item,
+      ),
+    } as CursorPaginatedResponse<ClassificationRecord>;
+  }
+
+  return cache;
+}
+
+function removeClassificationFromCollectionCache(cache: unknown, deletedId: string) {
+  if (!cache || typeof cache !== 'object') return cache;
+  const value = cache as Record<string, unknown>;
+
+  if (Array.isArray(value.pages)) {
+    const pages = (value.pages as unknown[]).map((page) => {
+      if (!page || typeof page !== 'object') return page;
+      const pageRecord = page as Record<string, unknown>;
+      if (!Array.isArray(pageRecord.items)) return page;
+      return {
+        ...pageRecord,
+        items: (pageRecord.items as unknown[]).filter(
+          (item) =>
+            !item ||
+            typeof item !== 'object' ||
+            (item as ClassificationRecord).id !== deletedId,
+        ),
+      };
+    });
+    return { ...value, pages } as InfiniteData<CursorPaginatedResponse<ClassificationRecord>>;
+  }
+
+  if (Array.isArray(value.items)) {
+    return {
+      ...value,
+      items: (value.items as unknown[]).filter(
+        (item) =>
+          !item ||
+          typeof item !== 'object' ||
+          (item as ClassificationRecord).id !== deletedId,
+      ),
+    } as CursorPaginatedResponse<ClassificationRecord>;
+  }
+
+  return cache;
 }
 
 const styles = StyleSheet.create({
@@ -1212,7 +1312,8 @@ const styles = StyleSheet.create({
   primaryActions: {
     flexDirection: 'row',
     gap: 10,
-    marginTop: 4,
+    marginTop: 8,
+    marginBottom: 12,
   },
   secondaryPrimaryButton: {
     flex: 1,

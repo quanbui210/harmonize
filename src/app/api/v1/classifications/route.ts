@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { handleApiError, requireApiAuth } from "@/lib/api/mobile-auth";
 import { handleCorsPreflight, jsonWithCors } from "@/lib/api/cors";
 import { serializeClassification } from "@/lib/api/mobile-serializers";
+import { getSupabaseAdminClient } from "@/lib/supabase/server";
 
 const basicClassifyRequestSchema = z.object({
   productId: z.string().cuid(),
@@ -29,6 +30,32 @@ const enhancedClassifyRequestSchema = z.object({
   imageIds: z.array(z.string().cuid()).optional(),
   market: z.nativeEnum(MarketCode).default(MarketCode.EU),
 });
+
+const DEFAULT_LIMIT = 20;
+const MAX_LIMIT = 100;
+
+function resolveLimit(value: string | null) {
+  const parsed = Number.parseInt(value || "", 10);
+  if (!Number.isFinite(parsed)) return DEFAULT_LIMIT;
+  return Math.min(Math.max(parsed, 1), MAX_LIMIT);
+}
+
+function parseCursor(value: string | null) {
+  if (!value) return null;
+  const [updatedAtText, id] = value.split("|");
+  if (!updatedAtText || !id) {
+    throw new Error("Invalid cursor");
+  }
+  const updatedAt = new Date(updatedAtText);
+  if (Number.isNaN(updatedAt.getTime())) {
+    throw new Error("Invalid cursor");
+  }
+  return { updatedAt, id };
+}
+
+function makeCursor(value: { updatedAt: Date; id: string }) {
+  return `${value.updatedAt.toISOString()}|${value.id}`;
+}
 
 function stringValue(value: unknown) {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
@@ -167,6 +194,10 @@ function mergeProductEvidence(product: {
           acc.originCountry ||
           stringValue(extractedData.originCountry) ||
           "",
+        destinationCountry:
+          acc.destinationCountry ||
+          stringValue(extractedData.destinationCountry) ||
+          "",
         materials: mergeUniqueMaterials(
           acc.materials,
           extractMaterials(extractedData.materials),
@@ -178,6 +209,7 @@ function mergeProductEvidence(product: {
       description: "",
       intendedUse: "",
       originCountry: "",
+      destinationCountry: "",
       materials: existingMaterials,
     },
   );
@@ -198,6 +230,10 @@ function mergeProductEvidence(product: {
       mergedData.originCountry ||
       stringValue(metadata.originCountry) ||
       undefined,
+    destinationCountry:
+      mergedData.destinationCountry ||
+      stringValue(metadata.destinationCountry) ||
+      undefined,
     compositionText: buildCompositionTextFromImages(
       product.images,
       stringValue(metadata.compositionText),
@@ -214,28 +250,78 @@ export function OPTIONS(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const { membership } = await requireApiAuth(request);
-    const limit = Number.parseInt(request.nextUrl.searchParams.get("limit") || "50", 10);
+    const limit = resolveLimit(request.nextUrl.searchParams.get("limit"));
+    const cursor = parseCursor(request.nextUrl.searchParams.get("cursor"));
 
     const classifications = await prisma.classification.findMany({
       where: {
         organizationId: membership.organizationId,
+        ...(cursor
+          ? {
+              OR: [
+                { updatedAt: { lt: cursor.updatedAt } },
+                {
+                  updatedAt: cursor.updatedAt,
+                  id: { lt: cursor.id },
+                },
+              ],
+            }
+          : {}),
       },
       include: {
-        product: true,
+        product: {
+          include: {
+            images: {
+              orderBy: { createdAt: "desc" },
+              take: 1,
+            },
+          },
+        },
         dutySummary: true,
         riskFlags: true,
         dossier: true,
       },
-      orderBy: {
-        updatedAt: "desc",
-      },
-      take: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 100) : 50,
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      take: limit + 1,
     });
+    const hasMore = classifications.length > limit;
+    const pageItems = hasMore ? classifications.slice(0, limit) : classifications;
+    const lastItem = pageItems[pageItems.length - 1];
+    const nextCursor = hasMore && lastItem ? makeCursor(lastItem) : null;
+
+    const supabase = getSupabaseAdminClient();
+    const serializedItems = await Promise.all(
+      pageItems.map(async (classification) => {
+        const productImages = classification.product?.images ?? [];
+        const productImagesWithSignedUrls = await Promise.all(
+          productImages.map(async (image) => {
+            const { data } = await supabase.storage
+              .from("product-images")
+              .createSignedUrl(image.storagePath, 3600);
+
+            return {
+              ...image,
+              signedUrl: data?.signedUrl ?? null,
+            };
+          }),
+        );
+
+        return serializeClassification({
+          ...classification,
+          product: classification.product
+            ? {
+                ...classification.product,
+                images: productImagesWithSignedUrls,
+              }
+            : classification.product,
+        });
+      }),
+    );
 
     return jsonWithCors(request, {
-      classifications: classifications.map((classification) =>
-        serializeClassification(classification),
-      ),
+      items: serializedItems,
+      nextCursor,
+      hasMore,
     });
   } catch (error) {
     return handleApiError(error, request);
@@ -348,6 +434,7 @@ export async function POST(request: NextRequest) {
       materials: merged.materials,
       compositionText: merged.compositionText || undefined,
       originCountry: merged.originCountry,
+      destinationCountry: merged.destinationCountry,
       imageIds: merged.imageIds,
       market: MarketCode.EU,
     });

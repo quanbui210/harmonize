@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 import {
   askComplianceQuestionAction,
@@ -7,6 +7,7 @@ import {
   listChatSessionsAction,
 } from "@/server/actions/compliance-chat";
 import { handleApiError, requireApiAuth } from "@/lib/api/mobile-auth";
+import { handleCorsPreflight, jsonWithCors } from "@/lib/api/cors";
 
 const askQuestionSchema = z.object({
   query: z.string().min(1),
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
         userId: user.id,
       });
 
-      return NextResponse.json({ session });
+      return jsonWithCors(request, { session });
     }
 
     const limit = Number.parseInt(request.nextUrl.searchParams.get("limit") || "20", 10);
@@ -35,9 +36,9 @@ export async function GET(request: NextRequest) {
       limit: Number.isFinite(limit) ? limit : 20,
     });
 
-    return NextResponse.json({ sessions });
+    return jsonWithCors(request, { sessions });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, request);
   }
 }
 
@@ -54,9 +55,9 @@ export async function POST(request: NextRequest) {
       userId: user.id,
     });
 
-    return NextResponse.json(result, { status: 201 });
+    return jsonWithCors(request, result, { status: 201 });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, request);
   }
 }
 
@@ -66,7 +67,8 @@ export async function DELETE(request: NextRequest) {
     const sessionId = request.nextUrl.searchParams.get("sessionId");
 
     if (!sessionId) {
-      return NextResponse.json(
+      return jsonWithCors(
+        request,
         { error: "sessionId is required" },
         { status: 400 },
       );
@@ -78,8 +80,12 @@ export async function DELETE(request: NextRequest) {
       userId: user.id,
     });
 
-    return NextResponse.json(result);
+    return jsonWithCors(request, result);
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, request);
   }
+}
+
+export function OPTIONS(request: NextRequest) {
+  return handleCorsPreflight(request);
 }

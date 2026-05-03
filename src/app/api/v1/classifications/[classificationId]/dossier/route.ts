@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateDossierAction } from "@/server/actions/dossier";
 import { handleApiError, requireApiAuth } from "@/lib/api/mobile-auth";
+import { handleCorsPreflight, jsonWithCors } from "@/lib/api/cors";
 
 export async function GET(
   request: NextRequest,
@@ -26,14 +27,15 @@ export async function GET(
     });
 
     if (!classification) {
-      return NextResponse.json(
+      return jsonWithCors(
+        request,
         { error: "Classification not found" },
         { status: 404 },
       );
     }
 
     const dossier = classification.dossier;
-    return NextResponse.json({
+    return jsonWithCors(request, {
       dossier: dossier
         ? {
             id: dossier.id,
@@ -47,7 +49,7 @@ export async function GET(
         : null,
     });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, request);
   }
 }
 
@@ -68,15 +70,20 @@ export async function POST(
     });
 
     if (!classification) {
-      return NextResponse.json(
+      return jsonWithCors(
+        request,
         { error: "Classification not found" },
         { status: 404 },
       );
     }
 
     const dossier = await generateDossierAction({ classificationId });
-    return NextResponse.json({ dossier }, { status: 201 });
+    return jsonWithCors(request, { dossier }, { status: 201 });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, request);
   }
+}
+
+export function OPTIONS(request: NextRequest) {
+  return handleCorsPreflight(request);
 }

@@ -280,13 +280,10 @@ export default function LabelScanScreen() {
         <View style={styles.heroCard}>
           <View style={styles.heroBadge}>
             <FileBadge2 color={colors.text} size={16} />
-            <Text style={styles.heroBadgeText}>Next step</Text>
+            <Text style={styles.heroBadgeText}>Label scan</Text>
           </View>
-          <Text style={styles.heroTitle}>Scan the original label, then finish the missing details.</Text>
-          <Text style={styles.heroText}>
-            We fill in what we can from the photo. You still need to check the address, dates,
-            quantity, and any missing details.
-          </Text>
+          <Text style={styles.heroTitle}>Scan the current label.</Text>
+          <Text style={styles.heroText}>We pre-fill fields. You confirm final details.</Text>
         </View>
 
         {classificationId ? (
@@ -300,8 +297,7 @@ export default function LabelScanScreen() {
               <>
                 <Text style={styles.prefillTitle}>Using saved product details</Text>
                 <Text style={styles.prefillText}>
-                  {classificationQuery.data.product?.name ?? 'Product'} will fill in the basic
-                  product details while you complete the label information below.
+                  {classificationQuery.data.product?.name ?? 'Product'} is used to pre-fill basics.
                 </Text>
               </>
             ) : null}
@@ -314,10 +310,7 @@ export default function LabelScanScreen() {
           ) : (
             <View style={styles.framePlaceholder}>
               <Text style={styles.framePlaceholderTitle}>Original product label</Text>
-              <Text style={styles.framePlaceholderText}>
-                Scan the current label first so we can fill in the product text before you complete
-                the fields below.
-              </Text>
+              <Text style={styles.framePlaceholderText}>Use a clear, readable image.</Text>
             </View>
           )}
         </View>
@@ -388,10 +381,7 @@ export default function LabelScanScreen() {
             <ShieldCheck color={colors.success} size={18} />
             <Text style={styles.tipTitle}>Before you generate</Text>
           </View>
-          <Text style={styles.tipText}>
-            This step helps you get started from the label photo, but you still need to check the
-            business details before generating the final label.
-          </Text>
+          <Text style={styles.tipText}>Review address, dates, and quantity before final export.</Text>
         </View>
 
         <Pressable
@@ -408,8 +398,7 @@ export default function LabelScanScreen() {
 
         {!canGenerate ? (
           <Text style={styles.helperText}>
-            Fill all starred fields and make sure the original label text is present before
-            generation.
+            Fill all required fields before generating.
           </Text>
         ) : null}
 
@@ -426,7 +415,7 @@ export default function LabelScanScreen() {
             />
             {failedChecks.length ? (
               <View style={styles.warningCard}>
-                <Text style={styles.warningTitle}>Still needs attention</Text>
+                <Text style={styles.warningTitle}>Needs review</Text>
                 {failedChecks.slice(0, 3).map((item: any, index: number) => (
                   <Text key={`${item?.checkId || 'check'}-${index}`} style={styles.warningText}>
                     - {extractIssueText(item)}
@@ -589,15 +578,15 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     color: colors.text,
-    fontSize: 29,
-    lineHeight: 34,
+    fontSize: 23,
+    lineHeight: 28,
     fontWeight: '800',
     marginBottom: 8,
   },
   heroText: {
     color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 12,
+    lineHeight: 18,
   },
   prefillCard: {
     backgroundColor: colors.surface,
@@ -609,14 +598,14 @@ const styles = StyleSheet.create({
   },
   prefillTitle: {
     color: colors.text,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '800',
     marginBottom: 6,
   },
   prefillText: {
     color: colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 20,
+    fontSize: 12,
+    lineHeight: 17,
   },
   inlineLoading: {
     flexDirection: 'row',
@@ -650,15 +639,15 @@ const styles = StyleSheet.create({
   },
   framePlaceholderTitle: {
     color: colors.text,
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: '800',
     textAlign: 'center',
     marginBottom: 8,
   },
   framePlaceholderText: {
     color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 12,
+    lineHeight: 17,
     textAlign: 'center',
   },
   primaryButton: {
@@ -676,7 +665,7 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
   },
   secondaryButton: {
@@ -693,7 +682,7 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     color: colors.text,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
   },
   resultCard: {
@@ -706,7 +695,7 @@ const styles = StyleSheet.create({
   },
   resultTitle: {
     color: colors.text,
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '800',
     marginBottom: 10,
   },
@@ -722,7 +711,7 @@ const styles = StyleSheet.create({
   },
   infoValue: {
     color: colors.text,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
   },
   ocrCard: {
@@ -747,7 +736,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: colors.text,
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '800',
     marginBottom: 10,
   },
@@ -763,7 +752,7 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     color: colors.text,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     marginBottom: 8,
   },
@@ -773,7 +762,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     backgroundColor: colors.surface,
     color: colors.text,
-    fontSize: 14,
+    fontSize: 13,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
@@ -796,18 +785,18 @@ const styles = StyleSheet.create({
   },
   tipTitle: {
     color: colors.text,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '800',
   },
   tipText: {
     color: colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 20,
+    fontSize: 12,
+    lineHeight: 17,
   },
   helperText: {
     color: colors.textSecondary,
-    fontSize: 12,
-    lineHeight: 18,
+    fontSize: 11,
+    lineHeight: 16,
     textAlign: 'center',
     marginBottom: 12,
   },
@@ -820,7 +809,7 @@ const styles = StyleSheet.create({
   },
   generatedTitle: {
     color: colors.text,
-    fontSize: 24,
+    fontSize: 19,
     fontWeight: '800',
     marginBottom: 10,
   },
@@ -832,14 +821,14 @@ const styles = StyleSheet.create({
   },
   warningTitle: {
     color: colors.text,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     marginBottom: 8,
   },
   warningText: {
     color: colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 19,
+    fontSize: 12,
+    lineHeight: 17,
     marginBottom: 4,
   },
   generatedButtonRow: {

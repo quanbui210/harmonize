@@ -38,17 +38,14 @@ export default function ScanHubScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.eyebrow}>Quick scan</Text>
-          <Text style={styles.title}>Start with the package in front of you.</Text>
-          <Text style={styles.subtitle}>
-            Scan a product to get a customs classification, or scan the original label to prepare an
-            EU-compliant version that you still finish with manual details.
-          </Text>
+          <Text style={styles.title}>Choose a scan flow.</Text>
+          <Text style={styles.subtitle}>Classify a product, then generate label.</Text>
         </View>
 
         <IntentCard
           title="Classify product"
-          description="Scan the package, ingredient list, or product sheet. TulliCheck saves the product, reads the details it can find, and suggests the customs code."
-          footer="Best when the product is new and nothing exists yet."
+          description="Scan packaging and get a customs result."
+          footer="Use for new products."
           dark
           onPress={() => router.push('/scan/classify')}
           icon={<ScanSearch color="#FFFFFF" size={20} />}
@@ -56,8 +53,8 @@ export default function ScanHubScreen() {
 
         <IntentCard
           title="Generate EU label"
-          description="Scan the original product label first, then complete the missing fields needed for the EU version before generating the saved label."
-          footer="Best when you already know the product and need a compliant market label."
+          description="Scan the current label, then complete required fields."
+          footer="Use for market-ready labels."
           onPress={() => router.push('/scan/label')}
           icon={<FileBadge2 color={colors.text} size={20} />}
         />
@@ -65,10 +62,10 @@ export default function ScanHubScreen() {
         <View style={styles.infoCard}>
           <View style={styles.infoHeader}>
             <ShieldCheck color={colors.success} size={18} />
-            <Text style={styles.infoTitle}>What happens after scan</Text>
+            <Text style={styles.infoTitle}>After scan</Text>
           </View>
-          <InfoLine text="Classification opens the customs result, then you can continue into dossier or label generation." />
-          <InfoLine text="Label generation fills in some details from the photo, but you still need to check and complete any missing fields." />
+          <InfoLine text="Classification opens the result immediately." />
+          <InfoLine text="Label flow pre-fills data. You confirm the final details." />
         </View>
 
         <View style={styles.sectionHeader}>
@@ -196,15 +193,15 @@ const styles = StyleSheet.create({
   },
   title: {
     color: colors.text,
-    fontSize: 34,
-    lineHeight: 39,
+    fontSize: 26,
+    lineHeight: 31,
     fontWeight: '800',
     marginBottom: 8,
   },
   subtitle: {
     color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 22,
+    fontSize: 12,
+    lineHeight: 18,
   },
   intentCard: {
     backgroundColor: colors.surface,
@@ -232,7 +229,7 @@ const styles = StyleSheet.create({
   },
   intentTitle: {
     color: colors.text,
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '800',
     marginBottom: 8,
   },
@@ -241,8 +238,8 @@ const styles = StyleSheet.create({
   },
   intentDescription: {
     color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 22,
+    fontSize: 12,
+    lineHeight: 18,
     marginBottom: 12,
   },
   intentDescriptionDark: {
@@ -250,7 +247,7 @@ const styles = StyleSheet.create({
   },
   intentFooter: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
   },
   intentFooterDark: {
@@ -272,7 +269,7 @@ const styles = StyleSheet.create({
   },
   infoTitle: {
     color: colors.text,
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: '800',
   },
   infoLine: {
@@ -290,8 +287,8 @@ const styles = StyleSheet.create({
   infoLineText: {
     flex: 1,
     color: colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 20,
+    fontSize: 12,
+    lineHeight: 17,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -301,7 +298,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: colors.text,
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: '800',
   },
   sectionAction: {
@@ -334,12 +331,12 @@ const styles = StyleSheet.create({
   },
   historyTitle: {
     color: colors.text,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '700',
   },
   historySubtitle: {
     color: colors.textSecondary,
-    fontSize: 12,
+    fontSize: 11,
     marginTop: 4,
   },
   emptyState: {
@@ -347,14 +344,14 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     color: colors.text,
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '800',
     marginBottom: 6,
   },
   emptyText: {
     color: colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 20,
+    fontSize: 12,
+    lineHeight: 17,
   },
   inlineLink: {
     marginTop: 16,

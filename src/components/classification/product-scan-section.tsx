@@ -176,6 +176,13 @@ export function ProductScanSection({
       return;
     }
 
+    const normalizedOriginCountry = originCountry.trim();
+    const normalizedDestinationCountry = destinationCountry.trim();
+    if (!normalizedOriginCountry || !normalizedDestinationCountry) {
+      setClassificationError("Please provide both origin and destination countries before classifying.");
+      return;
+    }
+
     setClassificationError(null);
     try {
       const imageIds = images
@@ -194,8 +201,8 @@ export function ProductScanSection({
               "Product identified from image",
             intendedUse: mergedData.intendedUse,
             compositionText: mergedData.compositionText || undefined,
-            originCountry: originCountry || mergedData.originCountry || undefined,
-            destinationCountry: destinationCountry || undefined,
+            originCountry: normalizedOriginCountry || mergedData.originCountry || undefined,
+            destinationCountry: normalizedDestinationCountry || undefined,
             materials: mergedData.materials?.map((m) => ({
               material: m.name,
               percentage: m.percentage || 0,
@@ -217,7 +224,7 @@ export function ProductScanSection({
 
   const [selectedMarket, setSelectedMarket] = useState<MarketCode>(market);
   const [originCountry, setOriginCountry] = useState<string>("");
-  const [destinationCountry, setDestinationCountry] = useState<string>("");
+  const [destinationCountry, setDestinationCountry] = useState<string>("Finland");
 
   return (
     <div className="space-y-4">
@@ -250,6 +257,7 @@ export function ProductScanSection({
             onChange={(e) => setOriginCountry(e.target.value)}
             placeholder="e.g. China, Vietnam"
             className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+            required
             disabled={disabled}
           />
         </div>
@@ -264,6 +272,7 @@ export function ProductScanSection({
             onChange={(e) => setDestinationCountry(e.target.value)}
             placeholder="e.g. Finland, Germany"
             className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+            required
             disabled={disabled}
           />
         </div>

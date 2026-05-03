@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  FlatList,
+  ListRenderItemInfo,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -11,26 +12,36 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { ArrowRight, History, ScanSearch, Search } from 'lucide-react-native';
 import { ApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/AuthProvider';
 import { lightTheme } from '@/constants/mobile-theme';
+import type { ProductRecord } from '@/types/api';
 
 const { colors, radius } = lightTheme;
+const PAGE_SIZE = 20;
 
 export default function ProductsScreen() {
   const { user, isLoading: authLoading } = useAuth();
   const [query, setQuery] = useState('');
 
-  const productsQuery = useQuery({
+  const productsQuery = useInfiniteQuery({
     queryKey: ['products'],
-    queryFn: () => ApiClient.listProducts(),
+    queryFn: ({ pageParam }) =>
+      ApiClient.listProducts({ limit: PAGE_SIZE, cursor: pageParam }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) =>
+      lastPage.hasMore ? lastPage.nextCursor : null,
     enabled: !!user,
+    staleTime: 30_000,
   });
+  const products = useMemo(
+    () => productsQuery.data?.pages.flatMap((page) => page.items) ?? [],
+    [productsQuery.data],
+  );
 
   const filteredProducts = useMemo(() => {
-    const products = productsQuery.data ?? [];
     const normalized = query.trim().toLowerCase();
     if (!normalized) return products;
 
@@ -46,125 +57,156 @@ export default function ProductsScreen() {
 
       return haystack.includes(normalized);
     });
-  }, [productsQuery.data, query]);
+  }, [products, query]);
+
+  const renderHeader = () => (
+    <>
+      <View style={styles.header}>
+        <Text style={styles.title}>Saved History</Text>
+        <Text style={styles.subtitle}>
+          Products are your saved items and photo history after a scan, not the first step.
+        </Text>
+      </View>
+
+      <View style={styles.banner}>
+        <View style={styles.bannerCopy}>
+          <Text style={styles.bannerTitle}>Start new work from scan</Text>
+          <Text style={styles.bannerText}>
+            Use history when you want to reopen a saved product, add more photos, or continue
+            where you left off.
+          </Text>
+        </View>
+        <Pressable style={styles.bannerButton} onPress={() => router.push('/scan')}>
+          <ScanSearch color={colors.text} size={16} />
+          <Text style={styles.bannerButtonText}>Start scan</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.searchShell}>
+        <Search color={colors.textMuted} size={18} />
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search by name, market or intended use"
+          placeholderTextColor={colors.textMuted}
+          style={styles.searchInput}
+        />
+      </View>
+
+      <View style={styles.summaryRow}>
+        <SummaryPill label="Total loaded" value={products.length} />
+        <SummaryPill label="Visible" value={filteredProducts.length} />
+        <SummaryPill
+          label="With materials"
+          value={products.filter((item) => (item.materials?.length ?? 0) > 0).length}
+        />
+      </View>
+    </>
+  );
+
+  const renderProductItem = ({ item: product }: ListRenderItemInfo<ProductRecord>) => (
+    <Pressable
+      key={product.id}
+      style={styles.productCard}
+      onPress={() => router.push(`/products/${product.id}` as never)}
+    >
+      <View style={styles.productTopRow}>
+        <Text style={styles.productTitle}>{product.name}</Text>
+        <ArrowRight color={colors.textMuted} size={18} />
+      </View>
+      <Text style={styles.productDescription} numberOfLines={2}>
+        {product.description}
+      </Text>
+
+      <View style={styles.metaRow}>
+        {(product.targetMarkets ?? []).slice(0, 3).map((market) => (
+          <View key={market} style={styles.marketTag}>
+            <Text style={styles.marketTagText}>{market}</Text>
+          </View>
+        ))}
+      </View>
+
+      <View style={styles.cardFooter}>
+        <View>
+          <Text style={styles.footerValue}>{product.materials?.length ?? 0}</Text>
+          <Text style={styles.footerLabel}>materials</Text>
+        </View>
+        <Pressable
+          style={styles.scanButton}
+          onPress={(event) => {
+            event.stopPropagation();
+            router.push(`/products/${product.id}/scan` as never);
+          }}
+        >
+          <History color="#FFFFFF" size={16} />
+          <Text style={styles.scanButtonText}>Add photos</Text>
+        </Pressable>
+      </View>
+    </Pressable>
+  );
+
+  const renderEmpty = () => {
+    if (authLoading || productsQuery.isLoading) {
+      return (
+        <View style={styles.loadingState}>
+          <ActivityIndicator color={colors.primary} />
+        </View>
+      );
+    }
+
+    if (productsQuery.isError) {
+      return (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>Unable to load products</Text>
+          <Text style={styles.emptyText}>
+            {productsQuery.error instanceof Error
+              ? productsQuery.error.message
+              : 'The products request failed. Pull to refresh after the API is ready.'}
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.emptyState}>
+        <Text style={styles.emptyTitle}>No saved products</Text>
+        <Text style={styles.emptyText}>
+          Start with a new scan and your saved product will appear here afterward.
+        </Text>
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.screen}>
-      <ScrollView
+      <FlatList
+        data={filteredProducts}
+        keyExtractor={(item) => item.id}
+        renderItem={renderProductItem}
+        ListHeaderComponent={renderHeader}
+        ListEmptyComponent={renderEmpty}
+        ListFooterComponent={
+          productsQuery.isFetchingNextPage ? (
+            <View style={styles.loadingMore}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : null
+        }
+        onEndReachedThreshold={0.45}
+        onEndReached={() => {
+          if (!productsQuery.hasNextPage || productsQuery.isFetchingNextPage) return;
+          void productsQuery.fetchNextPage();
+        }}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
-            refreshing={productsQuery.isRefetching}
+            refreshing={productsQuery.isRefetching && !productsQuery.isFetchingNextPage}
             onRefresh={() => void productsQuery.refetch()}
             tintColor={colors.primary}
           />
         }
-      >
-        <View style={styles.header}>
-          <Text style={styles.title}>Saved History</Text>
-          <Text style={styles.subtitle}>
-            Products are your saved items and photo history after a scan, not the first step.
-          </Text>
-        </View>
-
-        <View style={styles.banner}>
-          <View style={styles.bannerCopy}>
-            <Text style={styles.bannerTitle}>Start new work from scan</Text>
-            <Text style={styles.bannerText}>
-              Use history when you want to reopen a saved product, add more photos, or continue
-              where you left off.
-            </Text>
-          </View>
-          <Pressable style={styles.bannerButton} onPress={() => router.push('/scan')}>
-            <ScanSearch color={colors.text} size={16} />
-            <Text style={styles.bannerButtonText}>Start scan</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.searchShell}>
-          <Search color={colors.textMuted} size={18} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search by name, market or intended use"
-            placeholderTextColor={colors.textMuted}
-            style={styles.searchInput}
-          />
-        </View>
-
-        <View style={styles.summaryRow}>
-          <SummaryPill label="Total" value={productsQuery.data?.length ?? 0} />
-          <SummaryPill label="Visible" value={filteredProducts.length} />
-          <SummaryPill
-            label="With materials"
-            value={(productsQuery.data ?? []).filter((item) => (item.materials?.length ?? 0) > 0).length}
-          />
-        </View>
-
-        {authLoading || productsQuery.isLoading ? (
-          <View style={styles.loadingState}>
-            <ActivityIndicator color={colors.primary} />
-          </View>
-        ) : productsQuery.isError ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>Unable to load products</Text>
-            <Text style={styles.emptyText}>
-              {productsQuery.error instanceof Error
-                ? productsQuery.error.message
-                : 'The products request failed. Pull to refresh after the API is ready.'}
-            </Text>
-          </View>
-        ) : filteredProducts.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>No saved products</Text>
-            <Text style={styles.emptyText}>
-              Start with a new scan and your saved product will appear here afterward.
-            </Text>
-          </View>
-        ) : (
-          filteredProducts.map((product) => (
-            <Pressable
-              key={product.id}
-              style={styles.productCard}
-              onPress={() => router.push(`/products/${product.id}` as never)}
-            >
-              <View style={styles.productTopRow}>
-                <Text style={styles.productTitle}>{product.name}</Text>
-                <ArrowRight color={colors.textMuted} size={18} />
-              </View>
-              <Text style={styles.productDescription} numberOfLines={2}>
-                {product.description}
-              </Text>
-
-              <View style={styles.metaRow}>
-                {(product.targetMarkets ?? []).slice(0, 3).map((market) => (
-                  <View key={market} style={styles.marketTag}>
-                    <Text style={styles.marketTagText}>{market}</Text>
-                  </View>
-                ))}
-              </View>
-
-              <View style={styles.cardFooter}>
-                <View>
-                  <Text style={styles.footerValue}>{product.materials?.length ?? 0}</Text>
-                  <Text style={styles.footerLabel}>materials</Text>
-                </View>
-                <Pressable
-                  style={styles.scanButton}
-                  onPress={(event) => {
-                    event.stopPropagation();
-                    router.push(`/products/${product.id}/scan` as never);
-                  }}
-                >
-                  <History color="#FFFFFF" size={16} />
-                  <Text style={styles.scanButtonText}>Add photos</Text>
-                </Pressable>
-              </View>
-            </Pressable>
-          ))
-        )}
-      </ScrollView>
+      />
     </SafeAreaView>
   );
 }
@@ -282,6 +324,10 @@ const styles = StyleSheet.create({
   },
   loadingState: {
     paddingVertical: 46,
+    alignItems: 'center',
+  },
+  loadingMore: {
+    paddingVertical: 18,
     alignItems: 'center',
   },
   emptyState: {

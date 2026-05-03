@@ -673,6 +673,8 @@ export async function searchAndClassifyAction(input: {
         ? (existingProduct.metadata as Record<string, unknown>)
         : {}),
       originCountry: input.originCountry || (existingProduct.metadata as any)?.originCountry || null,
+      destinationCountry:
+        input.destinationCountry || (existingProduct.metadata as any)?.destinationCountry || null,
       compositionText:
         input.compositionText ||
         (existingProduct.metadata as any)?.compositionText ||
@@ -719,6 +721,7 @@ export async function searchAndClassifyAction(input: {
         targetMarkets: [input.market],
         metadata: {
           originCountry: input.originCountry || null,
+          destinationCountry: input.destinationCountry || null,
           compositionText: input.compositionText || null,
         },
         ...(input.materials && input.materials.length > 0

@@ -7,15 +7,17 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { ArrowLeft, Camera, ImagePlus, ScanSearch } from 'lucide-react-native';
 import { ApiClient } from '@/lib/api-client';
 import { lightTheme } from '@/constants/mobile-theme';
+import type { ClassificationRecord, CursorPaginatedResponse, ProductRecord } from '@/types/api';
 
 const { colors, radius } = lightTheme;
 
@@ -32,20 +34,32 @@ type ClassificationScanResult = {
   productName: string;
   ocrText?: string;
   confidence?: number;
+  classification?: ClassificationRecord | null;
 };
 
 export default function ClassificationScanScreen() {
   const queryClient = useQueryClient();
   const [result, setResult] = useState<ClassificationScanResult | null>(null);
+  const [originCountry, setOriginCountry] = useState('');
+  const [destinationCountry, setDestinationCountry] = useState('Finland');
 
   const classifyFromScanMutation = useMutation({
-    mutationFn: async (asset: ScanAsset) => {
+    mutationFn: async (input: {
+      asset: ScanAsset;
+      originCountry: string;
+      destinationCountry: string;
+    }) => {
+      const { asset, originCountry: selectedOriginCountry, destinationCountry: selectedDestinationCountry } = input;
       const fallbackName = `Scanned product ${new Date().toLocaleDateString()}`;
       const createdProduct = await ApiClient.createProduct({
         name: fallbackName,
         description: 'Created from mobile packaging scan.',
         intendedUse: 'To be confirmed from the scanned packaging',
         targetMarkets: ['EU'],
+        metadata: {
+          originCountry: selectedOriginCountry,
+          destinationCountry: selectedDestinationCountry,
+        },
       });
 
       const upload = await ApiClient.uploadProductImage(createdProduct.id, {
@@ -65,6 +79,7 @@ export default function ClassificationScanScreen() {
       const extractedIntendedUse =
         stringValue(upload.extractedData?.intendedUse) || createdProduct.intendedUse || undefined;
       const extractedOriginCountry = stringValue(upload.extractedData?.originCountry) || undefined;
+      const resolvedOriginCountry = selectedOriginCountry || extractedOriginCountry;
       const extractedMaterials = extractMaterials(upload.extractedData?.materials);
       const compositionText = buildCompositionText(upload.extractedData, upload.ocrText);
 
@@ -72,7 +87,7 @@ export default function ClassificationScanScreen() {
         extractedName !== createdProduct.name ||
         extractedDescription !== createdProduct.description ||
         extractedIntendedUse !== (createdProduct.intendedUse || undefined) ||
-        extractedOriginCountry ||
+        resolvedOriginCountry ||
         extractedMaterials.length > 0 ||
         compositionText
       ) {
@@ -83,7 +98,8 @@ export default function ClassificationScanScreen() {
           targetMarkets: createdProduct.targetMarkets,
           metadata: {
             ...(createdProduct.metadata || {}),
-            originCountry: extractedOriginCountry,
+            originCountry: resolvedOriginCountry,
+            destinationCountry: selectedDestinationCountry,
             compositionText: compositionText || undefined,
           },
           materials: extractedMaterials,
@@ -97,7 +113,8 @@ export default function ClassificationScanScreen() {
         intendedUse: extractedIntendedUse,
         materials: extractedMaterials.length > 0 ? extractedMaterials : undefined,
         compositionText: compositionText || undefined,
-        originCountry: extractedOriginCountry,
+        originCountry: resolvedOriginCountry,
+        destinationCountry: selectedDestinationCountry,
         imageIds: upload.image?.id ? [String(upload.image.id)] : undefined,
         market: 'EU',
       });
@@ -123,15 +140,50 @@ export default function ClassificationScanScreen() {
         productName: extractedName,
         ocrText: upload.ocrText,
         confidence: upload.confidence,
+        classification:
+          classificationResponse.result?.classification &&
+          typeof classificationResponse.result.classification === 'object'
+            ? (classificationResponse.result.classification as ClassificationRecord)
+            : null,
       };
     },
     onSuccess: async (nextResult) => {
       setResult(nextResult);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['products'] }),
-        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
-        queryClient.invalidateQueries({ queryKey: ['classifications'] }),
-      ]);
+      if (nextResult.classification) {
+        queryClient.setQueryData(
+          ['classification', nextResult.classification.id],
+          nextResult.classification,
+        );
+        queryClient.setQueriesData(
+          { queryKey: ['classifications'] },
+          (current: unknown) =>
+            replaceOrInsertClassificationInCollectionCache(current, nextResult.classification!),
+        );
+        queryClient.setQueriesData(
+          { queryKey: ['classifications', 'for-product', nextResult.productId] },
+          (current: unknown) =>
+            replaceOrInsertClassificationInCollectionCache(current, nextResult.classification!),
+        );
+        if (nextResult.classification.product) {
+          queryClient.setQueriesData(
+            { queryKey: ['products'] },
+            (current: unknown) =>
+              replaceOrInsertProductInCollectionCache(
+                current,
+                nextResult.classification!.product as ProductRecord,
+              ),
+          );
+        }
+      } else {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['classifications'] }),
+          queryClient.invalidateQueries({
+            queryKey: ['classifications', 'for-product', nextResult.productId],
+          }),
+          queryClient.invalidateQueries({ queryKey: ['products'] }),
+        ]);
+      }
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
     onError: (error: Error) => {
       Alert.alert('Scan failed', error.message);
@@ -139,6 +191,16 @@ export default function ClassificationScanScreen() {
   });
 
   const handlePick = async (mode: 'camera' | 'library') => {
+    const normalizedOriginCountry = originCountry.trim();
+    const normalizedDestinationCountry = destinationCountry.trim();
+    if (!normalizedOriginCountry || !normalizedDestinationCountry) {
+      Alert.alert(
+        'Origin and destination needed',
+        'Please set both origin and destination countries before scanning.',
+      );
+      return;
+    }
+
     if (mode === 'camera') {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
@@ -153,7 +215,11 @@ export default function ClassificationScanScreen() {
       });
 
       if (capture.canceled || !capture.assets[0]) return;
-      await classifyFromScanMutation.mutateAsync(capture.assets[0]);
+      await classifyFromScanMutation.mutateAsync({
+        asset: capture.assets[0],
+        originCountry: normalizedOriginCountry,
+        destinationCountry: normalizedDestinationCountry,
+      });
       return;
     }
 
@@ -170,7 +236,11 @@ export default function ClassificationScanScreen() {
     });
 
     if (selection.canceled || !selection.assets[0]) return;
-    await classifyFromScanMutation.mutateAsync(selection.assets[0]);
+    await classifyFromScanMutation.mutateAsync({
+      asset: selection.assets[0],
+      originCountry: normalizedOriginCountry,
+      destinationCountry: normalizedDestinationCountry,
+    });
   };
 
   return (
@@ -187,13 +257,33 @@ export default function ClassificationScanScreen() {
         <View style={styles.heroCard}>
           <View style={styles.heroBadge}>
             <ScanSearch color="#FFFFFF" size={16} />
-            <Text style={styles.heroBadgeText}>Start here</Text>
+            <Text style={styles.heroBadgeText}>Product scan</Text>
           </View>
-          <Text style={styles.heroTitle}>Capture the product before anything exists.</Text>
-          <Text style={styles.heroText}>
-            TulliCheck saves the product from this photo, reads the visible details, and takes you
-            straight to the result.
-          </Text>
+          <Text style={styles.heroTitle}>Scan product details.</Text>
+          <Text style={styles.heroText}>Clear text improves the result.</Text>
+        </View>
+
+        <View style={styles.contextCard}>
+          <Text style={styles.contextTitle}>Trade context</Text>
+          <Text style={styles.contextText}>Used for duty and VAT estimates.</Text>
+          <Text style={styles.fieldLabel}>Origin country</Text>
+          <TextInput
+            value={originCountry}
+            onChangeText={setOriginCountry}
+            placeholder="e.g. Vietnam"
+            placeholderTextColor={colors.textMuted}
+            style={styles.fieldInput}
+            autoCapitalize="words"
+          />
+          <Text style={styles.fieldLabel}>Destination country</Text>
+          <TextInput
+            value={destinationCountry}
+            onChangeText={setDestinationCountry}
+            placeholder="e.g. Finland"
+            placeholderTextColor={colors.textMuted}
+            style={styles.fieldInput}
+            autoCapitalize="words"
+          />
         </View>
 
         <View style={styles.captureCard}>
@@ -201,11 +291,8 @@ export default function ClassificationScanScreen() {
             <Image source={{ uri: result.previewUri }} style={styles.previewImage} />
           ) : (
             <View style={styles.framePlaceholder}>
-              <Text style={styles.framePlaceholderTitle}>Packaging front, ingredients, or spec sheet</Text>
-              <Text style={styles.framePlaceholderText}>
-                Use the clearest photo you have. Clear text helps the app understand the product
-                better.
-              </Text>
+              <Text style={styles.framePlaceholderTitle}>Packaging or ingredient panel</Text>
+              <Text style={styles.framePlaceholderText}>Use a clear, readable image.</Text>
             </View>
           )}
         </View>
@@ -234,9 +321,7 @@ export default function ClassificationScanScreen() {
           <View style={styles.processingCard}>
             <ActivityIndicator color={colors.primary} />
             <Text style={styles.processingTitle}>Saving photo and checking product...</Text>
-            <Text style={styles.processingText}>
-              We are saving the photo and reviewing the product details.
-            </Text>
+            <Text style={styles.processingText}>Reviewing product details.</Text>
           </View>
         ) : null}
 
@@ -244,6 +329,8 @@ export default function ClassificationScanScreen() {
           <View style={styles.resultCard}>
             <Text style={styles.resultTitle}>Classification ready to review</Text>
             <InfoRow label="Product" value={result.productName} />
+            <InfoRow label="Origin country" value={originCountry.trim() || 'Not set'} />
+            <InfoRow label="Destination country" value={destinationCountry.trim() || 'Not set'} />
             <InfoRow
               label="Text reading quality"
               value={`${Math.round((result.confidence ?? 0) * 100)}%`}
@@ -268,10 +355,7 @@ export default function ClassificationScanScreen() {
         ) : (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyTitle}>Nothing scanned yet</Text>
-            <Text style={styles.emptyText}>
-              Once the scan finishes, you go straight into the classification result and can continue
-              into dossier or label generation from there.
-            </Text>
+            <Text style={styles.emptyText}>Your first result will appear here.</Text>
           </View>
         )}
       </ScrollView>
@@ -361,6 +445,99 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function replaceOrInsertClassificationInCollectionCache(
+  cache: unknown,
+  updated: ClassificationRecord,
+) {
+  if (!cache || typeof cache !== 'object') return cache;
+  const value = cache as Record<string, unknown>;
+
+  if (Array.isArray(value.pages)) {
+    let found = false;
+    const pages = (value.pages as unknown[]).map((page, index) => {
+      if (!page || typeof page !== 'object') return page;
+      const pageRecord = page as Record<string, unknown>;
+      if (!Array.isArray(pageRecord.items)) return page;
+      const mappedItems = (pageRecord.items as unknown[]).map((item) => {
+        if (item && typeof item === 'object' && (item as ClassificationRecord).id === updated.id) {
+          found = true;
+          return updated;
+        }
+        return item;
+      });
+      if (!found && index === 0) {
+        return { ...pageRecord, items: [updated, ...mappedItems] };
+      }
+      return { ...pageRecord, items: mappedItems };
+    });
+    return { ...value, pages } as InfiniteData<CursorPaginatedResponse<ClassificationRecord>>;
+  }
+
+  if (Array.isArray(value.items)) {
+    const items = value.items as unknown[];
+    const hasMatch = items.some(
+      (item) => item && typeof item === 'object' && (item as ClassificationRecord).id === updated.id,
+    );
+    return {
+      ...value,
+      items: hasMatch
+        ? items.map((item) =>
+            item && typeof item === 'object' && (item as ClassificationRecord).id === updated.id
+              ? updated
+              : item,
+          )
+        : [updated, ...items],
+    } as CursorPaginatedResponse<ClassificationRecord>;
+  }
+
+  return cache;
+}
+
+function replaceOrInsertProductInCollectionCache(cache: unknown, updated: ProductRecord) {
+  if (!cache || typeof cache !== 'object') return cache;
+  const value = cache as Record<string, unknown>;
+
+  if (Array.isArray(value.pages)) {
+    let found = false;
+    const pages = (value.pages as unknown[]).map((page, index) => {
+      if (!page || typeof page !== 'object') return page;
+      const pageRecord = page as Record<string, unknown>;
+      if (!Array.isArray(pageRecord.items)) return page;
+      const mappedItems = (pageRecord.items as unknown[]).map((item) => {
+        if (item && typeof item === 'object' && (item as ProductRecord).id === updated.id) {
+          found = true;
+          return { ...(item as ProductRecord), ...updated };
+        }
+        return item;
+      });
+      if (!found && index === 0) {
+        return { ...pageRecord, items: [{ ...updated }, ...mappedItems] };
+      }
+      return { ...pageRecord, items: mappedItems };
+    });
+    return { ...value, pages } as InfiniteData<CursorPaginatedResponse<ProductRecord>>;
+  }
+
+  if (Array.isArray(value.items)) {
+    const items = value.items as unknown[];
+    const hasMatch = items.some(
+      (item) => item && typeof item === 'object' && (item as ProductRecord).id === updated.id,
+    );
+    return {
+      ...value,
+      items: hasMatch
+        ? items.map((item) =>
+            item && typeof item === 'object' && (item as ProductRecord).id === updated.id
+              ? { ...(item as ProductRecord), ...updated }
+              : item,
+          )
+        : [{ ...updated }, ...items],
+    } as CursorPaginatedResponse<ProductRecord>;
+  }
+
+  return cache;
+}
+
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -419,15 +596,15 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     color: '#FFFFFF',
-    fontSize: 30,
-    lineHeight: 35,
+    fontSize: 23,
+    lineHeight: 28,
     fontWeight: '800',
     marginBottom: 8,
   },
   heroText: {
     color: 'rgba(255,255,255,0.76)',
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 12,
+    lineHeight: 17,
   },
   captureCard: {
     backgroundColor: colors.surface,
@@ -436,6 +613,45 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: 14,
     marginBottom: 12,
+  },
+  contextCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
+    marginBottom: 12,
+  },
+  contextTitle: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  contextText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 12,
+  },
+  fieldLabel: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 6,
+    marginTop: 4,
+    textTransform: 'uppercase',
+  },
+  fieldInput: {
+    minHeight: 44,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceMuted,
+    paddingHorizontal: 12,
+    color: colors.text,
+    fontSize: 13,
+    marginBottom: 8,
   },
   previewImage: {
     width: '100%',
@@ -452,15 +668,15 @@ const styles = StyleSheet.create({
   },
   framePlaceholderTitle: {
     color: colors.text,
-    fontSize: 19,
+    fontSize: 16,
     fontWeight: '800',
     textAlign: 'center',
     marginBottom: 8,
   },
   framePlaceholderText: {
     color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 12,
+    lineHeight: 17,
     textAlign: 'center',
   },
   primaryButton: {
@@ -476,7 +692,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#FFFFFF',
     fontWeight: '800',
-    fontSize: 15,
+    fontSize: 14,
   },
   secondaryButton: {
     flexDirection: 'row',
@@ -493,7 +709,7 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     color: colors.text,
     fontWeight: '700',
-    fontSize: 14,
+    fontSize: 13,
   },
   processingCard: {
     backgroundColor: colors.surface,
@@ -506,7 +722,7 @@ const styles = StyleSheet.create({
   },
   processingTitle: {
     color: colors.text,
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '800',
     marginTop: 10,
     marginBottom: 6,
@@ -514,8 +730,8 @@ const styles = StyleSheet.create({
   processingText: {
     color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 21,
-    fontSize: 14,
+    lineHeight: 18,
+    fontSize: 12,
   },
   resultCard: {
     backgroundColor: colors.surface,
@@ -526,7 +742,7 @@ const styles = StyleSheet.create({
   },
   resultTitle: {
     color: colors.text,
-    fontSize: 24,
+    fontSize: 19,
     fontWeight: '800',
     marginBottom: 10,
   },
@@ -542,7 +758,7 @@ const styles = StyleSheet.create({
   },
   infoValue: {
     color: colors.text,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
   },
   ocrCard: {
@@ -559,8 +775,8 @@ const styles = StyleSheet.create({
   },
   ocrText: {
     color: colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 20,
+    fontSize: 12,
+    lineHeight: 18,
   },
   emptyCard: {
     backgroundColor: colors.surface,
@@ -571,13 +787,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     color: colors.text,
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '800',
     marginBottom: 8,
   },
   emptyText: {
     color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 12,
+    lineHeight: 18,
   },
 });

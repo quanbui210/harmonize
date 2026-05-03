@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, requireApiAuth } from "@/lib/api/mobile-auth";
+import { handleCorsPreflight, jsonWithCors } from "@/lib/api/cors";
 
 export async function GET(
   request: NextRequest,
@@ -23,10 +24,10 @@ export async function GET(
     });
 
     if (!label) {
-      return NextResponse.json({ error: "Label not found" }, { status: 404 });
+      return jsonWithCors(request, { error: "Label not found" }, { status: 404 });
     }
 
-    return NextResponse.json({
+    return jsonWithCors(request, {
       labelId,
       htmlUrl: bearerToken
         ? `/api/label/${labelId}/export?access_token=${encodeURIComponent(bearerToken)}`
@@ -36,6 +37,10 @@ export async function GET(
         : `/api/label/${labelId}/pdf`,
     });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, request);
   }
+}
+
+export function OPTIONS(request: NextRequest) {
+  return handleCorsPreflight(request);
 }

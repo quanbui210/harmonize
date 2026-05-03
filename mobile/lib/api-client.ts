@@ -7,6 +7,7 @@ import type {
   ChatSessionSummary,
   ClassificationRecord,
   ClassificationDossierRecord,
+  CursorPaginatedResponse,
   CreateShipmentPayload,
   CreateUploadUrlPayload,
   DashboardOverview,
@@ -74,6 +75,18 @@ async function parseApiResponse<T>(response: Response): Promise<T> {
   return body as T;
 }
 
+function buildPaginationQuery(params?: { limit?: number; cursor?: string | null }) {
+  const search = new URLSearchParams();
+  const limit = Number.isFinite(params?.limit) ? Number(params?.limit) : undefined;
+  if (limit != null) {
+    search.set('limit', String(limit));
+  }
+  if (params?.cursor) {
+    search.set('cursor', params.cursor);
+  }
+  return search.toString();
+}
+
 export class ApiClient {
   static resolveUrl(path: string) {
     if (/^https?:\/\//i.test(path)) {
@@ -109,11 +122,13 @@ export class ApiClient {
     return this.fetchWithAuth('/dashboard');
   }
 
-  static async listProducts(): Promise<ProductRecord[]> {
-    const response = await this.fetchWithAuth<{ products: ProductRecord[] }>(
-      '/products',
+  static async listProducts(
+    params?: { limit?: number; cursor?: string | null },
+  ): Promise<CursorPaginatedResponse<ProductRecord>> {
+    const query = buildPaginationQuery(params);
+    return this.fetchWithAuth<CursorPaginatedResponse<ProductRecord>>(
+      `/products${query ? `?${query}` : ''}`,
     );
-    return response.products;
   }
 
   static async createProduct(input: ProductInput): Promise<ProductRecord> {
@@ -180,11 +195,13 @@ export class ApiClient {
     }, null);
   }
 
-  static async listClassifications(limit = 50): Promise<ClassificationRecord[]> {
-    const response = await this.fetchWithAuth<{
-      classifications: ClassificationRecord[];
-    }>(`/classifications?limit=${limit}`);
-    return response.classifications;
+  static async listClassifications(
+    params?: { limit?: number; cursor?: string | null },
+  ): Promise<CursorPaginatedResponse<ClassificationRecord>> {
+    const query = buildPaginationQuery(params);
+    return this.fetchWithAuth<CursorPaginatedResponse<ClassificationRecord>>(
+      `/classifications${query ? `?${query}` : ''}`,
+    );
   }
 
   static async classifyProduct(
@@ -281,11 +298,13 @@ export class ApiClient {
     return response.label;
   }
 
-  static async listLabels(limit = 50): Promise<LabelRecord[]> {
-    const response = await this.fetchWithAuth<{ labels: LabelRecord[] }>(
-      `/labels?limit=${limit}`,
+  static async listLabels(
+    params?: { limit?: number; cursor?: string | null },
+  ): Promise<CursorPaginatedResponse<LabelRecord>> {
+    const query = buildPaginationQuery(params);
+    return this.fetchWithAuth<CursorPaginatedResponse<LabelRecord>>(
+      `/labels${query ? `?${query}` : ''}`,
     );
-    return response.labels;
   }
 
   static async getLabelExport(labelId: string) {

@@ -8,7 +8,20 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider } from '../components/AuthProvider';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 15_000,
+      gcTime: 5 * 60_000,
+      retry: 1,
+      refetchOnReconnect: true,
+      refetchOnWindowFocus: false,
+    },
+    mutations: {
+      retry: 0,
+    },
+  },
+});
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();

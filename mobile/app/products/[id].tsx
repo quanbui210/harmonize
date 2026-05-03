@@ -12,12 +12,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { ArrowLeft, ChevronRight, FileCheck2, ScanSearch } from 'lucide-react-native';
 import { ApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/AuthProvider';
 import { lightTheme } from '@/constants/mobile-theme';
 import { formatClassificationCode, getPreferredClassificationCode } from '@/lib/classification-code';
+import type { ClassificationRecord, CursorPaginatedResponse, ProductRecord } from '@/types/api';
 
 const { colors, radius } = lightTheme;
 
@@ -31,17 +32,19 @@ export default function ProductDetailScreen() {
     queryKey: ['product', productId],
     queryFn: () => ApiClient.getProduct(productId),
     enabled: !!user && !!productId,
+    staleTime: 20_000,
   });
 
   const classificationsQuery = useQuery({
     queryKey: ['classifications', 'for-product', productId],
-    queryFn: () => ApiClient.listClassifications(100),
+    queryFn: () => ApiClient.listClassifications({ limit: 100 }),
     enabled: !!user && !!productId,
+    staleTime: 20_000,
   });
 
   const productClassifications = useMemo(
     () =>
-      (classificationsQuery.data ?? []).filter(
+      (classificationsQuery.data?.items ?? []).filter(
         (item) => item.productId === productId,
       )
         .slice()
@@ -57,12 +60,46 @@ export default function ProductDetailScreen() {
 
   const classifyMutation = useMutation({
     mutationFn: () => ApiClient.classifyProduct(productId),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['classifications'] }),
-        queryClient.invalidateQueries({ queryKey: ['classifications', 'for-product', productId] }),
-        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
-      ]);
+    onSuccess: async (response) => {
+      const classification =
+        response.result?.classification && typeof response.result.classification === 'object'
+          ? (response.result.classification as ClassificationRecord)
+          : null;
+
+      if (classification) {
+        queryClient.setQueryData(['classification', classification.id], classification);
+        queryClient.setQueriesData(
+          { queryKey: ['classifications'] },
+          (current: unknown) =>
+            replaceOrInsertClassificationInCollectionCache(current, classification),
+        );
+        queryClient.setQueriesData(
+          { queryKey: ['classifications', 'for-product', productId] },
+          (current: unknown) =>
+            replaceOrInsertClassificationInCollectionCache(current, classification),
+        );
+        if (classification.product) {
+          queryClient.setQueryData(['product', productId], classification.product);
+          queryClient.setQueriesData(
+            { queryKey: ['products'] },
+            (current: unknown) =>
+              replaceOrInsertProductInCollectionCache(
+                current,
+                classification.product as ProductRecord,
+              ),
+          );
+        }
+      } else {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['classifications'] }),
+          queryClient.invalidateQueries({
+            queryKey: ['classifications', 'for-product', productId],
+          }),
+          queryClient.invalidateQueries({ queryKey: ['product', productId] }),
+        ]);
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       Alert.alert('Classification complete', 'A refreshed classification result is available for review.');
     },
     onError: (error: Error) => {
@@ -324,6 +361,99 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       {children}
     </View>
   );
+}
+
+function replaceOrInsertClassificationInCollectionCache(
+  cache: unknown,
+  updated: ClassificationRecord,
+) {
+  if (!cache || typeof cache !== 'object') return cache;
+  const value = cache as Record<string, unknown>;
+
+  if (Array.isArray(value.pages)) {
+    let found = false;
+    const pages = (value.pages as unknown[]).map((page, index) => {
+      if (!page || typeof page !== 'object') return page;
+      const pageRecord = page as Record<string, unknown>;
+      if (!Array.isArray(pageRecord.items)) return page;
+      const mappedItems = (pageRecord.items as unknown[]).map((item) => {
+        if (item && typeof item === 'object' && (item as ClassificationRecord).id === updated.id) {
+          found = true;
+          return updated;
+        }
+        return item;
+      });
+      if (!found && index === 0) {
+        return { ...pageRecord, items: [updated, ...mappedItems] };
+      }
+      return { ...pageRecord, items: mappedItems };
+    });
+    return { ...value, pages } as InfiniteData<CursorPaginatedResponse<ClassificationRecord>>;
+  }
+
+  if (Array.isArray(value.items)) {
+    const items = value.items as unknown[];
+    const hasMatch = items.some(
+      (item) => item && typeof item === 'object' && (item as ClassificationRecord).id === updated.id,
+    );
+    return {
+      ...value,
+      items: hasMatch
+        ? items.map((item) =>
+            item && typeof item === 'object' && (item as ClassificationRecord).id === updated.id
+              ? updated
+              : item,
+          )
+        : [updated, ...items],
+    } as CursorPaginatedResponse<ClassificationRecord>;
+  }
+
+  return cache;
+}
+
+function replaceOrInsertProductInCollectionCache(cache: unknown, updated: ProductRecord) {
+  if (!cache || typeof cache !== 'object') return cache;
+  const value = cache as Record<string, unknown>;
+
+  if (Array.isArray(value.pages)) {
+    let found = false;
+    const pages = (value.pages as unknown[]).map((page, index) => {
+      if (!page || typeof page !== 'object') return page;
+      const pageRecord = page as Record<string, unknown>;
+      if (!Array.isArray(pageRecord.items)) return page;
+      const mappedItems = (pageRecord.items as unknown[]).map((item) => {
+        if (item && typeof item === 'object' && (item as ProductRecord).id === updated.id) {
+          found = true;
+          return { ...(item as ProductRecord), ...updated };
+        }
+        return item;
+      });
+      if (!found && index === 0) {
+        return { ...pageRecord, items: [{ ...updated }, ...mappedItems] };
+      }
+      return { ...pageRecord, items: mappedItems };
+    });
+    return { ...value, pages } as InfiniteData<CursorPaginatedResponse<ProductRecord>>;
+  }
+
+  if (Array.isArray(value.items)) {
+    const items = value.items as unknown[];
+    const hasMatch = items.some(
+      (item) => item && typeof item === 'object' && (item as ProductRecord).id === updated.id,
+    );
+    return {
+      ...value,
+      items: hasMatch
+        ? items.map((item) =>
+            item && typeof item === 'object' && (item as ProductRecord).id === updated.id
+              ? { ...(item as ProductRecord), ...updated }
+              : item,
+          )
+        : [{ ...updated }, ...items],
+    } as CursorPaginatedResponse<ProductRecord>;
+  }
+
+  return cache;
 }
 
 const styles = StyleSheet.create({

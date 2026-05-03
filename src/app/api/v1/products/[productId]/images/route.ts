@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { extractProductDataFromImage } from "@/lib/vision/image-extraction-service";
 import { handleApiError, requireApiAuth } from "@/lib/api/mobile-auth";
+import { handleCorsPreflight, jsonWithCors } from "@/lib/api/cors";
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
 const MAX_SIZE_BYTES = 10 * 1024 * 1024;
@@ -56,7 +57,7 @@ export async function GET(
     });
 
     if (!product) {
-      return NextResponse.json({ error: "Product not found" }, { status: 404 });
+      return jsonWithCors(request, { error: "Product not found" }, { status: 404 });
     }
 
     const images = await prisma.productImage.findMany({
@@ -81,9 +82,9 @@ export async function GET(
       }),
     );
 
-    return NextResponse.json({ images: items });
+    return jsonWithCors(request, { images: items });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, request);
   }
 }
 
@@ -106,25 +107,27 @@ export async function POST(
     });
 
     if (!product) {
-      return NextResponse.json({ error: "Product not found" }, { status: 404 });
+      return jsonWithCors(request, { error: "Product not found" }, { status: 404 });
     }
 
     const formData = (await request.formData()) as globalThis.FormData;
     const file = formData.get("image");
 
     if (!(file instanceof File)) {
-      return NextResponse.json({ error: "Image file is required" }, { status: 400 });
+      return jsonWithCors(request, { error: "Image file is required" }, { status: 400 });
     }
 
     if (!ALLOWED_TYPES.includes(file.type)) {
-      return NextResponse.json(
+      return jsonWithCors(
+        request,
         { error: `Invalid file type. Allowed: ${ALLOWED_TYPES.join(", ")}` },
         { status: 400 },
       );
     }
 
     if (file.size > MAX_SIZE_BYTES) {
-      return NextResponse.json(
+      return jsonWithCors(
+        request,
         { error: "File size exceeds 10MB limit" },
         { status: 400 },
       );
@@ -244,7 +247,8 @@ export async function POST(
       .from("product-images")
       .createSignedUrl(storagePath, 3600);
 
-    return NextResponse.json(
+    return jsonWithCors(
+      request,
       {
         image: {
           ...image,
@@ -257,6 +261,10 @@ export async function POST(
       { status: 201 },
     );
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, request);
   }
+}
+
+export function OPTIONS(request: NextRequest) {
+  return handleCorsPreflight(request);
 }

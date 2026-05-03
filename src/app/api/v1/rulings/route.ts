@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getRulingAction, listRulingsAction } from "@/server/actions/rulings";
 import { handleApiError, requireApiAuth } from "@/lib/api/mobile-auth";
+import { handleCorsPreflight, jsonWithCors } from "@/lib/api/cors";
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,7 +10,7 @@ export async function GET(request: NextRequest) {
 
     if (rulingId) {
       const ruling = await getRulingAction(rulingId);
-      return NextResponse.json({ ruling });
+      return jsonWithCors(request, { ruling });
     }
 
     const market = request.nextUrl.searchParams.get("market") || undefined;
@@ -34,8 +35,12 @@ export async function GET(request: NextRequest) {
       offset: Number.isFinite(offset) ? offset : 0,
     });
 
-    return NextResponse.json(result);
+    return jsonWithCors(request, result);
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, request);
   }
+}
+
+export function OPTIONS(request: NextRequest) {
+  return handleCorsPreflight(request);
 }

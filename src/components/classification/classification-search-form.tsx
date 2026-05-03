@@ -43,6 +43,7 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
     compositionText: "",
     intendedUse: "",
     originCountry: "",
+    destinationCountry: "",
   });
 
   useEffect(() => {
@@ -73,9 +74,15 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
     const description = String(formData.get("description") || "").trim();
     const market = String(formData.get("market") || MarketCode.EU) as MarketCode;
     const originCountry = String(formData.get("originCountry") || "").trim();
+    const destinationCountry = String(formData.get("destinationCountry") || "").trim();
     const endUse = String(formData.get("endUse") || "").trim();
     const endUseOther = String(formData.get("endUseOther") || "").trim();
     const compositionText = String(formData.get("compositionText") || "").trim();
+
+    if (!originCountry || !destinationCountry) {
+      setClassificationError("Please provide both origin and destination countries.");
+      return;
+    }
 
     const intendedUse =
       endUse === "OTHER" ? (endUseOther || undefined) : (endUse || undefined);
@@ -89,6 +96,7 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
           description,
           intendedUse,
           originCountry: originCountry || undefined,
+          destinationCountry: destinationCountry || undefined,
           compositionText: compositionText || undefined,
           market,
         }),
@@ -253,6 +261,7 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
                   id="originCountry"
                   name="originCountry"
                   placeholder="e.g. China, Vietnam"
+                  required
                   disabled={false}
                 />
               </div>
@@ -263,6 +272,8 @@ export function ClassificationSearchForm({ organizationId, userId }: Props) {
                   id="destinationCountry"
                   name="destinationCountry"
                   placeholder="e.g. Finland, Germany"
+                  required
+                  defaultValue="Finland"
                   disabled={false}
                 />
                 <p className="text-xs text-muted-foreground">For VAT calculation</p>

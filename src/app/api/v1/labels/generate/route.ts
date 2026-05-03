@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 import { generateLabelAction, saveLabelAction } from "@/server/actions/labels";
 import { handleApiError, requireApiAuth } from "@/lib/api/mobile-auth";
+import { handleCorsPreflight, jsonWithCors } from "@/lib/api/cors";
 
 const generateLabelApiSchema = z.object({
   productName: z.string().min(1),
@@ -59,7 +60,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json(
+    return jsonWithCors(
+      request,
       {
         ...generated,
         labelId,
@@ -67,6 +69,10 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     );
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, request);
   }
+}
+
+export function OPTIONS(request: NextRequest) {
+  return handleCorsPreflight(request);
 }

@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { handleApiError, requireApiAuth } from "@/lib/api/mobile-auth";
+import { handleCorsPreflight, jsonWithCors } from "@/lib/api/cors";
 
 const createUploadUrlSchema = z.object({
   fileName: z.string().min(1),
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
       throw new Error(error?.message || "Failed to create signed upload URL");
     }
 
-    return NextResponse.json({
+    return jsonWithCors(request, {
       bucket,
       path: data.path,
       token: data.token,
@@ -42,6 +43,10 @@ export async function POST(request: NextRequest) {
       finalizeRequired: payload.scope === "vault",
     });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, request);
   }
+}
+
+export function OPTIONS(request: NextRequest) {
+  return handleCorsPreflight(request);
 }

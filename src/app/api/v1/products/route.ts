@@ -6,6 +6,32 @@ import { handleApiError, requireApiAuth } from "@/lib/api/mobile-auth";
 import { handleCorsPreflight, jsonWithCors } from "@/lib/api/cors";
 import { serializeProduct } from "@/lib/api/mobile-serializers";
 
+const DEFAULT_LIMIT = 20;
+const MAX_LIMIT = 100;
+
+function resolveLimit(value: string | null) {
+  const parsed = Number.parseInt(value || "", 10);
+  if (!Number.isFinite(parsed)) return DEFAULT_LIMIT;
+  return Math.min(Math.max(parsed, 1), MAX_LIMIT);
+}
+
+function parseCursor(value: string | null) {
+  if (!value) return null;
+  const [createdAtText, id] = value.split("|");
+  if (!createdAtText || !id) {
+    throw new Error("Invalid cursor");
+  }
+  const createdAt = new Date(createdAtText);
+  if (Number.isNaN(createdAt.getTime())) {
+    throw new Error("Invalid cursor");
+  }
+  return { createdAt, id };
+}
+
+function makeCursor(value: { createdAt: Date; id: string }) {
+  return `${value.createdAt.toISOString()}|${value.id}`;
+}
+
 export function OPTIONS(request: NextRequest) {
   return handleCorsPreflight(request);
 }
@@ -13,17 +39,41 @@ export function OPTIONS(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const { membership } = await requireApiAuth(request);
+    const limit = resolveLimit(request.nextUrl.searchParams.get("limit"));
+    const cursor = parseCursor(request.nextUrl.searchParams.get("cursor"));
     const products = await prisma.product.findMany({
-      where: { organizationId: membership.organizationId },
-      orderBy: { createdAt: "desc" },
+      where: {
+        organizationId: membership.organizationId,
+        ...(cursor
+          ? {
+              OR: [
+                { createdAt: { lt: cursor.createdAt } },
+                {
+                  createdAt: cursor.createdAt,
+                  id: { lt: cursor.id },
+                },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: limit + 1,
       include: {
         materials: true,
       },
     });
 
-    const serializedProducts = products.map((product) => serializeProduct(product));
+    const hasMore = products.length > limit;
+    const pageItems = hasMore ? products.slice(0, limit) : products;
+    const serializedProducts = pageItems.map((product) => serializeProduct(product));
+    const lastItem = pageItems[pageItems.length - 1];
+    const nextCursor = hasMore && lastItem ? makeCursor(lastItem) : null;
 
-    return jsonWithCors(request, { products: serializedProducts });
+    return jsonWithCors(request, {
+      items: serializedProducts,
+      nextCursor,
+      hasMore,
+    });
   } catch (error) {
     return handleApiError(error, request);
   }
