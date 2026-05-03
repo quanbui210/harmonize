@@ -9,6 +9,10 @@ export async function GET(
   try {
     const { membership } = await requireApiAuth(request);
     const { labelId } = await params;
+    const authHeader = request.headers.get("authorization");
+    const bearerToken = authHeader?.toLowerCase().startsWith("bearer ")
+      ? authHeader.slice(7).trim()
+      : null;
 
     const label = await prisma.label.findFirst({
       where: {
@@ -24,8 +28,12 @@ export async function GET(
 
     return NextResponse.json({
       labelId,
-      htmlUrl: `/api/label/${labelId}/export`,
-      pdfUrl: `/api/label/${labelId}/pdf`,
+      htmlUrl: bearerToken
+        ? `/api/label/${labelId}/export?access_token=${encodeURIComponent(bearerToken)}`
+        : `/api/label/${labelId}/export`,
+      pdfUrl: bearerToken
+        ? `/api/label/${labelId}/pdf?access_token=${encodeURIComponent(bearerToken)}`
+        : `/api/label/${labelId}/pdf`,
     });
   } catch (error) {
     return handleApiError(error);

@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
-import { updateProductAction } from "@/server/actions/products";
-import { updateProductSchema } from "@/lib/validation/product";
+import { updateProductPayloadSchema } from "@/lib/validation/product";
 import { handleApiError, requireApiAuth } from "@/lib/api/mobile-auth";
+import { handleCorsPreflight, jsonWithCors } from "@/lib/api/cors";
+import { serializeProduct } from "@/lib/api/mobile-serializers";
 
-const updateProductApiSchema = updateProductSchema.omit({
-  organizationId: true,
-  productId: true,
-});
+export function OPTIONS(request: NextRequest) {
+  return handleCorsPreflight(request);
+}
 
 export async function GET(
   request: NextRequest,
@@ -32,7 +33,7 @@ export async function GET(
     });
 
     if (!product) {
-      return NextResponse.json({ error: "Product not found" }, { status: 404 });
+      return jsonWithCors(request, { error: "Product not found" }, { status: 404 });
     }
 
     const supabase = getSupabaseAdminClient();
@@ -49,14 +50,14 @@ export async function GET(
       }),
     );
 
-    return NextResponse.json({
-      product: {
+    return jsonWithCors(request, {
+      product: serializeProduct({
         ...product,
         images,
-      },
+      }),
     });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, request);
   }
 }
 
@@ -68,16 +69,55 @@ export async function PATCH(
     const { membership } = await requireApiAuth(request);
     const { productId } = await params;
     const body = await request.json();
-    const payload = updateProductApiSchema.parse(body);
+    const payload = updateProductPayloadSchema.parse(body);
 
-    const product = await updateProductAction({
-      ...payload,
-      productId,
-      organizationId: membership.organizationId,
+    const existing = await prisma.product.findFirst({
+      where: {
+        id: productId,
+        organizationId: membership.organizationId,
+      },
+      select: { id: true },
     });
 
-    return NextResponse.json({ product });
+    if (!existing) {
+      return jsonWithCors(request, { error: "Product not found" }, { status: 404 });
+    }
+
+    await prisma.product.update({
+      where: { id: productId },
+      data: {
+        name: payload.name,
+        description: payload.description,
+        intendedUse: payload.intendedUse,
+        targetMarkets: payload.targetMarkets,
+        metadata: payload.metadata
+          ? (payload.metadata as Prisma.InputJsonValue)
+          : undefined,
+      },
+    });
+
+    await prisma.productMaterial.deleteMany({
+      where: { productId },
+    });
+
+    if (payload.materials.length) {
+      await prisma.productMaterial.createMany({
+        data: payload.materials.map((material) => ({
+          productId,
+          material: material.material,
+          percentage: material.percentage,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    const product = await prisma.product.findUniqueOrThrow({
+      where: { id: productId },
+      include: { materials: true },
+    });
+
+    return jsonWithCors(request, { product: serializeProduct(product) });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, request);
   }
 }

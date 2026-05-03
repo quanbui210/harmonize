@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { getMembership, getPrimaryMembership } from "@/server/queries/organizations";
+import { jsonWithCors } from "@/lib/api/cors";
 
 export class ApiRouteError extends Error {
   status: number;
@@ -61,12 +62,16 @@ export async function requireApiAuth(
   return { user, membership };
 }
 
-export function handleApiError(error: unknown) {
+export function handleApiError(error: unknown, request?: NextRequest) {
   if (error instanceof ApiRouteError) {
-    return NextResponse.json({ error: error.message }, { status: error.status });
+    return request
+      ? jsonWithCors(request, { error: error.message }, { status: error.status })
+      : NextResponse.json({ error: error.message }, { status: error.status });
   }
 
   const message =
     error instanceof Error ? error.message : "Internal server error";
-  return NextResponse.json({ error: message }, { status: 500 });
+  return request
+    ? jsonWithCors(request, { error: message }, { status: 500 })
+    : NextResponse.json({ error: message }, { status: 500 });
 }

@@ -31,10 +31,55 @@ function isPublicPath(pathname: string) {
   )
 }
 
+function getCorsOrigin(request: NextRequest) {
+  const origin = request.headers.get("origin")
+  if (!origin) {
+    return null
+  }
+
+  const allowedOriginPatterns = [
+    /^http:\/\/localhost:\d+$/i,
+    /^https:\/\/localhost:\d+$/i,
+    /^http:\/\/127\.0\.0\.1:\d+$/i,
+    /^https:\/\/127\.0\.0\.1:\d+$/i,
+    /^http:\/\/192\.168\.\d+\.\d+:\d+$/i,
+    /^https:\/\/192\.168\.\d+\.\d+:\d+$/i,
+  ]
+
+  return allowedOriginPatterns.some((pattern) => pattern.test(origin))
+    ? origin
+    : null
+}
+
+function applyCorsHeaders(response: NextResponse, request: NextRequest) {
+  const corsOrigin = getCorsOrigin(request)
+  if (!corsOrigin) {
+    return response
+  }
+
+  response.headers.set("Access-Control-Allow-Origin", corsOrigin)
+  response.headers.set("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS")
+  response.headers.set(
+    "Access-Control-Allow-Headers",
+    "Authorization, Content-Type, X-Organization-Id",
+  )
+  response.headers.set("Access-Control-Allow-Credentials", "true")
+  response.headers.set("Vary", "Origin")
+
+  return response
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl
   const hasAuthCode = searchParams.has("code")
 
+  if (pathname.startsWith("/api/v1")) {
+    if (request.method === "OPTIONS") {
+      return applyCorsHeaders(new NextResponse(null, { status: 204 }), request)
+    }
+
+    return applyCorsHeaders(NextResponse.next(), request)
+  }
 
   if (hasAuthCode && pathname !== "/auth/callback") {
     const redirectUrl = request.nextUrl.clone()
@@ -117,6 +162,7 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/api/v1/:path*",
     /*
      * Match all request paths except for the ones starting with:
      * - api (API routes)

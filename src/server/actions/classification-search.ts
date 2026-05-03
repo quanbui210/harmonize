@@ -23,8 +23,8 @@ async function searchLegalChunksForProduct(
   
   // Add context to help vector search find relevant chapters
   const productTypeHints: string[] = [];
-  const lowerName = productName.toLowerCase();
-  const lowerDesc = description.toLowerCase();
+  const lowerName = String(productName || "").toLowerCase();
+  const lowerDesc = String(description || "").toLowerCase();
   
   // Detect product categories to improve search
   if (lowerName.includes("trail mix") || lowerName.includes("snack") || 
@@ -286,6 +286,7 @@ function isValidHtsCode(code: string | null | undefined): boolean {
 }
 
 export async function searchAndClassifyAction(input: {
+  productId?: string;
   productName: string;
   description: string;
   intendedUse?: string;
@@ -651,32 +652,90 @@ export async function searchAndClassifyAction(input: {
     throw new Error(`Classification failed: Invalid HTS code generated. Please try again.`);
   }
 
-  const product = await prisma.product.create({
-    data: {
-      organizationId: membership.organizationId,
-      createdById: user.id,
-      name: input.productName,
-      description: input.description,
-      intendedUse: input.intendedUse,
-      targetMarkets: [input.market],
-      metadata: {
-        originCountry: input.originCountry || null,
-        compositionText: input.compositionText || null,
+  let product;
+  if (input.productId) {
+    const existingProduct = await prisma.product.findFirst({
+      where: {
+        id: input.productId,
+        organizationId: membership.organizationId,
       },
-      ...(input.materials && input.materials.length > 0
-        ? {
-            materials: {
-              createMany: {
-                data: input.materials.map((m) => ({
-                  material: m.material,
-                  percentage: m.percentage,
-                })),
-              },
-            },
-          }
+      include: {
+        materials: true,
+      },
+    });
+
+    if (!existingProduct) {
+      throw new Error("Product not found for classification.");
+    }
+
+    const nextMetadata = {
+      ...(typeof existingProduct.metadata === "object" && existingProduct.metadata
+        ? (existingProduct.metadata as Record<string, unknown>)
         : {}),
-    },
-  });
+      originCountry: input.originCountry || (existingProduct.metadata as any)?.originCountry || null,
+      compositionText:
+        input.compositionText ||
+        (existingProduct.metadata as any)?.compositionText ||
+        null,
+    };
+
+    await prisma.product.update({
+      where: { id: existingProduct.id },
+      data: {
+        name: input.productName,
+        description: input.description,
+        intendedUse: input.intendedUse,
+        targetMarkets: [input.market],
+        metadata: nextMetadata as any,
+      },
+    });
+
+    if (input.materials && input.materials.length > 0) {
+      await prisma.productMaterial.deleteMany({
+        where: { productId: existingProduct.id },
+      });
+
+      await prisma.productMaterial.createMany({
+        data: input.materials.map((m) => ({
+          productId: existingProduct.id,
+          material: m.material,
+          percentage: m.percentage,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    product = await prisma.product.findUniqueOrThrow({
+      where: { id: existingProduct.id },
+    });
+  } else {
+    product = await prisma.product.create({
+      data: {
+        organizationId: membership.organizationId,
+        createdById: user.id,
+        name: input.productName,
+        description: input.description,
+        intendedUse: input.intendedUse,
+        targetMarkets: [input.market],
+        metadata: {
+          originCountry: input.originCountry || null,
+          compositionText: input.compositionText || null,
+        },
+        ...(input.materials && input.materials.length > 0
+          ? {
+              materials: {
+                createMany: {
+                  data: input.materials.map((m) => ({
+                    material: m.material,
+                    percentage: m.percentage,
+                  })),
+                },
+              },
+            }
+          : {}),
+      },
+    });
+  }
 
   if (Array.isArray(input.imageIds) && input.imageIds.length > 0) {
     await prisma.productImage.updateMany({

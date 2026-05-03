@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleApiError, requireApiAuth } from "@/lib/api/mobile-auth";
+import { handleCorsPreflight, jsonWithCors } from "@/lib/api/cors";
+
+export function OPTIONS(request: NextRequest) {
+  return handleCorsPreflight(request);
+}
 
 export async function GET(request: NextRequest) {
   try {
     const { user, membership } = await requireApiAuth(request);
 
-    return NextResponse.json({
+    return jsonWithCors(request, {
       user: {
         id: user.id,
         email: user.email ?? null,
@@ -28,6 +33,6 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, request);
   }
 }

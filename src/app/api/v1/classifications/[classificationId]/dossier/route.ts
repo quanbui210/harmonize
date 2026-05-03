@@ -10,6 +10,10 @@ export async function GET(
   try {
     const { membership } = await requireApiAuth(request);
     const { classificationId } = await params;
+    const authHeader = request.headers.get("authorization");
+    const bearerToken = authHeader?.toLowerCase().startsWith("bearer ")
+      ? authHeader.slice(7).trim()
+      : null;
 
     const classification = await prisma.classification.findFirst({
       where: {
@@ -35,7 +39,9 @@ export async function GET(
             id: dossier.id,
             generatedAt: dossier.generatedAt,
             previewUrl: `/api/dossier/${dossier.id}/preview`,
-            pdfUrl: `/api/dossier/${dossier.id}/pdf`,
+            pdfUrl: bearerToken
+              ? `/api/dossier/${dossier.id}/pdf?access_token=${encodeURIComponent(bearerToken)}`
+              : `/api/dossier/${dossier.id}/pdf`,
             exportUrl: `/api/dossier/${dossier.id}/export`,
           }
         : null,

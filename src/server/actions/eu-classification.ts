@@ -9,6 +9,15 @@ import { createHash } from "crypto";
 import { writeFile } from "fs/promises";
 import { join } from "path";
 
+function normalizeCodeDigits(value?: string | null) {
+  return (value || "").replace(/\D/g, "");
+}
+
+function isValidCnCode(value?: string | null) {
+  const normalized = normalizeCodeDigits(value);
+  return normalized.length === 8 && normalized !== "00000000";
+}
+
 export async function classifyProductForEUAction(
   productId: string,
   organizationId: string,
@@ -45,9 +54,15 @@ export async function classifyProductForEUAction(
     productAttributes,
   );
 
-  const cnCode = classificationResult.cnCode;
-  const hsCode = cnCode.substring(0, 6); // Extract HS code (first 6 digits)
-  const htsCode = cnCode.padEnd(10, "0");
+  const normalizedCnCode = normalizeCodeDigits(classificationResult.cnCode).slice(0, 8);
+  const hasValidCnCode = isValidCnCode(normalizedCnCode);
+  const cnCode = hasValidCnCode ? normalizedCnCode : null;
+  const hsCode = cnCode ? cnCode.substring(0, 6) : null;
+  const htsCode = cnCode ? cnCode.padEnd(10, "0") : null;
+  const requiresReview = !hasValidCnCode || classificationResult.confidence < 0.8;
+  const summary = cnCode
+    ? `CN Code: ${cnCode}. ${classificationResult.sources[0]?.excerpt || ""}`
+    : "Classification pending manual review. No valid CN code was produced from the current evidence.";
 
   const existing = await prisma.classification.findFirst({
     where: {
@@ -64,11 +79,11 @@ export async function classifyProductForEUAction(
           hsCode,
           htsCode,
           confidence: classificationResult.confidence,
-          summary: `CN Code: ${cnCode}. ${classificationResult.sources[0]?.excerpt || ""}`,
+          summary,
           reasoningTrail: classificationResult.reasoningTrail as unknown as Prisma.InputJsonValue,
           exclusionNotes: classificationResult.exclusionNotes as string[],
-          requiresReview: classificationResult.confidence < 0.8,
-          status: classificationResult.confidence < 0.8 ? "NEEDS_REVIEW" : "DRAFT",
+          requiresReview,
+          status: requiresReview ? "NEEDS_REVIEW" : "DRAFT",
         },
       })
     : await prisma.classification.create({
@@ -79,11 +94,11 @@ export async function classifyProductForEUAction(
           hsCode,
           htsCode,
           confidence: classificationResult.confidence,
-          summary: `CN Code: ${cnCode}. ${classificationResult.sources[0]?.excerpt || ""}`,
+          summary,
           reasoningTrail: classificationResult.reasoningTrail as unknown as Prisma.InputJsonValue,
           exclusionNotes: classificationResult.exclusionNotes as string[],
-          requiresReview: classificationResult.confidence < 0.8,
-          status: classificationResult.confidence < 0.8 ? "NEEDS_REVIEW" : "DRAFT",
+          requiresReview,
+          status: requiresReview ? "NEEDS_REVIEW" : "DRAFT",
         },
       });
 
@@ -114,7 +129,7 @@ export async function classifyProductForEUAction(
     })),
   });
 
-  if (classificationResult.dutySummary) {
+  if (cnCode && classificationResult.dutySummary) {
     await prisma.dutySummary.upsert({
       where: { classificationId: classification.id },
       create: {
@@ -128,6 +143,10 @@ export async function classifyProductForEUAction(
         dutyRate: classificationResult.dutySummary.baseDutyRate,
         vatRate: classificationResult.dutySummary.vatRate,
       },
+    });
+  } else {
+    await prisma.dutySummary.deleteMany({
+      where: { classificationId: classification.id },
     });
   }
 

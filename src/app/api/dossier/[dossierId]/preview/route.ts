@@ -1,19 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuthenticatedUser } from "@/lib/supabase/auth";
-import { getPrimaryMembership } from "@/server/queries/organizations";
+import { handleApiError } from "@/lib/api/mobile-auth";
+import { authenticateRequest } from "@/lib/api/request-auth";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ dossierId: string }> }
 ) {
   try {
-    const user = await requireAuthenticatedUser();
-    const membership = await getPrimaryMembership(user.id);
-    if (!membership) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { membership } = await authenticateRequest(request);
 
     const { dossierId } = await params;
     const dossier = await prisma.dossier.findUnique({
@@ -50,7 +46,7 @@ export async function GET(
     });
   } catch (error) {
     console.error("Dossier preview error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return handleApiError(error);
   }
 }
 

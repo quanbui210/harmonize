@@ -8,6 +8,35 @@ import { handleApiError, requireApiAuth } from "@/lib/api/mobile-auth";
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
 const MAX_SIZE_BYTES = 10 * 1024 * 1024;
 
+function stringValue(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function extractMaterials(value: unknown) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const record = item as Record<string, unknown>;
+      const material = stringValue(record.name) || stringValue(record.material);
+      const percentageValue =
+        typeof record.percentage === "number"
+          ? record.percentage
+          : typeof record.percentage === "string"
+            ? Number.parseFloat(record.percentage)
+            : Number.NaN;
+
+      if (!material) return null;
+
+      return {
+        material,
+        percentage: Number.isFinite(percentageValue) ? percentageValue : 0,
+      };
+    })
+    .filter((item): item is { material: string; percentage: number } => Boolean(item));
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ productId: string }> },
@@ -21,7 +50,9 @@ export async function GET(
         id: productId,
         organizationId: membership.organizationId,
       },
-      select: { id: true },
+      include: {
+        materials: true,
+      },
     });
 
     if (!product) {
@@ -69,7 +100,9 @@ export async function POST(
         id: productId,
         organizationId: membership.organizationId,
       },
-      select: { id: true },
+      include: {
+        materials: true,
+      },
     });
 
     if (!product) {
@@ -144,6 +177,68 @@ export async function POST(
         extractedData: extractedData as object,
       },
     });
+
+    const existingMetadata =
+      product.metadata && typeof product.metadata === "object"
+        ? (product.metadata as Record<string, unknown>)
+        : {};
+
+    const compositionText = [
+      stringValue((extractedData as Record<string, unknown>)?.compositionText),
+      stringValue(ocrText),
+      stringValue(existingMetadata.compositionText),
+    ]
+      .filter((value, index, array): value is string => Boolean(value) && array.indexOf(value) === index)
+      .join("\n\n")
+      .slice(0, 6000);
+
+    const normalizedProductName = String(product.name || "").toLowerCase();
+    const nextName =
+      (normalizedProductName.startsWith("scanned product") ||
+        normalizedProductName.startsWith("label scan")) &&
+      (stringValue((extractedData as Record<string, unknown>)?.productName) ||
+        stringValue((extractedData as Record<string, unknown>)?.name))
+        ? (stringValue((extractedData as Record<string, unknown>)?.productName) ||
+            stringValue((extractedData as Record<string, unknown>)?.name))!
+        : product.name;
+
+    await prisma.product.update({
+      where: { id: productId },
+      data: {
+        name: nextName,
+        description:
+          stringValue((extractedData as Record<string, unknown>)?.description) ||
+          product.description,
+        intendedUse:
+          stringValue((extractedData as Record<string, unknown>)?.intendedUse) ||
+          product.intendedUse,
+        metadata: {
+          ...existingMetadata,
+          originCountry:
+            stringValue((extractedData as Record<string, unknown>)?.originCountry) ||
+            stringValue(existingMetadata.originCountry) ||
+            null,
+          compositionText: compositionText || null,
+        } as any,
+      },
+    });
+
+    if (product.materials.length === 0) {
+      const extractedMaterials = extractMaterials(
+        (extractedData as Record<string, unknown>)?.materials,
+      );
+
+      if (extractedMaterials.length > 0) {
+        await prisma.productMaterial.createMany({
+          data: extractedMaterials.map((material) => ({
+            productId,
+            material: material.material,
+            percentage: material.percentage,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    }
 
     const { data } = await supabase.storage
       .from("product-images")

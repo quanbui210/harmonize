@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuthenticatedUser } from "@/lib/supabase/auth";
-import { getPrimaryMembership } from "@/server/queries/organizations";
+import { handleApiError } from "@/lib/api/mobile-auth";
+import { authenticateRequest } from "@/lib/api/request-auth";
 import type { EnhancedLabelData } from "@/lib/labeling/label-generator-enhanced";
 import { generatePDFFromHTMLCustomSize } from "@/lib/pdf/generator";
 import { generateLabelHTML } from "../export/label-html-generator";
@@ -11,11 +11,7 @@ export async function GET(
   { params }: { params: Promise<{ labelId: string }> }
 ) {
   try {
-    const user = await requireAuthenticatedUser();
-    const membership = await getPrimaryMembership(user.id);
-    if (!membership) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { membership } = await authenticateRequest(request);
 
     const { labelId } = await params;
     const label = await prisma.label.findFirst({
@@ -104,7 +100,7 @@ export async function GET(
     const filename = `${sanitizedProductName}_label.pdf`;
     const filenameEncoded = encodeURIComponent(filename);
 
-    return new NextResponse(pdfBuffer.toString(), {
+    return new NextResponse(new Uint8Array(pdfBuffer), {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${filename}"; filename*=UTF-8''${filenameEncoded}`,
@@ -113,9 +109,6 @@ export async function GET(
     });
   } catch (error) {
     console.error("Label PDF generation error:", error);
-    return NextResponse.json(
-      { error: "Failed to generate PDF", details: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
