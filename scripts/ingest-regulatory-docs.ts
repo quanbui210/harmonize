@@ -124,12 +124,10 @@ async function extractTextFromPDF(pdfPath: string): Promise<string> {
     
     const dataBuffer = await readFile(pdfPath);
     
-    // Use class-based API (same as ingest-eurlex script)
     const parser = new PDFParse({ data: dataBuffer });
     const textResult = await parser.getText();
     await parser.destroy();
     
-    // Return combined text from all pages
     return textResult.text || "";
   } catch (error) {
     console.error(`[Ingest] Failed to parse PDF ${pdfPath}:`, error);
