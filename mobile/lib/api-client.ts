@@ -223,6 +223,25 @@ export class ApiClient {
     return response.classification;
   }
 
+  static async answerClassificationRefinement(
+    classificationId: string,
+    input: {
+      answer: string;
+      field: string;
+    },
+  ) {
+    return this.fetchWithAuth<{
+      result: {
+        classificationId: string;
+        confidence: number | null;
+        classification: ClassificationRecord;
+      };
+    }>(`/classifications/${classificationId}/refinement`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
   static async deleteClassification(classificationId: string) {
     return this.fetchWithAuth<{ success: boolean; deletedClassificationId: string }>(
       `/classifications/${classificationId}`,
@@ -260,6 +279,13 @@ export class ApiClient {
       `/labels/${labelId}`,
     );
     return response.label;
+  }
+
+  static async listLabels(limit = 50): Promise<LabelRecord[]> {
+    const response = await this.fetchWithAuth<{ labels: LabelRecord[] }>(
+      `/labels?limit=${limit}`,
+    );
+    return response.labels;
   }
 
   static async getLabelExport(labelId: string) {

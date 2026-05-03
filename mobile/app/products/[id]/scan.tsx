@@ -13,10 +13,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Camera, CheckCircle2, ImagePlus } from 'lucide-react-native';
+import { ArrowLeft, Camera, CheckCircle2, CircleHelp, ImagePlus } from 'lucide-react-native';
 import { ApiClient } from '@/lib/api-client';
-import { useAuth } from '@/components/AuthProvider';
 import { lightTheme } from '@/constants/mobile-theme';
+import { parseRefinementQuestion } from '@/lib/refinement-question';
 
 const { colors, radius } = lightTheme;
 
@@ -28,17 +28,19 @@ type UploadPreview = {
 };
 
 export default function ProductScanScreen() {
-  const params = useLocalSearchParams<{ id: string }>();
-  const { user } = useAuth();
+  const params = useLocalSearchParams<{ id: string; classificationId?: string }>();
   const productId = Array.isArray(params.id) ? params.id[0] : params.id;
+  const classificationId = Array.isArray(params.classificationId)
+    ? params.classificationId[0]
+    : params.classificationId;
   const queryClient = useQueryClient();
   const [preview, setPreview] = useState<UploadPreview | null>(null);
-
-  const productQuery = useQuery({
-    queryKey: ['product', productId],
-    queryFn: () => ApiClient.getProduct(productId),
-    enabled: !!user && !!productId,
+  const clarificationQuery = useQuery({
+    queryKey: ['classification', classificationId],
+    queryFn: () => ApiClient.getClassification(classificationId),
+    enabled: !!classificationId,
   });
+  const activeQuestion = parseRefinementQuestion(clarificationQuery.data?.refinementQuestion);
 
   const uploadMutation = useMutation({
     mutationFn: async (asset: { uri: string; fileName?: string | null; mimeType?: string | null }) => {
@@ -142,8 +144,40 @@ export default function ProductScanScreen() {
 
         <Text style={styles.pageTitle}>Add More Photos</Text>
         <Text style={styles.pageSubtitle}>
-          Use this when you want to add more package or label photos to this saved product.
+          Use this when the current result still needs one more detail from the packaging or label.
         </Text>
+
+        {classificationId && activeQuestion ? (
+          <View style={styles.questionCard}>
+            <View style={styles.questionHeader}>
+              <CircleHelp color={colors.primary} size={16} />
+              <Text style={styles.questionTitle}>Current question</Text>
+            </View>
+            <Text style={styles.questionText}>{activeQuestion.question}</Text>
+            {activeQuestion.explanation ? (
+              <Text style={styles.questionExplanation}>{activeQuestion.explanation}</Text>
+            ) : null}
+            {activeQuestion.options.length ? (
+              <View style={styles.questionOptions}>
+                {activeQuestion.options.map((option) => (
+                  <View key={`${option.value}-${option.label}`} style={styles.questionOption}>
+                    <Text style={styles.questionOptionText}>{option.label}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+            <Text style={styles.questionHint}>
+              Add a clearer photo if the answer is shown on the packaging. You can still go back and
+              answer it directly.
+            </Text>
+            <Pressable
+              style={styles.questionBackButton}
+              onPress={() => router.replace(`/classifications/${classificationId}` as never)}
+            >
+              <Text style={styles.questionBackButtonText}>Back to clarification</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         <View style={styles.frameCard}>
           <View style={styles.detectingBadge}>
@@ -232,7 +266,7 @@ export default function ProductScanScreen() {
               disabled={classifyMutation.isPending}
             >
               <Text style={styles.primaryButtonText}>
-                {classifyMutation.isPending ? 'Checking this product...' : 'Use this photo for classification'}
+                {classifyMutation.isPending ? 'Checking this product...' : 'Use this photo and check again'}
               </Text>
             </Pressable>
 
@@ -332,6 +366,77 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     marginBottom: 18,
+  },
+  questionCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    padding: 18,
+    marginBottom: 14,
+  },
+  questionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  questionTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  questionText: {
+    color: colors.text,
+    fontSize: 18,
+    lineHeight: 26,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  questionExplanation: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 21,
+    marginBottom: 12,
+  },
+  questionOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  questionOption: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  questionOptionText: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  questionHint: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 21,
+    marginBottom: 12,
+  },
+  questionBackButton: {
+    minHeight: 46,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  questionBackButtonText: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '700',
   },
   frameCard: {
     backgroundColor: colors.primary,

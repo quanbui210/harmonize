@@ -915,21 +915,16 @@ async function getDescriptionForCNCode(cnCode: string): Promise<string> {
   return getCNCodeDescription(cnCode as CNCode, MarketCode.EU);
 }
 
-export async function answerRefinementQuestionAction(input: {
+export async function answerRefinementQuestionForOrganization(input: {
   classificationId: string;
   answer: string;
   field: string;
+  organizationId: string;
 }) {
-  const user = await requireAuthenticatedUser();
-  const membership = await getPrimaryMembership(user.id);
-  if (!membership) {
-    throw new Error("No organization found");
-  }
-
   const classification = await prisma.classification.findFirst({
     where: {
       id: input.classificationId,
-      organizationId: membership.organizationId,
+      organizationId: input.organizationId,
     },
     include: {
       product: true,
@@ -957,7 +952,9 @@ export async function answerRefinementQuestionAction(input: {
     });
   }
 
-  const compositionFromMetadata = (nextMetadata as any)?.compositionText || (classification.product.metadata as any)?.compositionText;
+  const compositionFromMetadata =
+    (nextMetadata as any)?.compositionText ||
+    (classification.product.metadata as any)?.compositionText;
   const productAttributes: EUProductAttributes = {
     name: classification.product.name,
     description: classification.product.description,
@@ -971,9 +968,7 @@ export async function answerRefinementQuestionAction(input: {
     },
   };
 
-  const updatedResult = await euClassificationEngine.classifyProduct(
-    productAttributes,
-  );
+  const updatedResult = await euClassificationEngine.classifyProduct(productAttributes);
 
   const normalizedUpdatedCnCode = normalizeCodeDigits(updatedResult.cnCode).substring(0, 8);
   const existingCnCode = normalizeCodeDigits(classification.htsCode).substring(0, 8);
@@ -994,7 +989,7 @@ export async function answerRefinementQuestionAction(input: {
   }
   const hsCode = finalCnCode.substring(0, 6);
   const htsCode = finalCnCode.padEnd(10, "0");
-  
+
   await prisma.classification.update({
     where: { id: classification.id },
     data: {
@@ -1029,5 +1024,21 @@ export async function answerRefinementQuestionAction(input: {
     updatedHtsCode: finalCnCode.padEnd(10, "0"),
     confidence: usedFallbackExistingCode ? classification.confidence : updatedResult.confidence,
   };
+}
+
+export async function answerRefinementQuestionAction(input: {
+  classificationId: string;
+  answer: string;
+  field: string;
+}) {
+  const user = await requireAuthenticatedUser();
+  const membership = await getPrimaryMembership(user.id);
+  if (!membership) {
+    throw new Error("No organization found");
+  }
+  return answerRefinementQuestionForOrganization({
+    ...input,
+    organizationId: membership.organizationId,
+  });
 }
 

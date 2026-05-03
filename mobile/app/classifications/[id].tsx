@@ -1,11 +1,14 @@
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Bot, ChevronRight, CircleHelp, FileBadge2, FileCheck2, ShieldAlert, Trash2 } from 'lucide-react-native';
+import * as Clipboard from 'expo-clipboard';
+import { ArrowLeft, Bot, Check, ChevronRight, CircleHelp, Copy, FileBadge2, FileCheck2, ShieldAlert, Trash2 } from 'lucide-react-native';
 import { ApiClient } from '@/lib/api-client';
 import { lightTheme } from '@/constants/mobile-theme';
-import { formatClassificationCode, getPreferredClassificationCode } from '@/lib/classification-code';
+import { formatClassificationCode, getPreferredClassificationCode, normalizeCodeDigits } from '@/lib/classification-code';
+import { parseRefinementQuestion } from '@/lib/refinement-question';
 
 const { colors, radius } = lightTheme;
 
@@ -22,7 +25,8 @@ export default function ClassificationDetailScreen() {
 
   const classification = classificationQuery.data;
   const product = classification?.product;
-  const resolvedCode = getPreferredClassificationCode({
+  const primaryDisplayCode = getSummaryDisplayCode({
+    market: classification?.market,
     cnCode: classification?.cnCode,
     htsCode: classification?.htsCode,
     hsCode: classification?.hsCode,
@@ -44,6 +48,58 @@ export default function ClassificationDetailScreen() {
   const distinctions = normalizeDistinctions(classification?.distinctions);
   const keyFeatures = normalizeStringList(classification?.keyFeatures);
   const notes = textFromUnknown(classification?.notes);
+  const importGuidance = classification?.humanNotes?.importGuidance || null;
+  const requiredDocuments = normalizeStringList(importGuidance?.requiredDocuments);
+  const recommendedTests = normalizeStringList(importGuidance?.recommendedTests);
+  const labellingRequirements = normalizeStringList(importGuidance?.labellingRequirements);
+  const nextActions = normalizeStringList(importGuidance?.nextActions);
+  const foodSafetyRisks = normalizeFoodSafetyRisks(importGuidance?.foodSafetyRisks);
+  const riskFlags = normalizeRiskFlags(classification?.riskFlags);
+  const refinementQuestion = useMemo(
+    () => parseRefinementQuestion(classification?.refinementQuestion),
+    [classification?.refinementQuestion],
+  );
+  const [selectedRefinementAnswer, setSelectedRefinementAnswer] = useState<string | null>(null);
+  const [customRefinementAnswer, setCustomRefinementAnswer] = useState('');
+  const refinementField = refinementQuestion?.field || 'classification';
+  const needsTypedRefinementAnswer =
+    refinementField === 'compositionText' &&
+    (!refinementQuestion?.options?.length || selectedRefinementAnswer === 'other');
+  const resolvedRefinementAnswer =
+    selectedRefinementAnswer === 'other'
+      ? customRefinementAnswer.trim()
+      : selectedRefinementAnswer?.trim() || customRefinementAnswer.trim();
+
+  useEffect(() => {
+    setSelectedRefinementAnswer(null);
+    setCustomRefinementAnswer('');
+  }, [classification?.refinementQuestion]);
+
+  const answerRefinementMutation = useMutation({
+    mutationFn: (input: { answer: string; field: string }) =>
+      ApiClient.answerClassificationRefinement(classificationId, input),
+    onSuccess: async (response) => {
+      setSelectedRefinementAnswer(null);
+      setCustomRefinementAnswer('');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['classification', classificationId] }),
+        queryClient.invalidateQueries({ queryKey: ['classifications'] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
+        classification?.productId
+          ? queryClient.invalidateQueries({ queryKey: ['product', classification.productId] })
+          : Promise.resolve(),
+      ]);
+
+      const nextClassificationId = String(
+        response.result?.classification?.id || response.result?.classificationId || classificationId,
+      );
+      router.replace(`/classifications/${nextClassificationId}` as never);
+    },
+    onError: (error: Error) => {
+      Alert.alert('Could not use that answer', error.message);
+    },
+  });
   const deleteMutation = useMutation({
     mutationFn: () => ApiClient.deleteClassification(classificationId),
     onSuccess: async () => {
@@ -52,7 +108,7 @@ export default function ClassificationDetailScreen() {
         queryClient.invalidateQueries({ queryKey: ['products'] }),
         queryClient.invalidateQueries({ queryKey: ['classifications'] }),
       ]);
-      router.replace('/scan');
+      router.replace('/library?section=classifications');
     },
     onError: (error: Error) => {
       Alert.alert('Delete failed', error.message);
@@ -131,26 +187,29 @@ export default function ClassificationDetailScreen() {
 
             <Text style={styles.productName}>{product?.name ?? 'Untitled product'}</Text>
 
-            <View style={styles.card}>
-              <Text style={styles.cardLabel}>Proposed HS/CN code</Text>
-              <Text style={styles.codeValue}>
-                {formatClassificationCode(resolvedCode) || 'Still being checked'}
-              </Text>
-              <View style={styles.codeDivider} />
-              <InfoLine
-                label="Market"
-                value={classification.market || product?.targetMarkets?.[0] || 'EU'}
-              />
-              <InfoLine label="Status" value={titleCase(classification.status)} />
-              <InfoLine
-                label="Match score"
-                value={
-                  classification.confidence != null
-                    ? `${Math.round(classification.confidence * 100)}%`
-                    : 'Not scored'
-                }
-              />
-            </View>
+            <CodeSummaryCard
+              badgeLabel={
+                classification.confidence && classification.confidence >= 0.7
+                  ? 'AI Suggested'
+                  : 'Classification Result'
+              }
+              code={formatClassificationCode(primaryDisplayCode) || 'Still being checked'}
+              market={classification.market || product?.targetMarkets?.[0] || 'EU'}
+              status={titleCase(classification.status)}
+              score={
+                classification.confidence != null
+                  ? `${Math.round(classification.confidence * 100)}%`
+                  : 'Not scored'
+              }
+              isPlaceholder={!primaryDisplayCode}
+              canCopy={Boolean(primaryDisplayCode)}
+              onCopy={async () => {
+                if (!primaryDisplayCode) return;
+                await Clipboard.setStringAsync(
+                  formatClassificationCode(primaryDisplayCode) || primaryDisplayCode,
+                );
+              }}
+            />
 
             <View style={styles.card}>
               <Text style={styles.cardLabel}>Estimated impact</Text>
@@ -166,21 +225,79 @@ export default function ClassificationDetailScreen() {
                   <Text style={styles.reviewTitle}>Clarification required</Text>
                 </View>
                 <Text style={styles.reviewQuestion}>
-                  {classification.refinementQuestion ||
+                  {refinementQuestion?.question ||
                     'This classification still needs analyst review before you rely on it for customs.'}
                 </Text>
+                {refinementQuestion?.explanation ? (
+                  <Text style={styles.reviewExplanation}>{refinementQuestion.explanation}</Text>
+                ) : null}
+                {refinementQuestion?.options?.length ? (
+                  <View style={styles.reviewOptions}>
+                    {refinementQuestion.options.map((option) => (
+                      <Pressable
+                        key={`${option.value}-${option.label}`}
+                        style={[
+                          styles.reviewOption,
+                          selectedRefinementAnswer === option.value && styles.reviewOptionSelected,
+                        ]}
+                        onPress={() => setSelectedRefinementAnswer(option.value)}
+                      >
+                        <Text
+                          style={[
+                            styles.reviewOptionText,
+                            selectedRefinementAnswer === option.value &&
+                              styles.reviewOptionTextSelected,
+                          ]}
+                        >
+                          {option.label || option.value}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+                {needsTypedRefinementAnswer ? (
+                  <TextInput
+                    value={customRefinementAnswer}
+                    onChangeText={setCustomRefinementAnswer}
+                    placeholder="Type the material details"
+                    placeholderTextColor={colors.textMuted}
+                    style={styles.reviewInput}
+                    multiline
+                  />
+                ) : null}
                 <Text style={styles.reviewBody}>
-                  Review the saved product details, ingredients, and product information before
-                  trying again.
+                  Answer here if you know it. If not, add another photo that shows the missing
+                  detail more clearly.
                 </Text>
+                <Pressable
+                  style={[
+                    styles.primaryReviewButton,
+                    (!resolvedRefinementAnswer || answerRefinementMutation.isPending) &&
+                      styles.primaryReviewButtonDisabled,
+                  ]}
+                  onPress={() => {
+                    if (!resolvedRefinementAnswer) return;
+                    void answerRefinementMutation.mutate({
+                      answer: resolvedRefinementAnswer,
+                      field: refinementField,
+                    });
+                  }}
+                  disabled={!resolvedRefinementAnswer || answerRefinementMutation.isPending}
+                >
+                  <Text style={styles.primaryReviewButtonText}>
+                    {answerRefinementMutation.isPending ? 'Checking your answer...' : 'Use this answer'}
+                  </Text>
+                </Pressable>
                 <Pressable
                   style={styles.secondaryButton}
                   onPress={() => {
                     if (!classification.productId) return;
-                    router.push(`/products/${classification.productId}` as never);
+                    router.push(
+                      `/products/${classification.productId}/scan?classificationId=${classificationId}` as never,
+                    );
                   }}
                 >
-                  <Text style={styles.secondaryButtonText}>Review saved product</Text>
+                  <Text style={styles.secondaryButtonText}>Add another photo instead</Text>
                 </Pressable>
               </View>
             ) : null}
@@ -203,6 +320,94 @@ export default function ClassificationDetailScreen() {
               <InfoLine label="HTS code (USA)" value={formatClassificationCode(classification.htsCode) || '-'} />
               <InfoLine label="CN code (EU)" value={formatClassificationCode(classification.cnCode) || '-'} />
             </View>
+
+            {importGuidance ? (
+              <View style={styles.card}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Import guidance</Text>
+                  {importGuidance.riskLevel ? (
+                    <View style={styles.statusPill}>
+                      <Text style={styles.statusPillText}>
+                        {titleCase(importGuidance.riskLevel)} risk
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+                {importGuidance.importStatusMessage ? (
+                  <Text style={styles.bodyCopy}>{importGuidance.importStatusMessage}</Text>
+                ) : null}
+                {importGuidance.borderControlLikelihood ? (
+                  <InfoLine
+                    label="Border control likelihood"
+                    value={`${titleCase(importGuidance.borderControlLikelihood)}${
+                      importGuidance.borderControlReason
+                        ? ` - ${importGuidance.borderControlReason}`
+                        : ''
+                    }`}
+                  />
+                ) : null}
+                {requiredDocuments.length ? (
+                  <>
+                    <Text style={styles.subheading}>Required documents</Text>
+                    {requiredDocuments.map((item) => (
+                      <BulletRow key={item} text={item} />
+                    ))}
+                  </>
+                ) : null}
+                {labellingRequirements.length ? (
+                  <>
+                    <Text style={styles.subheading}>Label requirements</Text>
+                    {labellingRequirements.map((item) => (
+                      <BulletRow key={item} text={item} />
+                    ))}
+                  </>
+                ) : null}
+                {recommendedTests.length ? (
+                  <>
+                    <Text style={styles.subheading}>Recommended lab tests</Text>
+                    {recommendedTests.map((item) => (
+                      <BulletRow key={item} text={item} />
+                    ))}
+                  </>
+                ) : null}
+                {foodSafetyRisks.length ? (
+                  <>
+                    <Text style={styles.subheading}>Food safety risks</Text>
+                    {foodSafetyRisks.map((item, index) => (
+                      <View key={`${item.risk}-${index}`} style={styles.distinctionCard}>
+                        <View style={styles.sectionHeader}>
+                          <Text style={styles.distinctionHeading}>{item.risk}</Text>
+                          <View style={styles.statusPill}>
+                            <Text style={styles.statusPillText}>{titleCase(item.level)}</Text>
+                          </View>
+                        </View>
+                        <Text style={styles.bodyCopy}>{item.reason}</Text>
+                      </View>
+                    ))}
+                  </>
+                ) : null}
+                {nextActions.length ? (
+                  <>
+                    <Text style={styles.subheading}>Next actions</Text>
+                    {nextActions.map((item) => (
+                      <BulletRow key={item} text={item} />
+                    ))}
+                  </>
+                ) : null}
+              </View>
+            ) : null}
+
+            {riskFlags.length ? (
+              <View style={styles.card}>
+                <Text style={styles.sectionTitle}>Trade alerts</Text>
+                {riskFlags.map((flag, index) => (
+                  <View key={`${flag.label}-${index}`} style={styles.distinctionCard}>
+                    <Text style={styles.distinctionHeading}>{flag.label}</Text>
+                    {flag.details ? <Text style={styles.bodyCopy}>{flag.details}</Text> : null}
+                  </View>
+                ))}
+              </View>
+            ) : null}
 
             <View style={styles.card}>
               <View style={styles.sectionHeader}>
@@ -293,6 +498,83 @@ function InfoLine({ label, value }: { label: string; value: string }) {
   );
 }
 
+function CodeSummaryCard({
+  badgeLabel,
+  code,
+  market,
+  status,
+  score,
+  isPlaceholder,
+  canCopy,
+  onCopy,
+}: {
+  badgeLabel: string;
+  code: string;
+  market: string;
+  status: string;
+  score: string;
+  isPlaceholder: boolean;
+  canCopy: boolean;
+  onCopy: () => Promise<void>;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timeout = setTimeout(() => setCopied(false), 1600);
+    return () => clearTimeout(timeout);
+  }, [copied]);
+
+  return (
+    <View style={styles.codeCard}>
+      <View style={styles.codeCardHeader}>
+        <View style={styles.codeBadge}>
+          <Bot color={colors.textSecondary} size={13} />
+          <Text style={styles.codeBadgeText}>{badgeLabel}</Text>
+        </View>
+        <Pressable
+          style={[styles.copyButton, !canCopy && styles.copyButtonDisabled]}
+          disabled={!canCopy}
+          onPress={() => {
+            void onCopy().then(() => setCopied(true));
+          }}
+        >
+          {copied ? <Check color={colors.text} size={17} /> : <Copy color={colors.text} size={17} />}
+        </Pressable>
+      </View>
+
+      <Text style={styles.codeCardLabel}>Proposed HS/CN Code</Text>
+      <Text
+        style={[styles.codeHeroValue, isPlaceholder && styles.codeHeroValuePlaceholder]}
+        numberOfLines={2}
+      >
+        {code}
+      </Text>
+
+      {isPlaceholder ? (
+        <Text style={styles.codeHeroHint}>
+          Add clearer product details or answer the question below to narrow down the code.
+        </Text>
+      ) : null}
+
+      <View style={styles.codeFooter}>
+        <View style={styles.codeFooterPill}>
+          <Text style={styles.codeFooterLabel}>Market</Text>
+          <Text style={styles.codeFooterValue}>{market}</Text>
+        </View>
+        <View style={styles.codeFooterPill}>
+          <Text style={styles.codeFooterLabel}>Status</Text>
+          <Text style={styles.codeFooterValue}>{status}</Text>
+        </View>
+        <View style={styles.codeFooterPill}>
+          <Text style={styles.codeFooterLabel}>Match</Text>
+          <Text style={styles.codeFooterValue}>{score}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 function MetricLine({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.metricLine}>
@@ -305,7 +587,7 @@ function MetricLine({ label, value }: { label: string; value: string }) {
 function DetailsGrid({
   items,
 }: {
-  items: Array<{ label: string; value: string }>;
+  items: { label: string; value: string }[];
 }) {
   return (
     <View style={styles.detailsGrid}>
@@ -367,7 +649,7 @@ function normalizeStringList(value: unknown): string[] {
     .filter((item): item is string => Boolean(item));
 }
 
-function normalizeDistinctions(value: unknown): Array<{ heading: string; reason: string }> {
+function normalizeDistinctions(value: unknown): { heading: string; reason: string }[] {
   if (typeof value === "string" && value.trim().length > 0) {
     return [{ heading: 'Distinction', reason: value }];
   }
@@ -393,11 +675,68 @@ function normalizeDistinctions(value: unknown): Array<{ heading: string; reason:
     .filter((item): item is { heading: string; reason: string } => Boolean(item));
 }
 
+function normalizeFoodSafetyRisks(
+  value: unknown,
+): { risk: string; level: string; reason: string }[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const record = item as Record<string, unknown>;
+      const risk = textFromUnknown(record.risk);
+      const level = textFromUnknown(record.level) || 'MEDIUM';
+      const reason = textFromUnknown(record.reason);
+
+      if (!risk || !reason) return null;
+      return { risk, level, reason };
+    })
+    .filter((item): item is { risk: string; level: string; reason: string } => Boolean(item));
+}
+
+function normalizeRiskFlags(value: unknown): { label: string; details?: string }[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const record = item as Record<string, unknown>;
+      const label =
+        textFromUnknown(record.label) ||
+        textFromUnknown(record.riskType) ||
+        textFromUnknown(record.type);
+      if (!label) return null;
+      return {
+        label,
+        details: textFromUnknown(record.details) || undefined,
+      };
+    })
+    .filter((item): item is { label: string; details?: string } => Boolean(item));
+}
+
 function titleCase(value: string) {
   return value
     .toLowerCase()
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function getSummaryDisplayCode(input: {
+  market?: string | null;
+  cnCode?: string | null;
+  htsCode?: string | null;
+  hsCode?: string | null;
+}) {
+  const market = String(input.market || '').toUpperCase();
+  if (market === 'EU') {
+    return input.cnCode || normalizeCodeDigits(input.htsCode).slice(0, 8) || input.hsCode || null;
+  }
+
+  return getPreferredClassificationCode({
+    cnCode: input.cnCode,
+    htsCode: input.htsCode,
+    hsCode: input.hsCode,
+  });
 }
 
 const styles = StyleSheet.create({
@@ -558,6 +897,111 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '800',
   },
+  codeCard: {
+    borderRadius: 24,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    shadowColor: colors.shadow,
+    shadowOpacity: 1,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 2,
+  },
+  codeCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  codeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  },
+  codeBadgeText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  copyButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  },
+  copyButtonDisabled: {
+    opacity: 0.45,
+  },
+  codeCardLabel: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: 12,
+  },
+  codeHeroValue: {
+    color: colors.text,
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: '800',
+    marginBottom: 16,
+    letterSpacing: 0.3,
+  },
+  codeHeroValuePlaceholder: {
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: '700',
+    letterSpacing: 0,
+    maxWidth: '85%',
+    marginBottom: 10,
+  },
+  codeHeroHint: {
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 16,
+    maxWidth: '88%',
+  },
+  codeFooter: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 14,
+  },
+  codeFooterPill: {
+    flex: 1,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  },
+  codeFooterLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  codeFooterValue: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '700',
+  },
   reviewCard: {
     backgroundColor: colors.accent,
     borderRadius: radius.lg,
@@ -584,11 +1028,73 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 8,
   },
+  reviewExplanation: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 21,
+    marginBottom: 12,
+  },
+  reviewOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  reviewOption: {
+    backgroundColor: colors.surface,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  reviewOptionSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  reviewOptionText: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  reviewOptionTextSelected: {
+    color: '#FFFFFF',
+  },
+  reviewInput: {
+    minHeight: 96,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    color: colors.text,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    textAlignVertical: 'top',
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
   reviewBody: {
     color: colors.textSecondary,
     fontSize: 14,
     lineHeight: 21,
     marginBottom: 14,
+  },
+  primaryReviewButton: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    minHeight: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  primaryReviewButtonDisabled: {
+    opacity: 0.45,
+  },
+  primaryReviewButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
   },
   secondaryButton: {
     backgroundColor: colors.surface,

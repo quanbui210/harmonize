@@ -1,1 +1,1 @@
-export { default } from '../scan';
+export { default } from '../scan/index';

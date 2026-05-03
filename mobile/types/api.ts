@@ -82,6 +82,13 @@ export type ClassificationRecord = {
   hsCode: string | null;
   htsCode: string | null;
   cnCode?: string | null;
+  cnCodeDescription?: string | null;
+  codeBreakdown?: Array<{
+    level: 'chapter' | 'heading' | 'subheading' | 'commodity';
+    code: string;
+    title: string;
+    description: string;
+  }>;
   status: string;
   confidence: number | null;
   summary: string | null;
@@ -89,7 +96,25 @@ export type ClassificationRecord = {
   distinctions?: string | null;
   keyFeatures?: string[] | null;
   notes?: string | null;
-  humanNotes?: Record<string, unknown> | null;
+  humanNotes?: {
+    importGuidance?: {
+      importStatus?: 'ALLOWED' | 'RESTRICTED' | 'PROHIBITED';
+      importStatusMessage?: string;
+      riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH';
+      requiredDocuments?: string[];
+      foodSafetyRisks?: Array<{
+        risk?: string;
+        level?: 'LOW' | 'MEDIUM' | 'HIGH';
+        reason?: string;
+      }>;
+      recommendedTests?: string[];
+      labellingRequirements?: string[];
+      borderControlLikelihood?: 'LOW' | 'MEDIUM' | 'HIGH';
+      borderControlReason?: string;
+      nextActions?: string[];
+    } | null;
+    alternativeClassifications?: Array<Record<string, unknown>>;
+  } | null;
   refinementQuestion?: string | null;
   requiresReview: boolean;
   product?: ProductRecord;

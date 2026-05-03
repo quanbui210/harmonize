@@ -1,6 +1,7 @@
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -10,7 +11,16 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { ChevronRight, FileBadge2, LogOut, Package2, ScanSearch } from 'lucide-react-native';
+import {
+  BadgeCheck,
+  ChevronRight,
+  FileBadge2,
+  FileCheck2,
+  Files,
+  Menu,
+  ScanSearch,
+  UserCircle2,
+} from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { ApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/AuthProvider';
@@ -21,6 +31,8 @@ const { colors, radius } = lightTheme;
 
 export default function DashboardScreen() {
   const { user, signOut, isLoading: authLoading } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+
   const meQuery = useQuery({
     queryKey: ['me'],
     queryFn: () => ApiClient.getMe(),
@@ -34,17 +46,22 @@ export default function DashboardScreen() {
 
   const isRefreshing = dashboardQuery.isRefetching || meQuery.isRefetching;
   const overview = dashboardQuery.data;
-  const topCards = useMemo(
+  const metricCards = useMemo(
     () => [
       {
-        label: 'Active imports',
-        value: overview?.activeImports?.length ?? 0,
+        label: 'Saved results',
+        value: (overview?.approvedCount ?? 0) + (overview?.pendingCount ?? 0),
         tone: colors.surface,
       },
       {
-        label: 'Missing data',
+        label: 'Pending items',
         value: overview?.missingReasonings ?? 0,
-        tone: colors.dangerSoft,
+        tone: colors.warningSoft,
+      },
+      {
+        label: 'Labels',
+        value: overview?.totalLabels ?? 0,
+        tone: colors.surface,
       },
     ],
     [overview],
@@ -59,8 +76,10 @@ export default function DashboardScreen() {
   }
 
   const firstActionItem = overview?.actionItems?.[0];
-  const firstClassificationId = firstActionItem?.id ? String(firstActionItem.id) : null;
   const readiness = overview?.auditReadinessScore ?? 0;
+  const readinessState = getReadinessState(readiness, overview?.missingReasonings ?? 0);
+  const identityName = meQuery.data?.organization.name || meQuery.data?.user.name || 'TulliCheck';
+  const totalSavedResults = (overview?.approvedCount ?? 0) + (overview?.pendingCount ?? 0);
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -78,63 +97,67 @@ export default function DashboardScreen() {
         }
         contentContainerStyle={styles.content}
       >
-        <View style={styles.header}>
-          <View style={styles.headerSpacer} />
-          <View style={styles.brandRow}>
-            <Text style={styles.brand}>TulliCheck</Text>
-            <Text style={styles.workspace}>{meQuery.data?.organization.name ?? 'Workspace'}</Text>
+        <View style={styles.headerCard}>
+          <View style={styles.headerIdentity}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{getInitials(identityName)}</Text>
+            </View>
+            <View style={styles.headerCopy}>
+              <Text style={styles.welcomeText}>Welcome back</Text>
+              <Text style={styles.workspace}>{meQuery.data?.organization.name ?? 'Workspace'}</Text>
+            </View>
           </View>
-          <Pressable style={styles.signOutButton} onPress={() => router.push('/scan')}>
-            <ScanSearch color={colors.text} size={16} />
+          <Pressable style={styles.menuButton} onPress={() => setMenuOpen(true)}>
+            <Menu color={colors.text} size={18} />
           </Pressable>
         </View>
 
         <View style={styles.scoreCard}>
-          <Text style={styles.scoreLabel}>Audit readiness score</Text>
+          <Text style={styles.scoreLabel}>Audit readiness</Text>
+          <View style={styles.scoreRowTop}>
+            <View style={styles.scoreHeadline}>
+              <Text style={styles.scoreHeadlineTitle}>Coverage overview</Text>
+              <Text style={styles.scoreHeadlineText}>
+                {overview?.approvedCount ?? 0} of {totalSavedResults} saved results are fully covered
+              </Text>
+            </View>
+            <View style={[styles.scoreStatusPill, { backgroundColor: readinessState.pillColor }]}>
+              <Text style={styles.scoreStatusText}>{readinessState.label}</Text>
+            </View>
+          </View>
           <View style={styles.scoreRow}>
             <View style={styles.scoreRing}>
-              <Text style={styles.scoreValue}>{readiness}%</Text>
+              <View style={styles.scoreRingInner}>
+                <Text style={styles.scoreRingValue}>{readiness}%</Text>
+                <Text style={styles.scoreRingLabel}>{readinessState.shortLabel}</Text>
+              </View>
             </View>
             <View style={styles.scoreCopy}>
-              <Bullet text={`${overview?.approvedCount ?? 0} verified items`} />
-              <Bullet text={`${overview?.pendingCount ?? 0} items still need review`} danger />
-              <Bullet text="Some checks still need attention." muted />
+              <Bullet text={`${overview?.approvedCount ?? 0} dossiers ready`} />
+              <Bullet text={`${overview?.pendingCount ?? 0} saved results`} />
+              <Bullet text={readinessState.description} muted />
             </View>
           </View>
         </View>
 
         <View style={styles.primaryActionGrid}>
           <ActionTile
-            title="Quick scan"
-            description="Start with classification or original label capture."
+            title="New Scan"
+            description="Classify a product from the package."
             icon={<ScanSearch color="#FFFFFF" size={19} />}
             dark
             onPress={() => router.push('/scan')}
           />
           <ActionTile
-            title="Saved history"
-            description="Review saved products, photos, and earlier customs results."
-            icon={<Package2 color={colors.text} size={19} />}
-            onPress={() => router.push('/products')}
+            title="New Label"
+            description="Start from an original label photo."
+            icon={<FileBadge2 color={colors.text} size={19} />}
+            onPress={() => router.push('/scan/label')}
           />
         </View>
 
-        <View style={styles.secondaryActionCard}>
-          <View style={styles.secondaryActionCopy}>
-            <Text style={styles.secondaryActionTitle}>Generate label after classification</Text>
-            <Text style={styles.secondaryActionText}>
-              Keep scan first: classify the product first, then open the EU label flow when you are
-              ready to finish the missing details.
-            </Text>
-          </View>
-          <Pressable style={styles.secondaryActionButton} onPress={() => router.push('/scan/label')}>
-            <FileBadge2 color={colors.text} size={16} />
-            <Text style={styles.secondaryActionButtonText}>Label flow</Text>
-          </Pressable>
-        </View>
-
         <View style={styles.summaryGrid}>
-          {topCards.map((card) => (
+          {metricCards.map((card) => (
             <View key={card.label} style={[styles.summaryCard, { backgroundColor: card.tone }]}>
               <Text style={styles.summaryLabel}>{card.label}</Text>
               <Text style={styles.summaryValue}>{card.value}</Text>
@@ -143,106 +166,149 @@ export default function DashboardScreen() {
         </View>
 
         {overview?.missingReasonings ? (
-          <Pressable style={styles.alertCard} onPress={() => router.push('/products')}>
-            <Text style={styles.alertTitle}>{overview.missingReasonings} missing reasonings</Text>
-            <Text style={styles.alertText}>
-              Critical classifications still lack required evidentiary documentation.
+          <Pressable
+            style={styles.actionCard}
+            onPress={() => router.push('/library?section=classifications')}
+          >
+            <Text style={styles.actionEyebrow}>Pending completion</Text>
+            <Text style={styles.actionCardTitle}>{overview.missingReasonings} items can be strengthened</Text>
+            <Text style={styles.actionCardText}>
+              Review the saved results that still need a clarification or dossier.
             </Text>
-            <Text style={styles.alertAction}>Review missing data</Text>
+            <Text style={styles.actionCardLink}>Review now</Text>
           </Pressable>
         ) : null}
 
-        <SectionHeader title="Recent classifications" actionLabel="Products" onPress={() => router.push('/products')} />
+        <SectionHeader
+          title="Recent activity"
+          actionLabel="View all"
+          onPress={() => router.push('/library?section=classifications')}
+        />
         <View style={styles.sectionCard}>
           {dashboardQuery.isLoading ? (
             <ActivityIndicator color={colors.primary} />
           ) : overview?.actionItems?.length ? (
-            overview.actionItems.slice(0, 4).map((item: any) => (
-              <Pressable
-                key={item.id}
-                style={styles.listRow}
-                onPress={() => {
-                  const id = String(item.id ?? '');
-                  if (!id) return;
-                  router.push(`/classifications/${id}` as never);
-                }}
-              >
-                <View style={styles.listDotWrap}>
-                  <View
-                    style={[
-                      styles.listDot,
-                      item.dossier ? styles.listDotReady : styles.listDotPending,
-                    ]}
-                  />
-                </View>
-                <View style={styles.listCopy}>
-                  <Text style={styles.listTitle}>{item.product?.name ?? 'Untitled product'}</Text>
-                  <Text style={styles.listSubtitle}>
-                    {formatClassificationCode(
-                      getPreferredClassificationCode({
-                        cnCode: item.cnCode,
-                        htsCode: item.htsCode,
-                        hsCode: item.hsCode,
-                      }),
-                    ) || 'Classification pending'}
-                  </Text>
-                </View>
-                <View style={styles.listTag}>
-                  <Text style={styles.listTagText}>{item.dossier ? 'Ready' : 'Pending'}</Text>
-                </View>
-              </Pressable>
-            ))
+            overview.actionItems.slice(0, 4).map((item: any) => {
+              const tone = getActivityTone(item);
+              return (
+                <Pressable
+                  key={item.id}
+                  style={styles.listRow}
+                  onPress={() => {
+                    const id = String(item.id ?? '');
+                    if (!id) return;
+                    router.push(`/classifications/${id}` as never);
+                  }}
+                >
+                  <View style={styles.listDotWrap}>
+                    <View style={[styles.listDot, tone.dotStyle]} />
+                  </View>
+                  <View style={styles.listCopy}>
+                    <Text style={styles.listTitle}>{item.product?.name ?? 'Untitled product'}</Text>
+                    <Text style={styles.listSubtitle}>
+                      {formatClassificationCode(
+                        getPreferredClassificationCode({
+                          cnCode: item.cnCode,
+                          htsCode: item.htsCode,
+                          hsCode: item.hsCode,
+                        }),
+                      ) || 'Classification pending'}
+                    </Text>
+                  </View>
+                  <View style={[styles.listTag, tone.tagStyle]}>
+                    <Text style={[styles.listTagText, tone.tagTextStyle]}>{tone.label}</Text>
+                  </View>
+                </Pressable>
+              );
+            })
           ) : (
-            <Text style={styles.emptyText}>No recent classifications yet.</Text>
+            <Text style={styles.emptyText}>No recent activity yet.</Text>
           )}
         </View>
 
         <Pressable
           style={styles.footerLink}
           onPress={() => {
-            if (firstClassificationId) {
-              router.push(`/classifications/${firstClassificationId}` as never);
+            if (firstActionItem?.id) {
+              router.push(`/classifications/${String(firstActionItem.id)}` as never);
               return;
             }
             router.push('/scan');
           }}
         >
           <Text style={styles.footerLinkText}>
-            {firstClassificationId ? 'View latest result' : 'Run your first scan'}
+            {firstActionItem?.id ? 'Open latest result' : 'Run your first scan'}
           </Text>
           <ChevronRight color={colors.text} size={16} />
         </Pressable>
-
-        <SectionHeader title="Recent shipments" />
-        <View style={styles.sectionCard}>
-          {overview?.recentShipments?.length ? (
-            overview.recentShipments.slice(0, 3).map((shipment: any) => (
-              <View key={shipment.id} style={styles.shipmentRow}>
-                <View>
-                  <Text style={styles.listTitle}>{shipment.shipmentNumber}</Text>
-                  <Text style={styles.listSubtitle}>
-                    {shipment.items?.length ?? 0} items · {String(shipment.type).toLowerCase()}
-                  </Text>
-                </View>
-                <Text style={styles.shipmentStatus}>{String(shipment.status).replace(/_/g, ' ')}</Text>
-              </View>
-            ))
-          ) : (
-            <Text style={styles.emptyText}>No active shipments yet.</Text>
-          )}
-        </View>
-
-        <View style={styles.accountCard}>
-          <Text style={styles.accountTitle}>Account</Text>
-          <Text style={styles.accountText}>
-            Sign out lives here so the top-right action can stay focused on quick scan.
-          </Text>
-          <Pressable style={styles.accountButton} onPress={() => void signOut()}>
-            <LogOut color={colors.text} size={16} />
-            <Text style={styles.accountButtonText}>Sign out</Text>
-          </Pressable>
-        </View>
       </ScrollView>
+
+      <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+        <Pressable style={styles.menuOverlay} onPress={() => setMenuOpen(false)}>
+          <Pressable style={styles.menuSheet} onPress={(event) => event.stopPropagation()}>
+            <View style={styles.menuIdentity}>
+              <View style={styles.menuAvatar}>
+                <Text style={styles.menuAvatarText}>{getInitials(identityName)}</Text>
+              </View>
+              <View style={styles.menuIdentityCopy}>
+                <Text style={styles.menuName}>{meQuery.data?.organization.name ?? 'Workspace'}</Text>
+                <Text style={styles.menuEmail}>
+                  {meQuery.data?.user.email || user.email || 'Signed in'}
+                </Text>
+              </View>
+            </View>
+
+            <MenuItem
+              icon={<UserCircle2 color={colors.text} size={18} />}
+              label="View account"
+              onPress={() => {
+                setMenuOpen(false);
+                router.push('/account');
+              }}
+            />
+            <MenuItem
+              icon={<Files color={colors.text} size={18} />}
+              label="All classifications"
+              onPress={() => {
+                setMenuOpen(false);
+                router.push('/library?section=classifications');
+              }}
+            />
+            <MenuItem
+              icon={<FileBadge2 color={colors.text} size={18} />}
+              label="All labels"
+              onPress={() => {
+                setMenuOpen(false);
+                router.push('/library?section=labels');
+              }}
+            />
+            <MenuItem
+              icon={<FileCheck2 color={colors.text} size={18} />}
+              label="All dossiers"
+              onPress={() => {
+                setMenuOpen(false);
+                router.push('/library?section=dossiers');
+              }}
+            />
+            <MenuItem
+              icon={<ScanSearch color={colors.text} size={18} />}
+              label="Start new scan"
+              onPress={() => {
+                setMenuOpen(false);
+                router.push('/scan');
+              }}
+            />
+            <MenuItem
+              icon={<BadgeCheck color={colors.text} size={18} />}
+              label="Sign out"
+              onPress={() => {
+                setMenuOpen(false);
+                void signOut();
+              }}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -285,31 +351,102 @@ function ActionTile({
     <Pressable style={[styles.actionTile, dark && styles.actionTileDark]} onPress={onPress}>
       <View style={[styles.actionIcon, dark && styles.actionIconDark]}>{icon}</View>
       <Text style={[styles.actionTitle, dark && styles.actionTitleDark]}>{title}</Text>
-      <Text style={[styles.actionText, dark && styles.actionTextDark]}>{description}</Text>
+      <Text style={[styles.actionTileText, dark && styles.actionTileTextDark]}>{description}</Text>
     </Pressable>
   );
 }
 
-function Bullet({ text, danger, muted }: { text: string; danger?: boolean; muted?: boolean }) {
+function MenuItem({
+  icon,
+  label,
+  onPress,
+}: {
+  icon: ReactNode;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable style={styles.menuItem} onPress={onPress}>
+      <View style={styles.menuItemIcon}>{icon}</View>
+      <Text style={styles.menuItemLabel}>{label}</Text>
+      <ChevronRight color={colors.textMuted} size={18} />
+    </Pressable>
+  );
+}
+
+function Bullet({ text, muted }: { text: string; muted?: boolean }) {
   return (
     <View style={styles.bulletRow}>
-      <View
-        style={[
-          styles.bulletDot,
-          danger ? styles.bulletDotDanger : muted ? styles.bulletDotMuted : styles.bulletDotDefault,
-        ]}
-      />
-      <Text
-        style={[
-          styles.bulletText,
-          danger && styles.bulletTextDanger,
-          muted && styles.bulletTextMuted,
-        ]}
-      >
-        {text}
-      </Text>
+      <View style={[styles.bulletDot, muted ? styles.bulletDotMuted : styles.bulletDotDefault]} />
+      <Text style={[styles.bulletText, muted && styles.bulletTextMuted]}>{text}</Text>
     </View>
   );
+}
+
+function getInitials(value: string) {
+  return (
+    value
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() || '')
+      .join('') || 'TC'
+  );
+}
+
+function getReadinessState(score: number, missingReasonings: number) {
+  if (score >= 80 && missingReasonings === 0) {
+    return {
+      label: 'Complete',
+      shortLabel: 'Complete',
+      description: 'Your saved results look well covered right now.',
+      pillColor: colors.successSoft,
+    };
+  }
+
+  if (score >= 45) {
+    return {
+      label: 'In progress',
+      shortLabel: 'In progress',
+      description: 'Some saved results are still pending completion.',
+      pillColor: colors.warningSoft,
+    };
+  }
+
+  return {
+    label: 'Pending completion',
+    shortLabel: 'Pending',
+    description: 'Prioritize items that still need clarification or dossier coverage.',
+    pillColor: colors.warningSoft,
+  };
+}
+
+function getActivityTone(item: any) {
+  if (item?.dossier) {
+    return {
+      label: 'Dossier ready',
+      dotStyle: styles.listDotReady,
+      tagStyle: styles.listTagReady,
+      tagTextStyle: styles.listTagTextReady,
+    };
+  }
+
+  if (item?.refinementQuestion || item?.requiresReview) {
+    return {
+      label: 'Needs details',
+      dotStyle: styles.listDotAttention,
+      tagStyle: styles.listTagAttention,
+      tagTextStyle: styles.listTagTextAttention,
+    };
+  }
+
+  return {
+    label: 'Saved',
+    dotStyle: styles.listDotNeutral,
+    tagStyle: styles.listTagNeutral,
+    tagTextStyle: styles.listTagTextNeutral,
+  };
 }
 
 const styles = StyleSheet.create({
@@ -327,37 +464,57 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingBottom: 120,
   },
-  header: {
-    marginTop: 6,
+  headerCard: {
+    marginTop: 8,
     marginBottom: 18,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
   },
-  headerSpacer: {
-    width: 42,
-  },
-  brandRow: {
+  headerIdentity: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
     flex: 1,
   },
-  brand: {
+  avatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  headerCopy: {
+    flex: 1,
+  },
+  welcomeText: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginBottom: 2,
+  },
+  workspace: {
     color: colors.text,
     fontSize: 18,
     fontWeight: '800',
   },
-  workspace: {
-    color: colors.textMuted,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  signOutButton: {
+  menuButton: {
     width: 42,
     height: 42,
     borderRadius: 21,
     borderWidth: 1,
     borderColor: colors.borderSoft,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceMuted,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -375,7 +532,38 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 1,
-    marginBottom: 14,
+    marginBottom: 10,
+  },
+  scoreRowTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  scoreHeadline: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  scoreHeadlineTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 3,
+  },
+  scoreHeadlineText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  scoreStatusPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+  },
+  scoreStatusText: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '700',
   },
   scoreRow: {
     flexDirection: 'row',
@@ -383,18 +571,37 @@ const styles = StyleSheet.create({
     gap: 18,
   },
   scoreRing: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
+    width: 126,
+    height: 126,
+    borderRadius: 63,
     borderWidth: 7,
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: colors.surfaceMuted,
   },
-  scoreValue: {
+  scoreRingInner: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  },
+  scoreRingValue: {
     color: colors.text,
     fontSize: 28,
     fontWeight: '800',
+  },
+  scoreRingLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   scoreCopy: {
     flex: 1,
@@ -413,9 +620,6 @@ const styles = StyleSheet.create({
   bulletDotDefault: {
     backgroundColor: colors.text,
   },
-  bulletDotDanger: {
-    backgroundColor: colors.danger,
-  },
   bulletDotMuted: {
     backgroundColor: colors.textMuted,
   },
@@ -424,9 +628,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 13,
     lineHeight: 18,
-  },
-  bulletTextDanger: {
-    color: colors.danger,
   },
   bulletTextMuted: {
     color: colors.textSecondary,
@@ -463,59 +664,20 @@ const styles = StyleSheet.create({
   },
   actionTitle: {
     color: colors.text,
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '800',
     marginBottom: 6,
   },
   actionTitleDark: {
     color: '#FFFFFF',
   },
-  actionText: {
+  actionTileText: {
     color: colors.textSecondary,
     fontSize: 13,
     lineHeight: 19,
   },
-  actionTextDark: {
+  actionTileTextDark: {
     color: 'rgba(255,255,255,0.72)',
-  },
-  secondaryActionCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 16,
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  secondaryActionCopy: {
-    flex: 1,
-  },
-  secondaryActionTitle: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '800',
-    marginBottom: 6,
-  },
-  secondaryActionText: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 19,
-  },
-  secondaryActionButton: {
-    backgroundColor: colors.surfaceRaised,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  secondaryActionButtonText: {
-    color: colors.text,
-    fontWeight: '800',
-    fontSize: 13,
   },
   summaryGrid: {
     flexDirection: 'row',
@@ -529,39 +691,46 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  summaryLabel: {
-    color: colors.textMuted,
-    fontSize: 11,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 10,
-  },
   summaryValue: {
     color: colors.text,
-    fontSize: 30,
+    fontSize: 22,
     fontWeight: '800',
   },
-  alertCard: {
-    backgroundColor: colors.dangerSoft,
+  summaryLabel: {
+    color: colors.textMuted,
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+    marginBottom: 8,
+  },
+  actionCard: {
+    backgroundColor: '#E7EEF9',
     borderRadius: radius.md,
     padding: 16,
     marginBottom: 22,
     borderWidth: 1,
-    borderColor: '#F2C7CB',
+    borderColor: '#D4DDF0',
   },
-  alertTitle: {
+  actionEyebrow: {
+    color: colors.textMuted,
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  actionCardTitle: {
     color: colors.text,
     fontSize: 16,
     fontWeight: '800',
     marginBottom: 6,
   },
-  alertText: {
+  actionCardText: {
     color: colors.textSecondary,
     fontSize: 13,
     lineHeight: 19,
     marginBottom: 10,
   },
-  alertAction: {
+  actionCardLink: {
     color: colors.text,
     fontWeight: '700',
     fontSize: 13,
@@ -574,7 +743,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: colors.text,
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: '800',
   },
   sectionAction: {
@@ -607,10 +776,13 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   listDotReady: {
-    backgroundColor: colors.text,
+    backgroundColor: colors.success,
   },
-  listDotPending: {
-    backgroundColor: colors.danger,
+  listDotAttention: {
+    backgroundColor: colors.warning,
+  },
+  listDotNeutral: {
+    backgroundColor: colors.textMuted,
   },
   listCopy: {
     flex: 1,
@@ -627,16 +799,31 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   listTag: {
-    backgroundColor: colors.surfaceRaised,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
   },
+  listTagReady: {
+    backgroundColor: colors.successSoft,
+  },
+  listTagAttention: {
+    backgroundColor: colors.warningSoft,
+  },
+  listTagNeutral: {
+    backgroundColor: colors.surfaceRaised,
+  },
   listTagText: {
-    color: colors.textSecondary,
     fontSize: 11,
     fontWeight: '700',
-    textTransform: 'uppercase',
+  },
+  listTagTextReady: {
+    color: colors.success,
+  },
+  listTagTextAttention: {
+    color: colors.warning,
+  },
+  listTagTextNeutral: {
+    color: colors.textSecondary,
   },
   footerLink: {
     flexDirection: 'row',
@@ -649,59 +836,81 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: '700',
   },
-  footerLinkTextDisabled: {
-    color: colors.textMuted,
-  },
-  shipmentRow: {
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderSoft,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  shipmentStatus: {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
   emptyText: {
     color: colors.textSecondary,
     paddingVertical: 16,
     paddingHorizontal: 8,
   },
-  accountCard: {
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.2)',
+    justifyContent: 'flex-start',
+  },
+  menuSheet: {
+    marginTop: 72,
+    marginHorizontal: 18,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,
     padding: 18,
+    shadowColor: colors.shadow,
+    shadowOpacity: 1,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
   },
-  accountTitle: {
+  menuIdentity: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderSoft,
+  },
+  menuAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  menuIdentityCopy: {
+    flex: 1,
+  },
+  menuName: {
     color: colors.text,
     fontSize: 18,
     fontWeight: '800',
-    marginBottom: 6,
   },
-  accountText: {
+  menuEmail: {
     color: colors.textSecondary,
     fontSize: 13,
-    lineHeight: 19,
-    marginBottom: 14,
   },
-  accountButton: {
-    alignSelf: 'flex-start',
+  menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: colors.surfaceRaised,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 999,
+    gap: 12,
+    paddingVertical: 13,
   },
-  accountButtonText: {
+  menuItemIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surfaceRaised,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuItemLabel: {
     color: colors.text,
     fontWeight: '800',
+    fontSize: 15,
+    flex: 1,
   },
 });

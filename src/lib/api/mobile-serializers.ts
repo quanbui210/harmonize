@@ -23,6 +23,18 @@ function toNumberOrNull(value: unknown) {
   return typeof value === "number" ? value : Number(value);
 }
 
+function parseJsonString(value: unknown) {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
 export function serializeProduct<T extends Record<string, any>>(product: T) {
   return {
     ...product,
@@ -60,6 +72,8 @@ export function serializeClassification<T extends Record<string, any>>(
   return {
     ...classification,
     confidence: toNumberOrNull(classification.confidence),
+    humanNotes: parseJsonString(classification.humanNotes),
+    refinementAnswer: parseJsonString(classification.refinementAnswer),
     product: classification.product
       ? serializeProduct(classification.product)
       : classification.product,
