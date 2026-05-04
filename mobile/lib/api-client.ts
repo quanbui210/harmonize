@@ -473,7 +473,11 @@ export class ApiClient {
     return response.session;
   }
 
-  static async sendChatMessage(query: string, sessionId?: string) {
+  static async sendChatMessage(
+    query: string,
+    sessionId?: string,
+    context?: { classificationIds?: string[]; labelIds?: string[] }
+  ) {
     return this.fetchWithAuth<{
       answer: string;
       sources: Array<{
@@ -487,7 +491,7 @@ export class ApiClient {
       messageId: string;
     }>('/chat', {
       method: 'POST',
-      body: JSON.stringify({ query, sessionId }),
+      body: JSON.stringify({ query, sessionId, ...context }),
     });
   }
 

@@ -5,18 +5,19 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Send, MessageSquare, FileText, Sparkles, ChevronDown, ChevronUp, Menu } from "lucide-react";
+import { Loader2, Send, MessageSquare, FileText, Sparkles, ChevronDown, ChevronUp, Menu, Plus, X } from "lucide-react";
 import { askComplianceQuestionAction } from "@/server/actions/compliance-chat";
+import { getOrganizationClassificationsAction } from "@/server/actions/classifications";
+import { getLabelsAction } from "@/server/actions/labels";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const EXAMPLE_QUESTIONS = [
-  { question: "What is CN code 8806 00 00?", category: "CN Code" },
-  { question: "How does GRI 1 work?", category: "GRI Rules" },
-  { question: "What is GRI 3 about sets?", category: "GRI Rules" },
-  { question: "What are the notes for Chapter 88?", category: "Chapter Notes" },
-  { question: "What is the difference between heading 8806 and 9503?", category: "Classification" },
-  { question: "What are end-use arrangements?", category: "Special Provisions" },
+  { question: "What documents are usually needed for EU import clearance?", category: "Customs" },
+  { question: "How should I interpret CN code notes and GRI rules?", category: "Classification" },
+  { question: "What makes a strong customs defense dossier?", category: "Defense" },
 ];
 
 interface Message {
@@ -66,11 +67,40 @@ export function ComplianceChat({ organizationId, userId, sessionId: initialSessi
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(initialSessionId);
   const [expandedSources, setExpandedSources] = useState<Set<number>>(new Set());
 
+  // Context State
+  const [selectedClassifications, setSelectedClassifications] = useState<Set<string>>(new Set());
+  const [selectedLabels, setSelectedLabels] = useState<Set<string>>(new Set());
+  const [availableClassifications, setAvailableClassifications] = useState<any[]>([]);
+  const [availableLabels, setAvailableLabels] = useState<any[]>([]);
+  const [isContextLoading, setIsContextLoading] = useState(false);
+  const [isContextOpen, setIsContextOpen] = useState(false);
+
   useEffect(() => {
     if (initialSessionId && initialMessages) {
       setCurrentSessionId(initialSessionId);
     }
   }, [initialSessionId, initialMessages]);
+
+  useEffect(() => {
+    if (isContextOpen && !availableClassifications.length && !availableLabels.length) {
+      const fetchContexts = async () => {
+        setIsContextLoading(true);
+        try {
+          const [classRes, labelRes] = await Promise.all([
+            getOrganizationClassificationsAction({ organizationId, limit: 10 }),
+            getLabelsAction({ organizationId, limit: 10 })
+          ]);
+          setAvailableClassifications(classRes.items || []);
+          setAvailableLabels(labelRes.items || []);
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setIsContextLoading(false);
+        }
+      };
+      fetchContexts();
+    }
+  }, [isContextOpen, organizationId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,6 +122,8 @@ export function ComplianceChat({ organizationId, userId, sessionId: initialSessi
         sessionId: currentSessionId,
         organizationId,
         userId,
+        classificationIds: Array.from(selectedClassifications),
+        labelIds: Array.from(selectedLabels),
       });
       
       setCurrentSessionId(result.sessionId);
@@ -121,6 +153,22 @@ export function ComplianceChat({ organizationId, userId, sessionId: initialSessi
   const handleExampleClick = (question: string) => {
     setInput(question);
   };
+
+  const toggleClassification = (id: string) => {
+    const next = new Set(selectedClassifications);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedClassifications(next);
+  };
+
+  const toggleLabel = (id: string) => {
+    const next = new Set(selectedLabels);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedLabels(next);
+  };
+
+  const hasContext = selectedClassifications.size > 0 || selectedLabels.size > 0;
 
   return (
     <div className="flex h-full flex-col bg-background">
@@ -323,27 +371,95 @@ export function ComplianceChat({ organizationId, userId, sessionId: initialSessi
 
       {/* Input Area - Fixed at bottom */}
       <div className="border-t bg-background">
-        <form onSubmit={handleSubmit} className="mx-auto max-w-4xl px-4 py-4">
-          <div className="flex gap-2">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about CN codes, GRI rules, chapter notes..."
-              className="flex-1"
-              disabled={isLoading}
-            />
-            <Button type="submit" disabled={isLoading || !input.trim()}>
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground text-center">
-            Powered by Regulation (EU) 2021/1832 • Answers are based on official legal sources
-          </p>
-        </form>
+        <div className="mx-auto max-w-4xl px-4 pt-4">
+          {hasContext && (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {Array.from(selectedClassifications).map(id => (
+                <Badge key={`c-${id}`} variant="secondary" className="flex items-center gap-1 bg-primary/5">
+                  <span className="text-xs">Classified Product</span>
+                  <X className="h-3 w-3 cursor-pointer opacity-50 hover:opacity-100" onClick={() => toggleClassification(id)} />
+                </Badge>
+              ))}
+              {Array.from(selectedLabels).map(id => {
+                const lbl = availableLabels.find(l => l.id === id);
+                const labelName = lbl?.product?.name ? `${lbl.product.name} Label` : `Label ${id.slice(-4).toUpperCase()}`;
+                return (
+                  <Badge key={`l-${id}`} variant="secondary" className="flex items-center gap-1 bg-primary/5">
+                    <span className="text-xs">{labelName}</span>
+                    <X className="h-3 w-3 cursor-pointer opacity-50 hover:opacity-100" onClick={() => toggleLabel(id)} />
+                  </Badge>
+                );
+              })}
+            </div>
+          )}
+          <form onSubmit={handleSubmit} className="pb-4">
+            <div className="flex gap-2">
+                <Popover open={isContextOpen} onOpenChange={setIsContextOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="icon" type="button" className={cn("shrink-0 rounded-full", hasContext && "border-primary text-primary")}>
+                      <Plus className="h-5 w-5" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-80 p-0" side="top">
+                    <div className="border-b px-4 py-3">
+                      <h4 className="text-sm font-semibold">Attach Knowledge</h4>
+                      <p className="text-xs text-muted-foreground mt-1">Select records to help the assistant provide specific, grounded answers.</p>
+                    </div>
+                  <div className="max-h-[300px] overflow-y-auto p-2">
+                    {isContextLoading ? (
+                      <div className="flex items-center justify-center p-4"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
+                    ) : (
+                      <>
+                        <div className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Classifications</div>
+                        {availableClassifications.length === 0 && <div className="px-2 pb-2 text-xs text-muted-foreground">No recent classifications</div>}
+                        {availableClassifications.map(item => (
+                          <div key={item.id} className="flex items-center gap-2 rounded-md p-2 hover:bg-muted">
+                            <Checkbox id={`c-${item.id}`} checked={selectedClassifications.has(item.id)} onCheckedChange={() => toggleClassification(item.id)} />
+                            <label htmlFor={`c-${item.id}`} className="flex flex-1 cursor-pointer flex-col">
+                              <span className="text-sm font-medium">{item.product?.name || "Unknown Product"}</span>
+                              <span className="text-xs text-muted-foreground">{item.cnCode || "No code"}</span>
+                            </label>
+                          </div>
+                        ))}
+                        <div className="mb-2 mt-4 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Labels</div>
+                        {availableLabels.length === 0 && <div className="px-2 pb-2 text-xs text-muted-foreground">No recent labels</div>}
+                        {availableLabels.map(item => {
+                            const labelName = item.product?.name ? `${item.product.name} Label` : `Label ${item.id.slice(-4).toUpperCase()}`;
+                            return (
+                              <div key={item.id} className="flex items-center gap-2 rounded-md p-2 hover:bg-muted">
+                                <Checkbox id={`l-${item.id}`} checked={selectedLabels.has(item.id)} onCheckedChange={() => toggleLabel(item.id)} />
+                                <label htmlFor={`l-${item.id}`} className="flex flex-1 cursor-pointer flex-col">
+                                  <span className="text-sm font-medium">{labelName}</span>
+                                  <span className="text-xs text-muted-foreground">Score: {item.complianceScore}%</span>
+                                </label>
+                              </div>
+                            );
+                          })}
+                      </>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask about CN codes, GRI rules, chapter notes..."
+                className="flex-1"
+                disabled={isLoading}
+              />
+              <Button type="submit" disabled={isLoading || !input.trim()}>
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground text-center">
+              Powered by Regulation (EU) 2021/1832 • Answers are based on official legal sources
+            </p>
+          </form>
+        </div>
       </div>
     </div>
   );

@@ -12,6 +12,8 @@ import { handleCorsPreflight, jsonWithCors } from "@/lib/api/cors";
 const askQuestionSchema = z.object({
   query: z.string().min(1),
   sessionId: z.string().cuid().optional(),
+  classificationIds: z.array(z.string()).optional(),
+  labelIds: z.array(z.string()).optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -53,6 +55,8 @@ export async function POST(request: NextRequest) {
       sessionId: payload.sessionId,
       organizationId: membership.organizationId,
       userId: user.id,
+      classificationIds: payload.classificationIds,
+      labelIds: payload.labelIds,
     });
 
     return jsonWithCors(request, result, { status: 201 });

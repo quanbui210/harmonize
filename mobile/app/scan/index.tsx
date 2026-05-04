@@ -1,5 +1,5 @@
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, FileBadge2, ScanSearch, ShieldCheck } from 'lucide-react-native';
@@ -12,6 +12,7 @@ const { colors, radius } = lightTheme;
 
 export default function ScanHubScreen() {
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const dashboardQuery = useQuery({
     queryKey: ['dashboard'],
     queryFn: () => ApiClient.getDashboard(),
@@ -24,7 +25,7 @@ export default function ScanHubScreen() {
     : null;
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <View style={[styles.screen, { paddingTop: insets.top }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
@@ -132,7 +133,7 @@ export default function ScanHubScreen() {
           <ArrowRight color={latestClassificationId ? colors.text : colors.textMuted} size={16} />
         </Pressable>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -177,7 +178,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 18,
-    paddingBottom: 110,
+    paddingBottom: 20,
   },
   header: {
     marginTop: 6,

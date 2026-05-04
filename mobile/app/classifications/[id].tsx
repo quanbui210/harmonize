@@ -736,7 +736,7 @@ function normalizeRiskFlags(value: unknown): { label: string; details?: string }
         details: textFromUnknown(record.details) || undefined,
       };
     })
-    .filter((item): item is { label: string; details?: string } => Boolean(item));
+    .filter((item): item is { label: string; details: string | undefined } => Boolean(item));
 }
 
 function titleCase(value: string) {

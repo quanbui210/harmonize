@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import {
   BadgeCheck,
@@ -32,6 +32,7 @@ const { colors, radius } = lightTheme;
 
 export default function DashboardScreen() {
   const { user, signOut, isLoading: authLoading } = useAuth();
+  const insets = useSafeAreaInsets();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const meQuery = useQuery({
@@ -62,7 +63,7 @@ export default function DashboardScreen() {
   const totalSavedResults = (overview?.approvedCount ?? 0) + (overview?.pendingCount ?? 0);
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <View style={[styles.screen, { paddingTop: insets.top }]}>
       <GridBackdrop />
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -206,7 +207,7 @@ export default function DashboardScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -422,7 +423,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 18,
-    paddingBottom: 120,
+    paddingBottom: 20,
     zIndex: 1,
   },
   headerCard: {
@@ -536,7 +537,7 @@ const styles = StyleSheet.create({
   actionTitle: {
     color: '#111827',
     fontSize: 17,
-    fontWeight: '800',
+    fontWeight: '600',
     lineHeight: 22,
   },
   actionTitleDark: {
@@ -561,7 +562,7 @@ const styles = StyleSheet.create({
   summaryLineValue: {
     color: '#0B0F17',
     fontSize: 22,
-    fontWeight: '800',
+    fontWeight: '600',
   },
   sectionCard: {
     backgroundColor: '#FFFFFF',

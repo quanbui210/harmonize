@@ -431,6 +431,8 @@ export async function askComplianceQuestionAction(input: {
   sessionId?: string;
   organizationId: string;
   userId: string;
+  classificationIds?: string[];
+  labelIds?: string[];
 }): Promise<{
   answer: string;
   sources: Array<{
@@ -443,7 +445,7 @@ export async function askComplianceQuestionAction(input: {
   sessionId: string;
   messageId: string;
 }> {
-  const { query, sessionId, organizationId, userId } = input;
+  const { query, sessionId, organizationId, userId, classificationIds, labelIds } = input;
 
   if (!query || query.trim().length === 0) {
     throw new Error("Query cannot be empty");
@@ -484,8 +486,56 @@ export async function askComplianceQuestionAction(input: {
   // Search for relevant chunks from both legal sources and regulatory documents
   const chunks = await searchComplianceDocuments(query, 10);
 
+  // Fetch contextual user data if requested
+  const attachedContextChunks: Array<{ sectionPath: string; excerpt: string; source?: string }> = [];
+
+  if (classificationIds?.length) {
+    const classifications = await (prisma as any).classification.findMany({
+      where: { id: { in: classificationIds }, organizationId },
+      include: { product: true },
+    });
+
+    for (const cls of classifications) {
+      const details = [
+        `Product: ${cls.product?.name || "Unknown"}`,
+        `HS/HTS/CN Code: ${cls.cnCode || cls.htsCode || cls.hsCode || "Unknown"}`,
+        `Confidence: ${cls.confidence ? `${cls.confidence}%` : "Unknown"}`,
+        `Summary: ${cls.summary || "None"}`,
+      ].join("\n");
+      
+      attachedContextChunks.push({
+        sectionPath: `Attached Context: Classification for ${cls.product?.name || "Product"}`,
+        excerpt: details,
+        source: "USER_CONTEXT",
+      });
+    }
+  }
+
+  if (labelIds?.length) {
+    const labels = await (prisma as any).label.findMany({
+      where: { id: { in: labelIds }, organizationId },
+      include: { product: true },
+    });
+
+    for (const lbl of labels) {
+      const details = [
+        `Product: ${lbl.product?.name || "Unknown"}`,
+        `Compliance Score: ${lbl.complianceScore}%`,
+        `Data: ${JSON.stringify(lbl.labelData || {})}`
+      ].join("\n");
+
+      attachedContextChunks.push({
+        sectionPath: `Attached Context: Label for ${lbl.product?.name || "Product"}`,
+        excerpt: details,
+        source: "USER_CONTEXT",
+      });
+    }
+  }
+
+  const combinedChunks = [...attachedContextChunks, ...chunks];
+
   // Always generate answer - LLM can use its knowledge if sources don't contain the answer
-  const answer = await generateAnswer(query, chunks);
+  const answer = await generateAnswer(query, combinedChunks, { userId, organizationId });
 
   // Save assistant message
   const assistantMessage = await (prisma as any).chatMessage.create({
@@ -493,7 +543,7 @@ export async function askComplianceQuestionAction(input: {
       sessionId: session.id,
       role: "assistant",
       content: answer,
-      sources: chunks as any,
+      sources: combinedChunks as any,
     },
   });
 
@@ -505,7 +555,7 @@ export async function askComplianceQuestionAction(input: {
 
   return {
     answer,
-    sources: chunks,
+    sources: combinedChunks,
     sessionId: session.id,
     messageId: assistantMessage.id,
   };

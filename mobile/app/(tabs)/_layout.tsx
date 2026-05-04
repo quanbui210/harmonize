@@ -1,7 +1,8 @@
 import React from 'react';
 import { Redirect, Tabs } from 'expo-router';
 import { ActivityIndicator, View } from 'react-native';
-import { Grid2x2, Package2, ScanSearch, Sparkles } from 'lucide-react-native';
+import { Grid2x2, MessageSquare, ScanSearch } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/components/AuthProvider';
 import { lightTheme } from '@/constants/mobile-theme';
 
@@ -9,6 +10,9 @@ const { colors } = lightTheme;
 
 export default function TabLayout() {
   const { user, isLoading } = useAuth();
+  const insets = useSafeAreaInsets();
+  const tabBarBottomPadding = Math.max(insets.bottom, 10);
+  const tabBarHeight = 56 + tabBarBottomPadding;
 
   if (isLoading) {
     return (
@@ -36,9 +40,9 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.borderSoft,
-          height: 78,
+          height: tabBarHeight,
           paddingTop: 10,
-          paddingBottom: 12,
+          paddingBottom: tabBarBottomPadding,
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
@@ -70,20 +74,18 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="products"
+        name="explore"
         options={{
-          title: 'History',
+          title: 'Assist',
           tabBarIcon: ({ color, focused }) => (
-            <Package2 color={color} size={focused ? 22 : 20} strokeWidth={2.2} />
+            <MessageSquare color={color} size={focused ? 22 : 20} strokeWidth={2.2} />
           ),
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="products"
         options={{
           href: null,
-          title: 'Hidden',
-          tabBarIcon: ({ color }) => <Sparkles color={color} size={20} />,
         }}
       />
     </Tabs>
